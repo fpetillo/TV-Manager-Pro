@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TV Manager Dashboard</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">TV MANAGER</p><h1>Dashboard</h1><p class="subtitle">Library health, automation, upcoming work, downloads and recent activity.</p></div></header>
+
+<nav class="appnav professional-nav">
+  <a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/upcoming">Upcoming</a>
+  <a href="/missing">Missing</a><a href="/queue">Queue</a><a href="/upgrades">Upgrades</a>
+  <a href="/subtitles">Subtitles</a><a href="/activity">Activity</a><a href="/postprocess">Post Processing</a>
+  <a href="/quality">Quality</a><a href="/operations">Operations</a><a href="/advanced">Advanced</a>
+  <a href="/settings">Settings</a><a href="/system">System</a><a href="/import">Migration</a>
+</nav>
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <div id="commandResults"></div>
+</div></div>
+
+<section class="dashboard-grid dashboard-8" id="stats"></section>
+<section class="insight-strip" id="insights"></section>
+<div class="page-grid">
+<section class="panel col-8"><div class="toolbar"><h2>Automation</h2><div class="spacer"></div><a class="btn secondary" href="/settings">Configure</a></div><div id="jobs"></div></section>
+<section class="panel col-4"><div class="toolbar"><h2>System Health</h2><div class="spacer"></div><a class="btn secondary" href="/operations">Operations</a></div><div id="health"></div></section>
+<section class="panel col-6"><h2>Recent Activity</h2><div id="activity"></div></section>
+<section class="panel col-6"><h2>Recent Downloads</h2><div id="downloads"></div></section>
+</div></main><script src="/static/dashboard.js"></script><script src="/static/global.js"></script></body></html>

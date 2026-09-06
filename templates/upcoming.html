@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Upcoming Episodes</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">SCHEDULE</p><h1>Upcoming Episodes</h1><p class="subtitle">A compact air-date view of the episodes coming next.</p></div></header>
+
+<nav class="appnav professional-nav">
+  <a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/upcoming">Upcoming</a>
+  <a href="/missing">Missing</a><a href="/queue">Queue</a><a href="/upgrades">Upgrades</a>
+  <a href="/subtitles">Subtitles</a><a href="/activity">Activity</a><a href="/postprocess">Post Processing</a>
+  <a href="/quality">Quality</a><a href="/operations">Operations</a><a href="/advanced">Advanced</a>
+  <a href="/settings">Settings</a><a href="/system">System</a><a href="/import">Migration</a>
+</nav>
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <div id="commandResults"></div>
+</div></div>
+
+<section class="panel"><div class="toolbar"><strong id="count">Loading…</strong><div class="spacer"></div><select id="days"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option><option value="60">60 days</option></select></div><div id="list" class="table-wrap"></div></section>
+</main><script src="/static/upcoming.js"></script><script src="/static/global.js"></script></body></html>

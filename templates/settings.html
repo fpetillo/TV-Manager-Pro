@@ -1,0 +1,65 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings</title><link rel="stylesheet" href="/static/style.css"></head><body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">CONFIGURATION</p><h1>Settings</h1><p class="subtitle">A SickChill-style configuration center with imported settings, automation, providers, clients, notifications and advanced controls.</p></div></header>
+
+<nav class="appnav professional-nav">
+  <a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/upcoming">Upcoming</a>
+  <a href="/missing">Missing</a><a href="/queue">Queue</a><a href="/upgrades">Upgrades</a>
+  <a href="/subtitles">Subtitles</a><a href="/activity">Activity</a><a href="/postprocess">Post Processing</a>
+  <a href="/quality">Quality</a><a href="/operations">Operations</a><a href="/advanced">Advanced</a>
+  <a href="/settings">Settings</a><a href="/system">System</a><a href="/import">Migration</a>
+</nav>
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <div id="commandResults"></div>
+</div></div>
+
+<div class="settings-layout">
+<aside class="settings-sidebar">
+<button class="settings-tab active" data-view="automation">Automation</button>
+<button class="settings-tab" data-view="downloaders">Download Clients</button>
+<button class="settings-tab" data-view="providers">Search Providers</button>
+<button class="settings-tab" data-view="notifications">Notifications</button>
+<button class="settings-tab" data-view="naming">Naming</button>
+<button class="settings-tab" data-view="security">Security</button>
+<button class="settings-tab" data-view="legacy">All Imported Settings</button>
+</aside>
+<section class="panel settings-content">
+<div id="view-automation" class="settings-view">
+<div class="toolbar"><div><h2>Automation</h2><p class="muted">Schedule recent search, backlog, downloader polling, metadata and post-processing.</p></div><div class="spacer"></div><label class="switchline"><input id="automation" class="checkbox" type="checkbox"> Arm automation</label></div>
+<div id="automationNotice" class="notice warn"></div><div id="jobs"></div>
+<hr><h3>Search defaults</h3><div class="form-grid compact-grid"><label>Recent window (days)<input id="recentDays" type="number" min="1" max="90"></label><label>Max searches/run<input id="maxSearches" type="number" min="1" max="200"></label><label class="checkline"><input id="autoGrab" type="checkbox"> Auto-grab best acceptable result</label></div><label class="switchline" style="margin-top:12px"><input id="refreshMedia" type="checkbox" class="checkbox"> Refresh configured media servers after post-processing</label><label class="switchline" style="margin-top:12px"><input id="simulationMode" type="checkbox" class="checkbox"> Simulation mode — search and score normally, but never send downloads automatically</label><div class="actions"><button id="saveDefaults" class="secondary">Save defaults</button><button id="makeBackup" class="secondary">Create Backup</button></div><div id="backupMsg"></div>
+</div>
+<div id="view-downloaders" class="settings-view" hidden><div class="toolbar"><h2>Download Clients</h2><div class="spacer"></div><button id="pollClients" class="secondary">Poll Status</button><button id="testClients" class="blue">Test Clients</button></div><div id="clients"></div><div id="clientTest"></div></div>
+<div id="view-providers" class="settings-view" hidden><h2>Search Providers</h2><p class="muted">Newznab/Torznab-style provider configuration imported from SickChill.</p><div id="providers"></div></div>
+<div id="view-notifications" class="settings-view" hidden><div class="toolbar"><div><h2>Notifications</h2><p class="muted">Imported SickChill notification services.</p></div><div class="spacer"></div><button id="testEmail" class="secondary">Test Email</button></div><div id="notifications"></div><div id="notificationMsg"></div></div>
+
+<div id="view-naming" class="settings-view" hidden>
+<div class="toolbar"><div><h2>Episode Naming</h2><p class="muted">Preview exactly how imported SickChill naming rules will organize and rename episodes.</p></div></div>
+<div class="form-grid">
+<label>Naming preset<select id="namingPreset"></select></label>
+<label style="grid-column:1/-1">Naming pattern<input id="namingPattern" autocomplete="off"></label>
+<label class="checkline"><input id="renameEpisodes" type="checkbox"> Rename episodes during post-processing</label>
+<label class="checkline"><input id="moveAssociated" type="checkbox"> Move/rename associated subtitles, NFO and artwork</label>
+</div>
+<div class="result-card"><strong>Multi-episode preview</strong><p id="namingPreview" class="queue-release"></p><small>Example Show, Season 1, Episodes 1–2</small></div>
+<div class="actions"><button id="previewNaming" class="secondary">Preview</button><button id="saveNaming" class="blue">Save Naming</button></div>
+<div id="namingMsg"></div>
+</div>
+
+<div id="view-security" class="settings-view" hidden>
+<div class="toolbar"><div><h2>Browser Security</h2><p class="muted">Protect TV Manager before allowing access from other PCs on your LAN.</p></div></div>
+<div id="securityStatus"></div>
+<div class="form-grid">
+<label>Administrator username<input id="securityUsername" value="admin" autocomplete="username"></label>
+<label>New password<input id="securityPassword" type="password" minlength="12" autocomplete="new-password" placeholder="12+ characters"></label>
+</div>
+<div class="actions"><button id="saveAdminPassword" class="secondary">Set / Change Password</button>
+<label class="switchline"><input id="browserAuthEnabled" class="checkbox" type="checkbox"> Require browser login</label></div>
+<div id="securityMsg"></div>
+<hr><div class="toolbar"><h3>Recent Security Events</h3><div class="spacer"></div><button id="loadSecurityEvents" class="secondary">Refresh</button></div>
+<div id="securityEvents"></div>
+</div>
+<div id="view-legacy" class="settings-view" hidden><div class="toolbar"><div><h2>All Imported Settings</h2><p class="muted">Every section from the old SickChill config remains available. Secret values stay masked.</p></div><div class="spacer"></div><input id="sectionSearch" placeholder="Filter sections…"></div><div class="legacy-settings-layout"><div id="sections" class="section-list"></div><div id="sectionEditor"><div class="empty-state compact">Select a section.</div></div></div></div>
+</section></div></main><script src="/static/settings-v5.js"></script><script src="/static/global.js"></script></body></html>

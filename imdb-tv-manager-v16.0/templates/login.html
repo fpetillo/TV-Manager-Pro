@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TV Manager Login</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main class="shell" style="max-width:520px;padding-top:10vh">
+<section class="panel"><p class="eyebrow">TV MANAGER</p><h1>Sign in</h1>
+<p class="muted">Browser authentication is enabled for this TV Manager installation.</p>
+{% if error %}<div class="notice warn">{{ error }}</div>{% endif %}
+<form method="post" class="form-grid" style="grid-template-columns:1fr">
+<label>Username<input name="username" autocomplete="username" required autofocus></label>
+<label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+<button class="blue" type="submit">Sign in</button>
+</form></section></main></body></html>

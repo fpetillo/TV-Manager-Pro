@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quality Profiles</title><link rel="stylesheet" href="/static/style.css"></head><body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">RELEASE CONTROL</p><h1>Quality Profiles</h1><p class="subtitle">Reusable quality rules for resolution, source, codec, upgrade cutoff and release-word preferences.</p></div></header>
+
+<nav class="appnav professional-nav">
+  <a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/upcoming">Upcoming</a>
+  <a href="/missing">Missing</a><a href="/queue">Queue</a><a href="/upgrades">Upgrades</a>
+  <a href="/subtitles">Subtitles</a><a href="/activity">Activity</a><a href="/postprocess">Post Processing</a>
+  <a href="/quality">Quality</a><a href="/operations">Operations</a><a href="/advanced">Advanced</a>
+  <a href="/settings">Settings</a><a href="/system">System</a><a href="/import">Migration</a>
+</nav>
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <div id="commandResults"></div>
+</div></div>
+
+<div class="page-grid"><section class="panel col-4"><h2>Profiles</h2><div id="profiles"></div><button id="newProfile" class="blue">New Profile</button></section>
+<section class="panel col-8"><h2 id="editorTitle">Select a profile</h2><form id="form" class="settings-form" hidden>
+<input id="pid" type="hidden"><div class="form-grid">
+<label>Name<input id="name"></label><label>Minimum resolution<select id="minres"><option>0</option><option>480</option><option>720</option><option>1080</option><option>2160</option></select></label>
+<label>Maximum resolution<select id="maxres"><option>480</option><option>720</option><option>1080</option><option>2160</option></select></label><label>Cutoff<select id="cutoff"><option>480</option><option>720</option><option>1080</option><option>2160</option></select></label>
+<label>Preferred source<select id="source"><option></option><option>WEB-DL</option><option>WEBRip</option><option>BluRay</option><option>HDTV</option></select></label>
+<label>Minimum size MB<input id="minsize" type="number" min="0"></label><label>Maximum size MB<input id="maxsize" type="number" min="0"></label>
+<label class="checkline"><input id="hevc" type="checkbox"> Allow HEVC/x265</label><label class="checkline"><input id="upgrade" type="checkbox"> Allow upgrades</label>
+<label class="span2">Preferred words<input id="preferred"></label><label class="span2">Required words<input id="required"></label><label class="span2">Ignored words<input id="ignored"></label>
+</div><div class="actions"><button class="blue" type="submit">Save Profile</button><button id="deleteProfile" class="secondary" type="button">Delete</button></div><div id="msg" class="message"></div></form></section></div>
+</main><script src="/static/quality.js"></script><script src="/static/global.js"></script></body></html>

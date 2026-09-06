@@ -1,0 +1,49 @@
+name: TV Manager CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m compileall -q .
+      - run: python -m unittest discover -s tests -v
+
+      - name: Documentation check
+        shell: pwsh
+        run: |
+          $required = @("README.md","CHANGELOG.md","docs/FEATURES.md","docs/ARCHITECTURE.md","docs/MIGRATION.md","docs/OPERATIONS.md","docs/SECURITY.md","docs/API.md","docs/ROADMAP.md","docs/WINDOWS_FRESH_INSTALL.md","docs/WINDOWS_DEPLOYMENT.md","docs/BROWSER_SECURITY.md")
+          foreach ($f in $required) { if (!(Test-Path $f)) { throw "Missing documentation: $f" } }
+
+      - name: Validate v14 release files
+        shell: bash
+        run: |
+          test -f lifecycle.py
+          test -f docs/ACQUISITION_LIFECYCLE.md
+          test -f docs/RELEASE_NOTES_v14.md
+
+      - name: Validate v15 release files
+        shell: bash
+        run: |
+          test -f naming.py
+          test -f integrity.py
+          test -f scheduler_guard.py
+          test -f server.py
+          test -f docs/NAMING.md
+          test -f docs/WINDOWS_DEPLOYMENT.md
+          test -f docs/RELEASE_NOTES_v15.md
+
+      - name: Validate v16 release files
+        shell: bash
+        run: |
+          test -f security.py
+          test -f metadata_service.py
+          test -f templates/login.html
+          test -f templates/security_setup.html
+          test -f docs/BROWSER_SECURITY.md
+          test -f docs/RELEASE_NOTES_v16.md
