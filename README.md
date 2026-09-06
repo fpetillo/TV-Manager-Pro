@@ -1,9 +1,17 @@
 # TV Manager
 
-**Current version: 16.0**
+**Current version: 17.1**
 
 TV Manager is a local-first television automation platform designed as a modern successor to SickChill-class managers. It combines migration, provider search, download-client orchestration, post-processing, quality/upgrade policy, subtitles, diagnostics, explainable automation, media-server integration and recovery-focused operations.
 
+
+## What changed in v17
+
+v17 starts the dedicated migration-hardening phase. SickChill database imports now have a no-write analysis endpoint, a dry-run preview endpoint, an idempotent importer, a legacy identity map, and a per-item audit trail so repeat imports are safe and explainable.
+
+Library maintenance also gains a duplicate-candidate API built on the v15 fingerprint cache, and metadata refresh can be triggered as a bounded API job for safe operator-controlled runs.
+
+See [v17 release notes](docs/RELEASE_NOTES_v17.md).
 
 ## What changed in v14
 
@@ -268,3 +276,8 @@ This build adds SickChill database migration.
 The importer makes an untouched backup copy, auto-detects common `tv_shows` / `tv_episodes` tables, imports shows and episodes, prevents duplicates, and stores each original legacy row in JSON for later exact reconciliation.
 
 Episode status values are preserved exactly instead of being guessed because older SickChill builds may encode status and quality together.
+
+
+### Library Health Dashboard
+
+TV Manager v17.1 adds `/library-health` for post-import checks, missing files, metadata gaps, duplicate candidates, and safe duplicate cleanup previews. Cleanup apply operations move files to `managed_trash` and record audit rows; files are never deleted directly.

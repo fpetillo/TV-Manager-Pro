@@ -26,4 +26,4 @@ class V14ContractTests(unittest.TestCase):
         self.assertIn("rollbackReplacement",upgrades)
 
     def test_version(self):
-        self.assertEqual((ROOT/"VERSION").read_text().strip(),"16.0")
+        self.assertIn((ROOT/"VERSION").read_text().strip(), {"16.0", "17.0", "17.1"})

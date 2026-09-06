@@ -4,8 +4,8 @@ from pathlib import Path
 import json
 import dbcore
 
-VERSION=16
-VERSION_NAME="16.0"
+VERSION=171
+VERSION_NAME="17.1"
 
 def _has_column(c,table,column):
     return column in {r["name"] for r in c.execute(f'PRAGMA table_info("{table}")').fetchall()}
@@ -112,9 +112,59 @@ def migrate(db_path):
         );
         """)
         c.execute("""INSERT OR IGNORE INTO schema_migrations(version,version_name,details_json)
-                     VALUES(?,?,?)""",(VERSION,VERSION_NAME,json.dumps({
+                     VALUES(?,?,?)""",(16,"16.0",json.dumps({
                          "features":["browser authentication","CSRF protection","LAN binding guard",
                                      "naming settings UI","automatic postprocessing scheduler"]
+                     })))
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS legacy_identity_map(
+          source_name TEXT NOT NULL,
+          legacy_show_id INTEGER,
+          tvmanager_show_id INTEGER NOT NULL,
+          tvdb_id INTEGER,
+          imdb_id TEXT,
+          show_name TEXT,
+          imported_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(source_name, legacy_show_id)
+        );
+        CREATE TABLE IF NOT EXISTS import_run_details(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          import_run_id INTEGER,
+          source_name TEXT NOT NULL,
+          item_type TEXT NOT NULL,
+          source_id TEXT,
+          tvmanager_id INTEGER,
+          action TEXT NOT NULL,
+          message TEXT,
+          details_json TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS duplicate_cleanup_actions(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          fingerprint TEXT,
+          source_path TEXT NOT NULL,
+          trash_path TEXT,
+          action TEXT NOT NULL,
+          status TEXT NOT NULL,
+          message TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          restored_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_duplicate_cleanup_fingerprint
+          ON duplicate_cleanup_actions(fingerprint, created_at);
+        """)
+        c.execute("""INSERT OR IGNORE INTO schema_migrations(version,version_name,details_json)
+                     VALUES(?,?,?)""",(17,"17.0",json.dumps({
+                         "features":["SickChill dry-run import analysis","legacy identity map",
+                                     "per-item import audit trail","duplicate candidate API"]
+                     })))
+        c.execute("""INSERT OR IGNORE INTO schema_migrations(version,version_name,details_json)
+                     VALUES(?,?,?)""",(VERSION,VERSION_NAME,json.dumps({
+                         "features":["Import Center UI","library health dashboard",
+                                     "safe duplicate cleanup preview/apply workflow"]
                      })))
         c.commit()
     result=dbcore.quick_check(db_path)

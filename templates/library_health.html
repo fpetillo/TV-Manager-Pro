@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Library Health</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">OPERATIONS</p><h1>Library Health</h1><p class="subtitle">Post-import checks, duplicate candidates, missing files, metadata gaps and safe cleanup.</p></div><nav class="nav"><a class="btn secondary" href="/import">Import Center</a><a class="btn secondary" href="/dashboard">Dashboard</a></nav></header>
+<nav class="appnav professional-nav">
+  <a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/library-health">Library Health</a><a href="/upcoming">Upcoming</a>
+  <a href="/missing">Missing</a><a href="/queue">Queue</a><a href="/upgrades">Upgrades</a>
+  <a href="/subtitles">Subtitles</a><a href="/activity">Activity</a><a href="/postprocess">Post Processing</a>
+  <a href="/quality">Quality</a><a href="/operations">Operations</a><a href="/advanced">Advanced</a>
+  <a href="/settings">Settings</a><a href="/system">System</a><a href="/import">Migration</a>
+</nav>
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
+<section class="dashboard-grid dashboard-8" id="healthStats"></section>
+<section class="insight-strip" id="recommendations"></section>
+<div class="page-grid">
+<section class="panel col-6"><div class="toolbar"><h2>Missing Episode Files</h2><span class="muted">sample</span></div><div id="missingFiles"></div></section>
+<section class="panel col-6"><div class="toolbar"><h2>Metadata Gaps</h2><button id="refreshMeta" class="btn secondary">Run metadata batch</button></div><div id="metadataGaps"></div></section>
+<section class="panel col-12"><div class="toolbar"><h2>Duplicate Cleanup</h2><button id="previewDupes" class="btn secondary">Preview safe cleanup</button><button id="applyDupes" class="btn danger" disabled>Move previewed files to managed trash</button></div><p class="muted">TV Manager never deletes duplicates directly. Apply moves only explicitly previewed files into managed trash and writes an audit trail.</p><div id="duplicates"></div><div id="cleanupPlan"></div></section>
+</div>
+</main><script src="/static/library_health.js"></script><script src="/static/global.js"></script></body></html>

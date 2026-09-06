@@ -1,4 +1,26 @@
+# TV Manager v17.0
+
+## Added
+- SickChill import analysis endpoint: `/api/import/sickchill/analyze`.
+- SickChill dry-run preview endpoint: `/api/import/sickchill/preview`.
+- Idempotent v17 SickChill importer with IMDb normalization and repeat-run duplicate protection.
+- `legacy_identity_map` table for source-to-TV-Manager show identity tracking.
+- `import_run_details` audit table for per-show and per-episode migration decisions.
+- Duplicate candidate API: `/api/library/duplicates`.
+- Manual bounded metadata refresh API: `/api/metadata/refresh/run`.
+
+## Changed
+- `/api/import/sickchill` now uses the v17 importer while keeping the existing upload contract.
+- Repository version advanced to `17.0`.
+
 # Changelog
+
+## 17.1
+- Added Import Center analyze → preview → import browser workflow.
+- Added Library Health dashboard for post-import checks, metadata gaps, missing files, duplicate groups, and recommendations.
+- Added safe duplicate cleanup preview/apply endpoints with managed-trash moves and audit trail.
+- Added v17.1 migrations, tests, release notes, and documentation.
+
 
 ## 16.0
 - Added optional browser administrator login with PBKDF2 password hashing.

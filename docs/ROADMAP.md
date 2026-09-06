@@ -50,3 +50,26 @@
 - Optional HTTPS/reverse-proxy deployment guide.
 - Download-client/provider mocks and full browser end-to-end tests.
 - Fine-grained roles if multi-user administration becomes necessary.
+
+## v17 Development Track
+
+- Harden SickChill import against more legacy schemas and partially migrated databases.
+- Add UI controls for analyze/preview/import so operators can verify counts before committing.
+- Expand duplicate cleanup from API-only reporting into a safe review-and-action workflow.
+- Add richer import dashboards: skipped reasons, missing IDs, and post-import health checks.
+- Continue toward an MSI installer, update channel, and first-run wizard.
+
+
+
+## v17.1 Completed
+
+- Import Center UI flow.
+- Library Health dashboard.
+- Safe duplicate cleanup preview/apply with managed trash.
+
+## v18 Candidate
+
+- MSI installer and first-run wizard.
+- Real SickChill backup compatibility matrix.
+- Background import jobs with progress events.
+- Restore workflow for managed trash cleanup actions.

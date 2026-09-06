@@ -6,6 +6,8 @@ import integrity
 import scheduler_guard
 import security
 import metadata_service
+import sickchill_importer
+import library_maintenance
 import configparser, json, os, shutil, sqlite3, io, zipfile
 from datetime import date, datetime
 from pathlib import Path
@@ -35,6 +37,7 @@ app.config["SESSION_COOKIE_SAMESITE"]="Lax"
 app.config["SESSION_COOKIE_SECURE"]=str(os.getenv("TVMANAGER_HTTPS","0")).lower() in {"1","true","yes","on"}
 
 BACKUPS=BASE/"backups"; BACKUPS.mkdir(exist_ok=True)
+MANAGED_TRASH=BASE/"managed_trash"; MANAGED_TRASH.mkdir(exist_ok=True)
 
 def backup_before_upgrade():
     if not DB.exists():
@@ -137,6 +140,14 @@ def init():
           source TEXT NOT NULL DEFAULT 'app',
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY(section,name));
+        CREATE TABLE IF NOT EXISTS legacy_identity_map(
+          source_name TEXT NOT NULL, legacy_show_id INTEGER, tvmanager_show_id INTEGER NOT NULL,
+          tvdb_id INTEGER, imdb_id TEXT, show_name TEXT, imported_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(source_name, legacy_show_id));
+        CREATE TABLE IF NOT EXISTS import_run_details(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, import_run_id INTEGER, source_name TEXT NOT NULL,
+          item_type TEXT NOT NULL, source_id TEXT, tvmanager_id INTEGER, action TEXT NOT NULL,
+          message TEXT, details_json TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
         """)
 
         # Upgrade databases created by earlier app versions without losing data.
@@ -448,6 +459,8 @@ def api_security_events():
 def home(): return render_template("index.html")
 @app.get("/manager")
 def manager(): return render_template("manager.html")
+@app.get("/library-health")
+def library_health_page(): return render_template("library_health.html")
 @app.get("/import")
 def importer(): return render_template("import.html")
 
@@ -648,13 +661,43 @@ def add():
                    VALUES(?,?,?,?,?,?,?,?,?)""",(x.get("tmdb_id"),x.get("imdb_id"),name,x.get("original_name"),x.get("first_air_date"),x.get("overview"),x.get("poster"),x.get("vote_average"),"Wanted"))
     return jsonify(ok=True,message=f"{name} added to TV Manager."),201
 
+def _save_sickchill_upload():
+    f=request.files.get("database")
+    if not f or not f.filename:
+        return None, None, (jsonify(error="Choose a SickChill database file."),400)
+    name=secure_filename(f.filename) or "sickbeard.db"
+    dest=IMPORTS/name
+    f.save(dest)
+    backup=IMPORTS/(name+".backup")
+    shutil.copy2(dest,backup)
+    return name, dest, None
+
+@app.post("/api/import/sickchill/analyze")
+def analyze_sickchill_import():
+    name,dest,error=_save_sickchill_upload()
+    if error:return error
+    try:
+        st=sickchill_importer.analyze_database(dest,DB)
+        return jsonify(ok=True,source_name=name,**st)
+    except Exception as e:return jsonify(error=str(e)),400
+
+@app.post("/api/import/sickchill/preview")
+def preview_sickchill_import():
+    name,dest,error=_save_sickchill_upload()
+    if error:return error
+    try:
+        st=sickchill_importer.import_database(dest,DB,name,dry_run=True)
+        return jsonify(ok=True,backup=Path(str(dest)+".backup").name,**st)
+    except Exception as e:return jsonify(error=str(e)),400
+
 @app.post("/api/import/sickchill")
 def doimport():
-    f=request.files.get("database")
-    if not f or not f.filename:return jsonify(error="Choose a SickChill database file."),400
-    name=secure_filename(f.filename) or "sickbeard.db"; dest=IMPORTS/name; f.save(dest); backup=IMPORTS/(name+".backup"); shutil.copy2(dest,backup)
+    name,dest,error=_save_sickchill_upload()
+    if error:return error
     try:
-        st=import_db(dest,name); st["backup"]=backup.name; return jsonify(ok=True,**st)
+        st=sickchill_importer.import_database(dest,DB,name,dry_run=False)
+        st["backup"]=Path(str(dest)+".backup").name
+        return jsonify(ok=True,**st)
     except Exception as e:return jsonify(error=str(e)),400
 
 
@@ -921,8 +964,10 @@ def api_health():
 
 @app.get("/api/dashboard/full")
 def api_dashboard_full():
+    health_summary=library_maintenance.library_health_report(DB,duplicate_limit=5,sample_limit=5)
     return jsonify(stats=engine.dashboard_stats(),jobs=engine.jobs_public(),
-                   activity=engine.activity(20),downloads=engine.downloads(20))
+                   activity=engine.activity(20),downloads=engine.downloads(20),
+                   library_health=health_summary["counts"],recommendations=health_summary["recommendations"])
 
 @app.get("/api/settings/sections")
 def api_setting_sections():
@@ -1162,6 +1207,47 @@ def api_root_health(): return jsonify(ops.root_health())
 
 @app.get("/api/library/conflicts")
 def api_library_conflicts(): return jsonify(results=ops.detect_conflicts())
+
+@app.get("/api/library/duplicates")
+def api_library_duplicates_v17():
+    try:
+        limit=int(request.args.get("limit",100))
+    except Exception:
+        limit=100
+    return jsonify(results=library_maintenance.duplicate_candidates(DB,limit=max(1,min(limit,500))))
+
+@app.get("/api/library/health-report")
+def api_library_health_report_v171():
+    try:
+        duplicate_limit=int(request.args.get("duplicate_limit",25))
+        sample_limit=int(request.args.get("sample_limit",25))
+    except Exception:
+        duplicate_limit=25; sample_limit=25
+    return jsonify(library_maintenance.library_health_report(DB,duplicate_limit=max(1,min(duplicate_limit,100)),sample_limit=max(1,min(sample_limit,100))))
+
+@app.post("/api/library/duplicates/preview")
+def api_duplicate_cleanup_preview_v171():
+    body=request.get_json(silent=True) or {}
+    try:
+        return jsonify(library_maintenance.duplicate_cleanup_preview(
+            DB,keep_path=body.get("keep_path"),paths=body.get("paths") or None,limit=max(1,min(int(body.get("limit") or 100),500))))
+    except Exception as e:return jsonify(error=str(e)),400
+
+@app.post("/api/library/duplicates/apply")
+def api_duplicate_cleanup_apply_v171():
+    body=request.get_json(silent=True) or {}
+    actions=body.get("actions") or []
+    if not isinstance(actions,list) or not actions:
+        return jsonify(error="Provide explicit duplicate cleanup actions from preview."),400
+    try:
+        return jsonify(library_maintenance.apply_duplicate_cleanup(DB,trash_root=MANAGED_TRASH,actions=actions))
+    except Exception as e:return jsonify(error=str(e)),400
+
+@app.post("/api/metadata/refresh/run")
+def api_metadata_refresh_run():
+    body=request.get_json(silent=True) or {}
+    batch_size=int(body.get("batch_size") or 5)
+    return jsonify(ok=True,**metadata_service.refresh_batch(batch_size=max(1,min(batch_size,50))))
 
 
 @app.get("/queue")
