@@ -320,3 +320,8 @@ html{overflow-x:hidden} body{overflow-x:hidden}.shell.has-side-navigation{width:
 .destination-dialog select,.destination-dialog input{width:100%;min-width:0;box-sizing:border-box}
 .destination-dialog .path-box{overflow-wrap:anywhere}
 .destination-error{color:#ffbdab}
+
+.destination-dialog .preference-switch{display:flex;align-items:center;gap:10px;margin:10px 0}
+.destination-dialog input[type=checkbox]{width:auto;flex:none;margin:0}
+.destination-dialog .show-preferences{border:1px solid #536c89;border-radius:10px;padding:12px}
+.destination-dialog .preference-actions{position:sticky;bottom:-24px;background:#101c2b;padding:16px 0;margin-top:12px;display:flex;gap:12px;flex-wrap:wrap}

@@ -1,3 +1,7 @@
+## 18.4.0 — 2026-09-07
+
+SickChill audit and per-show preferences: correct profile IDs, language/default statuses, subtitles and numbering search, flat naming, UTC scheduler leases and magnet hashes. 260 tests pass. Full parity remains incomplete; see docs/SICKCHILL_PARITY_AUDIT.md and release notes.
+
 ## v18.3.3 — Library Locations and Processing Review
 
 - Manage library roots: add, edit unused paths, set default, remove unused paths.

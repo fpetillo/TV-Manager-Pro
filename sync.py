@@ -161,7 +161,7 @@ def preferred_subtitle_languages():
             if r:vals.append(r["languages"])
     raw=vals[0] if vals else "en"
     langs=[]
-    for x in re.split(r"[,|;\\s]+",raw):
+    for x in re.split(r"[,|;\s]+",raw):
         x=x.strip().lower()
         if x and x not in langs:langs.append(x)
     return langs or ["en"]
@@ -174,7 +174,7 @@ def enqueue_preferred_subtitles():
 
 def enqueue_missing_subtitles(language="en"):
     with cx() as c:
-        rows=c.execute("""SELECT e.id FROM episodes e WHERE e.location IS NOT NULL AND trim(e.location)<>''
+        rows=c.execute("""SELECT e.id FROM episodes e JOIN shows s ON s.id=e.show_id WHERE COALESCE(s.subtitles_enabled,1)=1 AND e.location IS NOT NULL AND trim(e.location)<>''
                           AND lower(COALESCE(e.subtitle_status,''))<>'present'""").fetchall()
         created=0
         for r in rows:

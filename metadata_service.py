@@ -93,13 +93,15 @@ def resolve_tmdb(show):
     return None
 
 def refresh_show(show_id):
+    import show_preferences
     with cx() as c:
         show=c.execute("SELECT * FROM shows WHERE id=?",(int(show_id),)).fetchone()
     if not show:raise ValueError("Show not found")
+    language=dict(show).get("metadata_language") or "en-US"
     tmdb_id=resolve_tmdb(show)
     if not tmdb_id:raise ValueError("Could not resolve show to TMDb")
 
-    info=_tmdb(f"/tv/{tmdb_id}",{"language":"en-US","append_to_response":"external_ids"})
+    info=_tmdb(f"/tv/{tmdb_id}",{"language":language,"append_to_response":"external_ids"})
     ext=info.get("external_ids") or {}
     poster_path=info.get("poster_path")
     genres=", ".join(x.get("name","") for x in info.get("genres",[]) if x.get("name"))
@@ -114,7 +116,7 @@ def refresh_show(show_id):
         sn=season.get("season_number")
         if sn is None:continue
         try:
-            sd=_tmdb(f"/tv/{tmdb_id}/season/{sn}",{"language":"en-US"})
+            sd=_tmdb(f"/tv/{tmdb_id}/season/{sn}",{"language":language})
             season_payloads.append((sn,sd))
         except Exception:
             continue
@@ -140,7 +142,7 @@ def refresh_show(show_id):
                 air=ep.get("air_date")
                 still_path=ep.get("still_path")
                 still_url=("https://image.tmdb.org/t/p/w500"+still_path) if still_path else None
-                default_status="Unaired" if air and air>today else "Wanted"
+                default_status=show_preferences.initial_episode_status(show,air,today)
                 if existing:
                     c.execute("""UPDATE episodes SET
                                  name=COALESCE(NULLIF(?,''),name),

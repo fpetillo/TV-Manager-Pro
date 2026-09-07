@@ -1,3 +1,4 @@
+from contextlib import closing
 import json
 import sqlite3
 import tempfile
@@ -14,7 +15,7 @@ class ImportVisibilityTests(unittest.TestCase):
             base=Path(td)
             source=base/'sickbeard.db'
             target=base/'tvmanager.db'
-            with sqlite3.connect(source) as c:
+            with closing(sqlite3.connect(source)) as c, c:
                 c.execute('CREATE TABLE tv_shows(indexer_id INTEGER, show_name TEXT, location TEXT, status TEXT)')
                 c.execute('CREATE TABLE tv_episodes(showid INTEGER, season INTEGER, episode INTEGER, name TEXT)')
                 c.execute('INSERT INTO tv_shows VALUES(?,?,?,?)',(12345,'Example Show','/tv/Example Show','Continuing'))

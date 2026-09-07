@@ -8,7 +8,7 @@ def read(name):
 
 
 def test_version_is_18_3_1():
-    assert read("VERSION").strip() in {"18.3.1", "18.3.2", "18.3.3"}
+    assert read("VERSION").strip() in {"18.3.1", "18.3.2", "18.3.3", "18.4.0"}
 
 
 def test_global_specials_endpoints_exist():

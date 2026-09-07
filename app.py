@@ -648,7 +648,9 @@ def api_trakt_add_show():
     tvdb_id=body.get("tvdb_id")
     with cx() as c:
         c.execute("BEGIN IMMEDIATE")
-        try: location=requested_show_destination(body,name,c)
+        try:
+            __import__("show_preferences").options(body)
+            location=requested_show_destination(body,name,c)
         except ValueError as exc: return jsonify(error=str(exc)),400
         found=c.execute("""SELECT id,name FROM shows WHERE
             (? IS NOT NULL AND trakt_id=?) OR
@@ -665,6 +667,9 @@ def api_trakt_add_show():
              body.get("first_air_date") or body.get("first_aired"),body.get("overview") or "",
              body.get("network") or "", "Wanted", body.get("quality") or "HD", 1, 1, datetime.now().isoformat(timespec="seconds"),location,1))
         sid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        try: __import__("show_preferences").apply(c,sid,body)
+        except ValueError as exc:
+            c.rollback();return jsonify(error=str(exc)),400
         c.commit()
     return jsonify(ok=True,created=True,show_id=sid,message=f"{name} added from Trakt.tv.")
 
@@ -1388,7 +1393,7 @@ def refresh_show_metadata(sid):
         if not tmdb_id:
             return jsonify(error="Could not match this imported show to TMDb using its current IMDb/TVDb IDs."),404
 
-        info=tmdb(f"/tv/{tmdb_id}",{"language":"en-US","append_to_response":"external_ids"})
+        info=tmdb(f"/tv/{tmdb_id}",{"language":dict(show).get("metadata_language") or "en-US","append_to_response":"external_ids"})
         ext=info.get("external_ids") or {}
         poster_path=info.get("poster_path")
         genres=", ".join(x.get("name","") for x in info.get("genres",[]) if x.get("name"))
@@ -1415,7 +1420,7 @@ def refresh_show_metadata(sid):
                 if sn is None:
                     continue
                 try:
-                    sd=tmdb(f"/tv/{tmdb_id}/season/{sn}",{"language":"en-US"})
+                    sd=tmdb(f"/tv/{tmdb_id}/season/{sn}",{"language":dict(show).get("metadata_language") or "en-US"})
                 except Exception:
                     continue
                 for ep in sd.get("episodes",[]):
@@ -1427,7 +1432,7 @@ def refresh_show_metadata(sid):
                     air=ep.get("air_date")
                     still_path=ep.get("still_path")
                     still_url=("https://image.tmdb.org/t/p/w500"+still_path) if still_path else None
-                    default_status="Unaired" if air and air>today else "Wanted"
+                    default_status=__import__("show_preferences").initial_episode_status(show,air,today)
                     if existing:
                         c.execute("""UPDATE episodes SET
                             name=COALESCE(NULLIF(?,''),name),
@@ -1549,12 +1554,18 @@ def add():
         return jsonify(error=str(exc)),400
     with cx() as c:
         c.execute("BEGIN IMMEDIATE")
-        try: location=requested_show_destination(x,name,c)
+        try:
+            __import__("show_preferences").options(x)
+            location=requested_show_destination(x,name,c)
         except ValueError as exc: return jsonify(error=str(exc)),400
         if existing(c,tmdb=x.get("tmdb_id"),imdb=x.get("imdb_id"),name=name):return jsonify(ok=True,message=f"{name} is already in TV Manager.")
         c.execute("""INSERT INTO shows(tmdb_id,imdb_id,name,original_name,first_air_date,overview,poster,vote_average,status,location,season_folders)
                    VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(x.get("tmdb_id"),x.get("imdb_id"),name,x.get("original_name"),x.get("first_air_date"),x.get("overview"),x.get("poster"),x.get("vote_average"),"Wanted",location,1))
-    return jsonify(ok=True,message=f"{name} added to TV Manager."),201
+        sid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        try: __import__("show_preferences").apply(c,sid,x)
+        except ValueError as exc:
+            c.rollback();return jsonify(error=str(exc)),400
+    return jsonify(ok=True,show_id=sid,message=f"{name} added to TV Manager."),201
 
 def _save_sickchill_upload():
     f=request.files.get("database")
@@ -2226,19 +2237,17 @@ def api_episode_update(eid):
 @app.patch("/api/shows/<int:sid>/options")
 def api_show_options(sid):
     body=request.get_json(silent=True) or {}
-    allowed={"paused","monitor_new","search_enabled","preferred_words","required_words","ignored_words",
-             "season_folders","scene_numbering","air_by_date","sports","metadata_enabled","quality_profile_id","favorite","retention_policy_id"}
-    fields=[]; vals=[]
-    for k,v in body.items():
-        if k not in allowed: continue
-        fields.append(f"{k}=?")
-        vals.append((1 if v else 0) if k in {"paused","monitor_new","search_enabled","season_folders","scene_numbering","air_by_date","sports","metadata_enabled","quality_profile_id","favorite","retention_policy_id"} else v)
-    if not fields:
-        return jsonify(error="Nothing to update"),400
-    vals.append(sid)
+    import show_preferences
+    try: values=show_preferences.options(body)
+    except ValueError as exc: return jsonify(error=str(exc)),400
+    if not values:return jsonify(error="Nothing to update"),400
     with cx() as c:
-        c.execute("UPDATE shows SET "+",".join(fields)+" WHERE id=?",vals);c.commit()
+        if not c.execute("SELECT id FROM shows WHERE id=?",(sid,)).fetchone():return jsonify(error="Show not found"),404
+        for field,table in (("quality_profile_id","quality_profiles"),("retention_policy_id","retention_policies")):
+            if values.get(field) and not c.execute(f"SELECT id FROM {table} WHERE id=?",(values[field],)).fetchone():return jsonify(error="Selected profile no longer exists"),400
+        c.execute("UPDATE shows SET "+",".join(k+"=?" for k in values)+" WHERE id=?",[*values.values(),sid])
     return jsonify(ok=True)
+
 
 @app.get("/api/postprocess/config")
 def api_postprocess_config():

@@ -11,29 +11,8 @@ class ParityItem:
     status: str
     notes: str
 
-PARITY_ITEMS = [
-    ParityItem("Shows", "Add shows from indexers / search", "Add/Search Show, Trakt Discover", "Complete", "TV Manager supports IMDb/TMDb-style search and Trakt discovery for adding shows."),
-    ParityItem("Shows", "Import existing TV library", "SickChill Import, Setup Assistant", "Complete", "Import Center preserves existing SickChill/library configuration and episodes where possible."),
-    ParityItem("Shows", "Show list and episode browser", "Show Queue, Shows, Show Detail", "Complete", "Show Queue and Show Detail provide sortable, searchable show and episode views."),
-    ParityItem("Episodes", "Episode status management", "Manage Center, Show Detail bulk tools", "Complete", "Bulk set wanted/downloaded/unmonitored/ignored and include ignored episodes again."),
-    ParityItem("Episodes", "Mass update episodes", "Manage Center, Show Detail", "Complete", "Bulk preview/apply workflow supports filtered and selected episode updates."),
-    ParityItem("Episodes", "Specials / Season 00 control", "Show Detail, Manage Center, Settings", "Better than SickChill", "Global S00 ignore plus episode-level ignored rules keep specials visible but out of missing/search/queue math."),
-    ParityItem("Search", "Backlog and wanted searches", "Manage Center, Missing, Show Detail", "Partial", "Backlog and episode search workflows exist; provider depth should continue expanding."),
-    ParityItem("Search", "Search providers", "Settings, Providers, Download Center", "Partial", "Provider configuration exists in product form; parity audit keeps this visible as an expansion area."),
-    ParityItem("Downloads", "Send NZB/torrent to client", "Download Center, Queue, episode search results", "Complete", "Downloader handoff and queue monitoring support configured clients/blackhole workflows."),
-    ParityItem("Downloads", "Failed downloads", "Manage Center", "Complete", "Failed download management exists with add/remove and retry-oriented workflow."),
-    ParityItem("Post processing", "Completed-download scanning", "Post Processing", "Complete", "Preview and process completed folders with move/copy/hardlink-style workflows."),
-    ParityItem("Post processing", "Renaming and associated files", "Naming, Post Processing", "Complete", "Naming preview and post-processing controls are present."),
-    ParityItem("Subtitles", "Subtitle search/audit", "Subtitles", "Partial", "Subtitle audit/scan exists; online provider automation should continue improving."),
-    ParityItem("Metadata", "TV metadata/indexer support", "Metadata, TMDb setup, Trakt", "Complete", "Metadata refresh and Trakt/TMDb integration are represented."),
-    ParityItem("Notifications", "Notifications/webhooks", "Settings, Webhooks", "Partial", "Webhook management exists; more notification providers can be added."),
-    ParityItem("Media servers", "Plex/Kodi/Emby-style refresh", "Media Servers", "Partial", "Media server maintenance/test/refresh/sync workflows exist; provider-specific depth can expand."),
-    ParityItem("Automation", "Scheduler", "Settings, Jobs, Launchpad", "Complete", "Background jobs and scheduler visibility are present."),
-    ParityItem("Operations", "Logs/errors/status", "Logs & Events, System, Operations", "Complete", "Logs, job progress, system diagnostics, and operations screens are first-class."),
-    ParityItem("Safety", "Backup and restore", "Database Safety", "Better than SickChill", "Database safety, verified backups, manifests, and recovery guidance are built in."),
-    ParityItem("Help", "Help and information", "Help Center", "Complete", "Version 18.3 adds online help and workflow guidance directly in the app."),
-    ParityItem("Advanced", "Anime/scene/XEM numbering", "Advanced, roadmap", "Partial", "Scene exception support exists; anime/XEM parity remains an explicit improvement area."),
-]
+from parity_catalog import FEATURES
+PARITY_ITEMS = [ParityItem(*row) for row in FEATURES]
 
 HELP_SECTIONS = {
     "getting-started": {

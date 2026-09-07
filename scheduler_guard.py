@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os, socket, uuid
 import dbcore
@@ -37,9 +37,10 @@ def init():
         c.commit()
 
 def acquire(job_name,lease_minutes=30):
-    now=datetime.now()
+    now=datetime.now(timezone.utc)
     expires=now+timedelta(minutes=max(5,int(lease_minutes)))
     with cx() as c:
+        c.execute("BEGIN IMMEDIATE")
         c.execute("DELETE FROM scheduler_leases WHERE expires_at<=CURRENT_TIMESTAMP")
         existing=c.execute("SELECT * FROM scheduler_leases WHERE job_name=?",(job_name,)).fetchone()
         if existing:return False
@@ -51,7 +52,7 @@ def acquire(job_name,lease_minutes=30):
             c.rollback();return False
 
 def renew(job_name,lease_minutes=15):
-    now=datetime.now()
+    now=datetime.now(timezone.utc)
     expires=now+timedelta(minutes=max(5,int(lease_minutes)))
     with cx() as c:
         cur=c.execute("""UPDATE scheduler_leases SET expires_at=?

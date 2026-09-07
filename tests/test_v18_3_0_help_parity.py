@@ -23,7 +23,7 @@ def test_help_center_routes_are_registered():
 def test_navigation_exposes_help_center():
     nav = (ROOT / 'templates' / '_nav.html').read_text()
     assert 'Help Center' in nav
-    assert 'data-nav-version="18.3.2"' in nav
+    assert 'data-nav-version="{{ app_version }}"' in nav
 
 
 def test_help_content_has_sickchill_parity_matrix():

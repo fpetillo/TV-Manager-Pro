@@ -28,7 +28,7 @@ def make_db():
 
 
 def test_version_is_18_3_1():
-    assert (ROOT / 'VERSION').read_text(encoding='utf-8').strip() in {'18.3.1', '18.3.2', '18.3.3'}
+    assert (ROOT / 'VERSION').read_text(encoding='utf-8').strip() in {'18.3.1', '18.3.2', '18.3.3', '18.4.0'}
 
 
 def test_global_ignore_specials_updates_all_shows_and_regulars_stay_considered():

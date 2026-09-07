@@ -14,7 +14,7 @@
   function renderSummary(summary){
     const box=$('paritySummary'); if(!box) return;
     const counts=summary.counts||{};
-    box.innerHTML=['Complete','Better than SickChill','Partial','Missing'].map(k=>`<div class="dash-card"><span>${escapeHtml(k)}</span><strong>${Number(counts[k]||0)}</strong></div>`).join('')+`<div class="dash-card"><span>Total mapped</span><strong>${Number(summary.total||0)}</strong></div>`;
+    box.innerHTML=['Complete','Partial','Missing'].map(k=>`<div class="dash-card"><span>${escapeHtml(k)}</span><strong>${Number(counts[k]||0)}</strong></div>`).join('')+`<div class="dash-card"><span>Total mapped</span><strong>${Number(summary.total||0)}</strong></div>`;
   }
   function renderTopics(filter=''){
     const box=$('helpTopics'); if(!box) return;

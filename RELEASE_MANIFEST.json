@@ -1,31 +1,27 @@
 {
   "product": "TV Manager",
-  "version": "18.3.3",
-  "release_name": "Library Locations and Processing Review",
-  "generated_at": "2026-09-07T20:01:54.700Z",
+  "version": "18.4.0",
+  "release_name": "SickChill Audit and Show Preferences",
+  "generated_at": "2026-09-07T20:34:52.533862+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Library location management with in-use removal guard",
-    "Show destination picker and existing-show editor",
-    "Optional stored episode path rebasing",
-    "Nonblocking library disk space",
-    "Preview approval and unmatched diagnostics",
-    "Compact database sizes"
+    "Editable per-show preferences",
+    "Typed profile IDs and numbering-aware searches",
+    "Subtitle opt-out and flat season folders",
+    "UTC scheduler leases and magnet hashes",
+    "Evidence-backed SickChill coverage gaps"
   ],
   "validation": {
+    "pytest": {
+      "passed": 260,
+      "failed": 0
+    },
     "focused_checks": "passed",
     "python_compile": "passed",
-    "javascript_syntax": "all static scripts passed",
-    "pytest": {
-      "passed": 244,
-      "failed": 8,
-      "failures": [
-        "magnet hash helper: 1",
-        "scheduler leases: 2",
-        "Windows database/import cleanup: 5"
-      ]
-    },
-    "fully_green": false
+    "javascript_syntax": "passed",
+    "browser": "isolated settings save and reopen passed",
+    "fully_green": true,
+    "external_integrations": "not certified"
   },
   "activation": "Restart required; no automatic database or media relocation",
   "sickchill_replacement_server_runbook": true,
@@ -35,5 +31,6 @@
     "library_locations.py",
     "library_destinations.py",
     "library_storage.py"
-  ]
+  ],
+  "sickchill_full_parity": false
 }

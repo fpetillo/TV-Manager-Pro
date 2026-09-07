@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -8,7 +9,7 @@ import sickchill_importer
 
 
 def make_source(path: Path):
-    with sqlite3.connect(path) as c:
+    with closing(sqlite3.connect(path)) as c, c:
         c.executescript('''
         CREATE TABLE tv_shows(indexer_id INTEGER PRIMARY KEY, show_name TEXT, imdb_id TEXT, location TEXT, status TEXT);
         CREATE TABLE tv_episodes(showid INTEGER, season INTEGER, episode INTEGER, name TEXT, status TEXT, location TEXT);

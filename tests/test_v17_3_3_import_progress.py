@@ -1,3 +1,4 @@
+from contextlib import closing
 import io
 import sqlite3
 import tempfile
@@ -13,7 +14,7 @@ class ImportProgressTests(unittest.TestCase):
             td = Path(td)
             src = td / 'sickbeard.db'
             dst = td / 'tvmanager.db'
-            with sqlite3.connect(src) as c:
+            with closing(sqlite3.connect(src)) as c, c:
                 c.executescript('''
                 CREATE TABLE tv_shows(indexer_id INTEGER, show_name TEXT, imdb_id TEXT, location TEXT, status TEXT);
                 CREATE TABLE tv_episodes(showid INTEGER, season INTEGER, episode INTEGER, name TEXT, location TEXT, status TEXT);

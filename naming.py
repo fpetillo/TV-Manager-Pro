@@ -55,7 +55,7 @@ def configured_destination(show_root,show_name,episodes,source_name,pattern=None
     root=Path(show_root)
     if rename:
         rel=render(pattern or "Season %0S/%SN - S%0SE%0E - %EN",show_name,episodes,source.suffix)
-        return root/rel
+        return root/rel if season_folders else root/rel.name
     if season_folders:
         season=int(episodes[0]["season"])
         return root/f"Season {season:02d}"/source.name

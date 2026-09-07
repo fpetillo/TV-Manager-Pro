@@ -122,6 +122,8 @@ def log(event_type, message, level="info", show_id=None, episode_id=None, data=N
             pass
 
 def init_engine():
+    import show_preferences
+    with cx() as c: show_preferences.init(c)
     advanced.init()
     ops.init()
     intelligence.init()
@@ -650,6 +652,9 @@ def search_newznab(provider, show, episode, timeout=25):
         "extended": "1",
         "o": "xml",
     }
+    params.update(__import__("show_preferences").search_parameters(show,episode))
+    if params["t"]=="search":
+        params.pop("season",None);params.pop("ep",None)
     if provider["api_key"]:
         params["apikey"] = provider["api_key"]
     if provider["categories"]:
@@ -690,6 +695,9 @@ def search_newznab(provider, show, episode, timeout=25):
 def search_generic_provider(provider, show, episode, timeout=25):
     base=provider["url"].rstrip("/")+"/api"
     params={"t":"tvsearch","q":show["name"],"season":episode["season"],"ep":episode["episode"],"extended":"1","o":"xml"}
+    params.update(__import__("show_preferences").search_parameters(show,episode))
+    if params["t"]=="search":
+        params.pop("season",None);params.pop("ep",None)
     if provider.get("api_key"):params["apikey"]=provider["api_key"]
     if provider.get("categories"):params["cat"]=provider["categories"]
     r=requests.get(base,params=params,timeout=timeout,headers={"User-Agent":"TVManager/6.1"})
@@ -732,10 +740,10 @@ def _episode_context(episode_id):
     with cx() as c:
         row = c.execute("""SELECT e.*,s.name show_name,s.paused,s.search_enabled,
                                  s.preferred_words,s.required_words,s.ignored_words,
-                                 s.quality show_quality,s.quality_profile_id,s.id show_id
+                                 s.quality show_quality,s.quality_profile_id,s.id show_id,s.scene_numbering,s.air_by_date,s.sports,s.anime
                           FROM episodes e JOIN shows s ON s.id=e.show_id
                           WHERE e.id=?""", (episode_id,)).fetchone()
-    return row
+    return dict(row) if row else None
 
 def search_episode(episode_id, auto_grab=False):
     ctx = _episode_context(episode_id)
@@ -750,7 +758,10 @@ def search_episode(episode_id, auto_grab=False):
         "preferred_words": ctx["preferred_words"], "required_words": ctx["required_words"],
         "ignored_words": ctx["ignored_words"], "quality": ctx["show_quality"], "quality_profile_id": ctx["quality_profile_id"],
     }
+    names=advanced.aliases(ctx["show_id"])
+    if names: show["search_name"]=names[0]
     episode = dict(ctx)
+    show.update({key:ctx.get(key) for key in ("scene_numbering","air_by_date","sports","anime")})
     providers = [p for p in parse_newznab() if p["enabled"]]
     custom = advanced.provider_defs_raw()
     if as_bool(get_setting("General", "randomize_providers", "0")):
@@ -983,6 +994,18 @@ def send_sab(result):
     ids = data.get("nzo_ids") or []
     return ids[0] if ids else None
 
+def _magnet_hash(url):
+    from urllib.parse import urlparse, parse_qs
+    import base64
+    if urlparse(str(url)).scheme.lower() != "magnet": return None
+    for value in parse_qs(urlparse(url).query).get("xt",[]):
+        if not value.lower().startswith("urn:btih:"): continue
+        raw=value[9:]
+        if re.fullmatch(r"[0-9a-fA-F]{40}",raw): return raw.lower()
+        if re.fullmatch(r"[A-Z2-7a-z]{32}",raw): return base64.b32decode(raw.upper()).hex()
+    return None
+
+
 def send_qbit(result):
     sess, host = _qbit_session()
     data = {"urls": result["url"]}
@@ -994,8 +1017,7 @@ def send_qbit(result):
     r.raise_for_status()
     if r.text.strip().lower() not in {"ok.", ""}:
         raise ValueError("qBittorrent rejected the torrent: " + r.text[:200])
-    m = re.search(r"(?i)btih:([a-f0-9]{40})", str(result["url"] or ""))
-    return m.group(1).lower() if m else None
+    return _magnet_hash(result["url"])
 
 def send_blackhole(result):
     if result["protocol"] == "nzb":
@@ -1079,7 +1101,7 @@ def grab_result(result_id):
 def eligible_episodes(kind="recent", limit=25):
     today = date.today()
     params = []
-    where = ["""lower(COALESCE(e.status,'')) IN ('wanted','failed')""",
+    where = ["""lower(COALESCE(e.status,'')) IN ('wanted','failed','unaired')""",
              "COALESCE(e.monitored,1)=1", "COALESCE(e.ignored,0)=0", "lower(COALESCE(e.status,''))<>'ignored'", "COALESCE(s.paused,0)=0", "COALESCE(s.search_enabled,1)=1"]
     if ignore_specials_from_wanted():
         where.append("COALESCE(e.season,-1)<>0")
@@ -1855,6 +1877,8 @@ def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sourc
                            FROM shows""").fetchall()]
         alias_rows=c.execute("""SELECT show_id, alias FROM scene_mappings
                                 WHERE alias IS NOT NULL AND trim(alias)<>''""").fetchall()
+    with cx() as c:
+        alias_rows=list(alias_rows)+list(c.execute("SELECT show_id,exception_name AS alias FROM scene_exceptions WHERE trim(exception_name)<>''"))
     aliases_by_show={}
     for r in alias_rows:
         aliases_by_show.setdefault(r["show_id"], []).append(r["alias"])

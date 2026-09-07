@@ -1,6 +1,6 @@
 
 async function ensureFolderEditor(){
-  for(const [globalName,url] of [['loadLibraryStorage','/static/library_storage.js?v=folder-editor4'],['chooseShowDestination','/static/show_destination.js?v=folder-editor4']]){
+  for(const [globalName,url] of [['editShowPreferences','/static/show_preferences.js?v=18.4.0'],['loadLibraryStorage','/static/library_storage.js?v=folder-editor4'],['chooseShowDestination','/static/show_destination.js?v=folder-editor4']]){
     if(typeof window[globalName]==='function')continue;
     await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(new Error('Could not load folder editor. Refresh and retry.'));document.head.append(script);});
   }
@@ -128,7 +128,7 @@ async function openShow(id){
           <div class="id-box"><span class="id-label">TVDb</span><code>${esc(s.tvdb_id||"—")}</code></div>
           <div class="id-box"><span class="id-label">TMDb</span><code>${esc(s.tmdb_id||"—")}</code></div>
         </div>
-        ${s.location?`<div class="path-box">${esc(s.location)}</div>`:""}<button id="editLibraryFolder" class="blue">Edit Library Folder</button>
+        ${s.location?`<div class="path-box">${esc(s.location)}</div>`:""}<button id="editShowSettings" class="secondary">Edit Show Settings</button><button id="editLibraryFolder" class="blue">Edit Library Folder</button>
         <div class="actions show-actions">
           <button id="refreshMetadata" class="blue">Refresh Metadata</button>
           ${s.imdb_id?`<a class="btn secondary" target="_blank" href="https://www.imdb.com/title/${esc(s.imdb_id)}/">IMDb</a>`:""}
@@ -157,6 +157,7 @@ async function openShow(id){
 
 
 
+  document.getElementById('editShowSettings').onclick=async()=>{try{await ensureFolderEditor();await editShowPreferences(id,s.name);}catch(e){document.getElementById('refreshMessage').textContent=e.message;}};
   document.getElementById('editLibraryFolder').onclick=async()=>{
     const message=document.getElementById('refreshMessage');
     try{await ensureFolderEditor();const destination=await chooseShowDestination(s.name,'Save Library Folder',s.location||'');if(!destination)return;

@@ -104,7 +104,8 @@ def split_multi_episode(title):
 def aliases(show_id):
     with cx() as c:
         rows=c.execute("""SELECT DISTINCT alias FROM scene_mappings WHERE show_id=? AND alias IS NOT NULL AND trim(alias)<>'' ORDER BY alias""",(show_id,)).fetchall()
-    return [r["alias"] for r in rows]
+        extra=c.execute("SELECT exception_name AS alias FROM scene_exceptions WHERE show_id=? ORDER BY id",(show_id,)).fetchall()
+    return list(dict.fromkeys(r["alias"] for r in list(rows)+list(extra)))
 
 def mappings(show_id):
     with cx() as c:
