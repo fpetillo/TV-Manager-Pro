@@ -1,3 +1,7 @@
+## 18.5.2 - 2026-09-07
+
+Regression coverage for manual episode search and retrieve using real SQLite rows. Reported error traced to live 18.3.3; dictionary conversion already exists in published code. Restart required after active processing. 293 tests pass.
+
 ## 18.5.1 - 2026-09-07
 
 Prevent aired XEM mappings from misidentifying DVD-order episodes; retain manual overrides. 292 tests pass.

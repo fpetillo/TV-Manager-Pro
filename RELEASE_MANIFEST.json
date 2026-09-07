@@ -1,26 +1,21 @@
 {
   "product": "TV Manager",
-  "version": "18.5.1",
-  "release_name": "DVD Scene Mapping Guard",
-  "generated_at": "2026-09-07T21:19:54.602698+00:00",
+  "version": "18.5.2",
+  "release_name": "Episode Search Regression",
+  "generated_at": "2026-09-07T23:35:57.769526+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Prevent aired-order XEM mappings from identifying DVD-order episodes",
-    "Preserve explicit manual numbering overrides"
+    "SQLite-backed episode search and retrieve regression",
+    "Live 18.3.3 requires restart to load existing row conversion fix"
   ],
   "validation": {
     "pytest": {
-      "passed": 292,
+      "passed": 293,
       "failed": 0
     },
-    "focused_checks": "passed",
-    "python_compile": "passed",
-    "javascript_syntax": "passed",
-    "browser": "No UI changes; prior TVDB add workflow verified in 18.5.0",
-    "fully_green": true,
-    "external_integrations": "not certified",
-    "xem_live": "HTTP 403; not verified",
-    "tvdb_live": "not tested; operator credentials required"
+    "browser": "No UI changes; live version and job APIs inspected",
+    "external_integrations": "Mocked provider results and downloader handoff",
+    "fully_green": true
   },
   "activation": "Restart required; no automatic database or media relocation",
   "sickchill_replacement_server_runbook": true,

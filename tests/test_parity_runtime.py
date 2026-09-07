@@ -65,3 +65,36 @@ def test_flat_folder_setting_applies_when_renaming():
     import naming
     path=naming.configured_destination('/tv/Show','Show',[{'season':1,'episode':2,'name':'Pilot'}],'source.mkv','Season %0S/%SN - S%0SE%0E',True,False)
     assert path==Path('/tv/Show/Show - S01E02.mkv')
+
+
+def test_episode_search_and_retrieve_with_real_sqlite_rows(tmp_path,monkeypatch):
+    database=tmp_path/'search.db';monkeypatch.setattr(engine,'DB',database)
+    with dbcore.connect(database) as c:
+        c.executescript("""CREATE TABLE shows(id INTEGER PRIMARY KEY,name,paused,search_enabled,preferred_words,required_words,ignored_words,quality,quality_profile_id,scene_numbering,air_by_date,sports,anime);
+        CREATE TABLE episodes(id INTEGER PRIMARY KEY,show_id,season,episode,status,monitored,ignored,last_search,search_count);
+        CREATE TABLE search_results(id INTEGER PRIMARY KEY,episode_id,provider,protocol,title,url,guid,size,publish_date,seeders,quality,score,rejected_reason,status,raw_json);
+        INSERT INTO shows VALUES(1,'Show',0,1,'','','','HD',NULL,0,0,0,0);
+        INSERT INTO episodes VALUES(1,1,1,2,'Wanted',1,0,NULL,0);""")
+    monkeypatch.setattr(engine,'ignore_specials_from_wanted',lambda:False)
+    monkeypatch.setattr(engine,'get_setting',lambda *a:'0')
+    monkeypatch.setattr(engine.advanced,'aliases',lambda *a:[])
+    monkeypatch.setattr(engine.advanced,'provider_defs_raw',lambda:[])
+    monkeypatch.setattr(engine,'parse_newznab',lambda:[{'name':'Fixture','enabled':True}])
+    monkeypatch.setattr(engine.ops,'provider_is_available',lambda *a:True)
+    monkeypatch.setattr(engine.ops,'provider_result',lambda *a:None)
+    monkeypatch.setattr(engine.ops,'apply_rules',lambda result:result)
+    monkeypatch.setattr(engine.ops,'record_decision',lambda *a,**k:None)
+    monkeypatch.setattr(engine,'log',lambda *a,**k:None)
+    def provider(p,show,episode):
+        assert show.get('name')=='Show' and episode.get('episode')==2
+        return [dict(provider='Fixture',protocol='nzb',title='Show S01E02',url='https://example.test/file',guid='fixture',size=100,publish_date=None,seeders=0,quality='HD',score=10,rejected_reason=None)]
+    monkeypatch.setattr(engine,'search_newznab',provider)
+    grabs=[]
+    monkeypatch.setattr(engine,'grab_result',lambda result_id:grabs.append(result_id) or {'ok':True})
+    result=engine.search_episode(1,auto_grab=False)
+    assert not result['errors'] and len(result['results'])==1 and not grabs
+    result=engine.search_episode(1,auto_grab=True)
+    assert result['grabbed']=={'ok':True} and grabs==[result['results'][0]['id']]
+    with dbcore.connect(database,readonly=True) as c:
+        assert c.execute('SELECT search_count FROM episodes WHERE id=1').fetchone()[0]==2
+        assert c.execute("SELECT COUNT(*) FROM search_results WHERE status='Found'").fetchone()[0]==1
