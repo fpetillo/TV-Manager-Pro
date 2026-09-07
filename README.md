@@ -470,3 +470,11 @@ Adds `/manage` with Backlog Overview, Manage Searches, Episode Status Management
 - Adds safe Windows `release-and-push.ps1` GitHub source commit automation.
 - Keeps Show Queue Downloads sorting based on real numeric downloaded counts.
 - Updates documentation for Version 18 readiness and GitHub release automation.
+
+
+## v18.2.2 — Fast Loading Hotfix
+
+- Prevents subtitle scans from holding the database writer lock for the entire scan.
+- Adds batched subtitle status writes and a scan safety time limit.
+- Makes Show Detail loading use read-only, fast-fail database access.
+- Adds a user-visible timeout message when show loading is blocked by background work.

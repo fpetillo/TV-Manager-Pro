@@ -14,7 +14,7 @@ def _load_queue_helpers():
 
 
 def test_version_is_17_23_0():
-    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() in {"17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1"}
+    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() in {"17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1", "18.2.2"}
 
 
 def test_downloads_sort_uses_sickchill_missing_priority_descending():

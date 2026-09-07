@@ -11,7 +11,7 @@ class V1711VersionVisibilityTests(unittest.TestCase):
         self.assertIn('APP_VERSION', app)
 
     def test_templates_show_visible_version(self):
-        self.assertIn((ROOT/'VERSION').read_text(encoding='utf-8').strip(), {'17.1.8','17.1.9','17.2.0', '17.3.0', '17.3.1', '17.3.2', '17.3.3', '17.3.4', '17.3.5', '17.4.0', '17.5.0', '17.6.0', '17.6.1', '17.7.0', '17.9.0', '17.9.1', '17.10.0', '17.11.0', '17.12.0', '17.13.0', '17.13.1', '17.13.2', '17.13.3', '17.14.0', '17.15.0', '17.16.0', '17.18.0', "17.20.0", "17.21.0", "17.22.0", "17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1"})
+        self.assertIn((ROOT/'VERSION').read_text(encoding='utf-8').strip(), {'17.1.8','17.1.9','17.2.0', '17.3.0', '17.3.1', '17.3.2', '17.3.3', '17.3.4', '17.3.5', '17.4.0', '17.5.0', '17.6.0', '17.6.1', '17.7.0', '17.9.0', '17.9.1', '17.10.0', '17.11.0', '17.12.0', '17.13.0', '17.13.1', '17.13.2', '17.13.3', '17.14.0', '17.15.0', '17.16.0', '17.18.0', "17.20.0", "17.21.0", "17.22.0", "17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1", "18.2.2"})
         about=(ROOT/'templates'/'about.html').read_text(encoding='utf-8')
         system=(ROOT/'templates'/'system.html').read_text(encoding='utf-8')
         dashboard=(ROOT/'templates'/'dashboard.html').read_text(encoding='utf-8')

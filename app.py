@@ -94,8 +94,8 @@ def backup_before_upgrade():
 def inject_app_version():
     return {"app_version": APP_VERSION}
 
-def cx(path=None):
-    return dbcore.connect(path or DB,wal=(path is None))
+def cx(path=None, readonly=False):
+    return dbcore.connect(path or DB, wal=(path is None), readonly=readonly)
 
 def _write_import_verification_report(payload):
     diag=BASE/"diagnostics"
@@ -1165,7 +1165,7 @@ def eps(sid):
     except Exception: limit=100
     try: offset=max(0,int(request.args.get("offset") or 0))
     except Exception: offset=0
-    with cx() as c:
+    with cx(readonly=True) as c:
         show=c.execute("SELECT * FROM shows WHERE id=?",(sid,)).fetchone()
         if not show:
             return jsonify(error="Show not found"),404
@@ -1210,7 +1210,7 @@ def eps(sid):
 
 @app.get("/api/shows/<int:sid>")
 def show_detail(sid):
-    with cx() as c:
+    with cx(readonly=True) as c:
         show=c.execute("""
             SELECT s.*,
                    (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id) AS episode_count,

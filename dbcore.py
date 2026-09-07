@@ -11,7 +11,9 @@ from pathlib import Path
 # timeout so background jobs do not crash with "database is locked" when two
 # operators or jobs write at once.
 DEFAULT_BUSY_TIMEOUT_MS = 120000
+DEFAULT_READ_BUSY_TIMEOUT_MS = 5000
 DEFAULT_TIMEOUT_SECONDS = DEFAULT_BUSY_TIMEOUT_MS / 1000
+DEFAULT_READ_TIMEOUT_SECONDS = DEFAULT_READ_BUSY_TIMEOUT_MS / 1000
 _WRITE_LOCK = threading.RLock()
 _TRANSIENT_LOCK_ERRORS = ("database is locked", "database table is locked", "database is busy")
 
@@ -61,7 +63,10 @@ def _raw_connect(target, *, uri=False, timeout=DEFAULT_TIMEOUT_SECONDS):
 def connect(path, *, wal=True, readonly=False):
     path = Path(path)
     if readonly:
-        c = _raw_connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        # Read-only UI requests must not wait behind long maintenance writers for minutes.
+        # If the database is busy, fail quickly so the page can show a retryable message
+        # instead of looking hung.
+        c = _raw_connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=DEFAULT_READ_TIMEOUT_SECONDS)
     else:
         _WRITE_LOCK.acquire()
         try:
@@ -71,7 +76,7 @@ def connect(path, *, wal=True, readonly=False):
             _WRITE_LOCK.release()
             raise
     c.row_factory = sqlite3.Row
-    c.execute(f"PRAGMA busy_timeout={DEFAULT_BUSY_TIMEOUT_MS}")
+    c.execute(f"PRAGMA busy_timeout={DEFAULT_READ_BUSY_TIMEOUT_MS if readonly else DEFAULT_BUSY_TIMEOUT_MS}")
     c.execute("PRAGMA foreign_keys=ON")
     if wal and not readonly:
         try:

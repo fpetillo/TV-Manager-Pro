@@ -54,8 +54,8 @@ STATUS_NAMES = {
     10: "Subtitled",
 }
 
-def cx():
-    return dbcore.connect(DB)
+def cx(readonly=False):
+    return dbcore.connect(DB, readonly=readonly)
 
 def now_iso():
     return datetime.now().replace(microsecond=0).isoformat()
@@ -1107,44 +1107,92 @@ def run_search_job(kind="recent", auto_grab=None):
 
 
 SUB_EXTS={".srt",".ass",".ssa",".sub",".vtt"}
-def subtitle_scan(show_id=None, progress_callback=None):
-    """Scan downloaded episodes for subtitle sidecars.
+def subtitle_scan(show_id=None, progress_callback=None, max_seconds=None, batch_size=50):
+    """Scan downloaded episodes for subtitle sidecars without locking the UI.
 
-    progress_callback receives dictionaries with total/processed/current_show so
-    the web UI can show a progress bar instead of blocking silently.
+    v18.2.2 changes this from one long database write transaction into:
+    - one quick read-only episode lookup,
+    - file-system scanning without a held SQLite write lock,
+    - small batched status updates,
+    - a safety time limit so network shares cannot make the app appear frozen.
     """
-    with cx() as c:
+    try:
+        max_seconds = float(max_seconds if max_seconds is not None else get_setting("TVManager", "subtitle_scan_max_seconds", "30"))
+    except Exception:
+        max_seconds = 30.0
+    max_seconds = max(5.0, min(max_seconds, 300.0))
+    try:
+        batch_size = max(10, min(int(batch_size or 50), 250))
+    except Exception:
+        batch_size = 50
+
+    with cx(readonly=True) as c:
         if show_id:
-            rows=c.execute("""SELECT e.*,s.name show_name FROM episodes e JOIN shows s ON s.id=e.show_id
+            rows=c.execute("""SELECT e.id,e.show_id,e.season,e.episode,e.location,s.name show_name
+                              FROM episodes e JOIN shows s ON s.id=e.show_id
                               WHERE e.show_id=? AND e.location IS NOT NULL AND trim(e.location)<>''""",(show_id,)).fetchall()
         else:
-            rows=c.execute("""SELECT e.*,s.name show_name FROM episodes e JOIN shows s ON s.id=e.show_id
+            rows=c.execute("""SELECT e.id,e.show_id,e.season,e.episode,e.location,s.name show_name
+                              FROM episodes e JOIN shows s ON s.id=e.show_id
                               WHERE e.location IS NOT NULL AND trim(e.location)<>''""").fetchall()
-    found=missing_count=0;items=[];total=len(rows)
+    rows=[dict(r) for r in rows]
+    found=missing_count=0;items=[];total=len(rows);processed=0;partial=False;errors=[];updates=[];dir_cache={}
+    started=time.monotonic()
     if progress_callback:
-        progress_callback({"stage":"Subtitle audit","message":"Preparing subtitle scan.","percent":1,"total":total,"processed":0})
-    with cx() as c:
-        for idx,e in enumerate(rows, start=1):
-            media=Path(e["location"])
-            if progress_callback and (idx == 1 or idx % 25 == 0 or idx == total):
-                progress_callback({
-                    "stage":"Subtitle audit",
-                    "message":f"Checking subtitles for {e['show_name']} S{int(e['season'] or 0):02d}E{int(e['episode'] or 0):02d}.",
-                    "percent":max(1,min(98,int(idx/max(1,total)*100))),
-                    "total":total,"processed":idx-1,"current_show":e["show_name"]
-                })
+        progress_callback({"stage":"Subtitle audit","message":"Preparing fast subtitle scan.","percent":1,"total":total,"processed":0})
+
+    def flush_updates():
+        nonlocal updates
+        if not updates:
+            return
+        chunk=updates; updates=[]
+        def op():
+            with cx() as c:
+                c.executemany("UPDATE episodes SET subtitle_status=? WHERE id=?", chunk)
+        dbcore.retry(op, attempts=4, first_delay=0.1, max_delay=1.0)
+
+    for idx,e in enumerate(rows, start=1):
+        processed=idx
+        if time.monotonic()-started > max_seconds:
+            partial=True
+            errors.append(f"Subtitle scan paused after {int(max_seconds)} seconds to keep TV Manager responsive. Run scan again to continue checking remaining files.")
+            break
+        if progress_callback and (idx == 1 or idx % 10 == 0 or idx == total):
+            progress_callback({
+                "stage":"Subtitle audit",
+                "message":f"Checking subtitles for {e['show_name']} S{int(e.get('season') or 0):02d}E{int(e.get('episode') or 0):02d}.",
+                "percent":max(1,min(98,int(idx/max(1,total)*100))),
+                "total":total,"processed":idx-1,"current_show":e["show_name"]
+            })
+        media=Path(e["location"] or "")
+        try:
             if not media.exists():
                 continue
-            candidates=[x for x in media.parent.glob(media.stem+".*") if x.suffix.lower() in SUB_EXTS]
-            status="Present" if candidates else "Missing"
-            if candidates:found+=1
-            else:missing_count+=1
-            c.execute("UPDATE episodes SET subtitle_status=? WHERE id=?",(status,e["id"]))
-            if len(items)<500:items.append({"episode_id":e["id"],"show":e["show_name"],"season":e["season"],"episode":e["episode"],"status":status,"file":str(media)})
-        c.commit()
-    result={"checked":found+missing_count,"present":found,"missing":missing_count,"items":items}
+            parent=str(media.parent).lower()
+            stem=media.stem.lower()
+            names=dir_cache.get(parent)
+            if names is None:
+                try:
+                    names={p.name.lower() for p in media.parent.iterdir() if p.is_file() and p.suffix.lower() in SUB_EXTS}
+                except Exception as exc:
+                    names=set(); errors.append(f"{media.parent}: {exc}")
+                dir_cache[parent]=names
+            present=any(n.startswith(stem+'.') for n in names)
+            status="Present" if present else "Missing"
+            if present: found+=1
+            else: missing_count+=1
+            updates.append((status,e["id"]))
+            if len(updates)>=batch_size:
+                flush_updates()
+            if len(items)<500:
+                items.append({"episode_id":e["id"],"show":e["show_name"],"season":e.get("season"),"episode":e.get("episode"),"status":status,"file":str(media)})
+        except Exception as exc:
+            errors.append(f"{e.get('show_name')} S{int(e.get('season') or 0):02d}E{int(e.get('episode') or 0):02d}: {exc}")
+    flush_updates()
+    result={"checked":found+missing_count,"processed":processed,"present":found,"missing":missing_count,"total":total,"partial":partial,"errors":errors[:25],"items":items}
     if progress_callback:
-        progress_callback({"stage":"Subtitle audit complete","message":"Subtitle audit complete.","percent":100,"total":total,"processed":total,"succeeded":found,"failed":missing_count,"result":result})
+        msg="Subtitle audit paused before completion." if partial else "Subtitle audit complete."
+        progress_callback({"stage":"Subtitle audit complete" if not partial else "Subtitle audit paused","message":msg,"percent":100 if not partial else max(1,min(99,int(processed/max(1,total)*100))),"total":total,"processed":processed,"succeeded":found,"failed":missing_count,"result":result})
     return result
 
 def upcoming(days=14):

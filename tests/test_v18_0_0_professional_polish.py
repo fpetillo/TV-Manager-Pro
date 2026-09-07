@@ -8,7 +8,7 @@ def read(rel):
 
 
 def test_version_18_identity_and_docs():
-    assert read("VERSION").strip() in {"18.0.0", "18.1.0", "18.2.0", "18.2.1"}
+    assert read("VERSION").strip() in {"18.0.0", "18.1.0", "18.2.0", "18.2.1", "18.2.2"}
     assert (ROOT / "docs" / "RELEASE_NOTES_v18.0.0.md").exists()
     assert (ROOT / "docs" / "VERSION_18_READINESS.md").exists()
     assert (ROOT / "docs" / "GITHUB_RELEASE_AUTOMATION.md").exists()
