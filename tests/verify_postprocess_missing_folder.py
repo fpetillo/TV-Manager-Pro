@@ -7,7 +7,7 @@ names={'_normalize_release_title','_release_prefixes_for_match','_show_match_nam
 nodes=[n for n in source.body if isinstance(n,ast.FunctionDef) and n.name in names]
 marker=re.compile(r'(?i)(?:^|[\s._\-\[\(])(?:S\d{1,2}E\d{1,3}|\d{1,2}x\d{1,3})(?:\b|[\s._\-\]\)])')
 c=sqlite3.connect(':memory:');c.row_factory=sqlite3.Row
-c.executescript('CREATE TABLE shows(id,name,location,season_folders); CREATE TABLE scene_mappings(show_id,alias); CREATE TABLE scene_exceptions(show_id,exception_name); INSERT INTO shows VALUES(1,"Breaking Bad",NULL,1);')
+c.executescript('CREATE TABLE shows(id,name,location,season_folders,scene_numbering); CREATE TABLE scene_mappings(show_id,alias); CREATE TABLE scene_exceptions(show_id,exception_name); INSERT INTO shows VALUES(1,"Breaking Bad",NULL,1,0);')
 @contextmanager
 def cx(): yield c
 ns=dict(re=re,Path=Path,_EPISODE_MARKER_RE=marker,cx=cx,ops=SimpleNamespace(map_path=lambda x:x),get_setting=lambda *args:'',MEDIA_EXTS={'.mkv'},advanced=SimpleNamespace(split_multi_episode=lambda name:[(1,1)] if 'S01E01' in name else []),episode_pattern=lambda p:None)

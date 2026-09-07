@@ -2284,6 +2284,12 @@ def native_notifications_test(sid):
     try:return jsonify(results=notifiers.dispatch("test",{"message":"TV Manager test notification"},only_id=sid))
     except ValueError as exc:return jsonify(error=str(exc)),400
 
+@app.post("/api/shows/<int:sid>/scene-refresh")
+def api_scene_refresh(sid):
+    import scene_sync
+    try:return jsonify(ok=True,**scene_sync.refresh(sid,force=True))
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
 @app.get("/api/shows/defaults")
 def api_show_defaults():
     import show_preferences
@@ -3443,6 +3449,7 @@ backup_before_upgrade()
 init()
 engine.init_engine()
 __import__("notifiers").init()
+__import__("scene_sync").init()
 sickchill_parity.init(DB)
 migrations.migrate(DB)
 lifecycle.init()

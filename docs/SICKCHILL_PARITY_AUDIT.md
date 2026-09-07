@@ -17,8 +17,8 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Episodes | Bulk episode status management | Manage Center | Complete | episode_rules.py and sickchill_parity.py: preview/apply episode changes. |
 | Episodes | Specials / Season 00 control | Show Detail / Settings | Complete | episode_rules.py: ignored specials excluded from search and missing counts. |
 | Search | Manual and backlog episode search | Show Detail / Missing | Partial | engine.py: search and scoring implemented; live provider behavior needs validation. |
-| Search | Date, sports and scene searches | Show Settings / Advanced | Partial | show_preferences.py: date and stored scene numbering used in provider requests; mapping population remains manual. |
-| Search | Anime and automatic XEM mapping | Advanced | Partial | Absolute-number queries and manual aliases exist; automatic XEM synchronization and anime group rules are missing. |
+| Search | Date, sports and scene searches | Show Settings / Advanced | Partial | show_preferences.py: date and stored scene numbering used in provider requests; manual and cached XEM mapping sources are supported. |
+| Search | Anime and automatic XEM mapping | Advanced | Partial | scene_sync.py: cached XEM refresh after metadata refresh, manual override precedence and reverse matching. Live XEM returned HTTP 403 in this environment; aliases/group rules and complete multi-mapping search remain partial. |
 | Search | Native SickChill provider roster | Providers | Partial | Generic Newznab/Torznab adapters do not implement upstream site-specific login, cookies and scraping. See upstream inventory. |
 | Downloads | Client handoff and queue monitoring | Download Center | Partial | engine.py and downloader_polling.py: SAB/qBittorrent plus NZBGet/Transmission/Deluge polling. Other upstream clients remain missing. Live credentials/clients needed for end-to-end checks. |
 | Downloads | Failed download history and retry | Manage Center | Partial | Failure records and retry workflows exist; automatic recovery needs live client validation. |
@@ -162,3 +162,5 @@ Each entry below requires its own adapter and live compatibility check. A generi
 18.4.1 isolated browser also verified media/subtitle rename and saving new-show defaults; both add APIs inherited saved preferences.
 
 18.4.2 adds six native notifier adapters and three client pollers, with mocked service tests (283 total passing) and isolated configuration UI verification. Live services remain uncertified; see the release notes for API references and limitations.
+
+18.4.3 adds cached XEM mappings and reverse matching. 286 tests pass; public XEM sample returned HTTP 403, so live compatibility is not verified.

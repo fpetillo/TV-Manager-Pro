@@ -763,6 +763,9 @@ def search_episode(episode_id, auto_grab=False):
     names=advanced.aliases(ctx["show_id"])
     if names: show["search_name"]=names[0]
     episode = dict(ctx)
+    if ctx.get("scene_numbering"):
+        import scene_sync
+        episode=scene_sync.for_search(ctx["show_id"],episode)
     show.update({key:ctx.get(key) for key in ("scene_numbering","air_by_date","sports","anime")})
     providers = [p for p in parse_newznab() if p["enabled"]]
     custom = advanced.provider_defs_raw()
@@ -1887,7 +1890,7 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
         progress_callback({"stage":"Post-processing match","message":f"Matching {len(files):,} media files to shows and episodes.","percent":40,"processed":0,"total":len(files)})
 
     with cx() as c:
-        shows=[dict(r) for r in c.execute("""SELECT id,name,location,season_folders
+        shows=[dict(r) for r in c.execute("""SELECT id,name,location,season_folders,scene_numbering
                            FROM shows""").fetchall()]
         alias_rows=c.execute("""SELECT show_id, alias FROM scene_mappings
                                 WHERE alias IS NOT NULL AND trim(alias)<>''""").fetchall()
@@ -1927,9 +1930,12 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
         episode_rows=[]
         with cx() as c:
             for season,epno in pairs:
-                ep=c.execute("SELECT * FROM episodes WHERE show_id=? AND season=? AND episode=?",
-                             (show["id"],season,epno)).fetchone()
-                if ep:episode_rows.append(ep)
+                if show.get("scene_numbering"):
+                    import scene_sync
+                    matched=scene_sync.episode_rows(c,show["id"],season,epno)
+                else:matched=c.execute("SELECT * FROM episodes WHERE show_id=? AND season=? AND episode=?",(show["id"],season,epno)).fetchall()
+                for ep in matched:
+                    if not any(existing["id"]==ep["id"] for existing in episode_rows):episode_rows.append(ep)
         if not episode_rows:
             result["unmatched"]+=1
             result["unmatched_details"].append({"source":str(p),"reason":f"Show matched {show['name']}, but the episode is missing from its metadata. Refresh show metadata, then preview again."})

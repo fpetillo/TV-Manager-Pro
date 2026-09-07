@@ -109,7 +109,10 @@ def aliases(show_id):
 
 def mappings(show_id):
     with cx() as c:
-        return [dict(r) for r in c.execute("SELECT * FROM scene_mappings WHERE show_id=? ORDER BY season,episode,alias",(show_id,)).fetchall()]
+        rows=[dict(r) for r in c.execute("SELECT * FROM scene_mappings WHERE show_id=? ORDER BY season,episode,alias",(show_id,)).fetchall()]
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='xem_mappings'").fetchone():
+            rows.extend(dict(r,source="xem",alias="",id=None) for r in c.execute("SELECT * FROM xem_mappings WHERE show_id=? ORDER BY season,episode,scene_episode",(show_id,)))
+        return rows
 
 def save_mapping(show_id,d):
     with cx() as c:

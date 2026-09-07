@@ -128,7 +128,7 @@ async function openShow(id){
           <div class="id-box"><span class="id-label">TVDb</span><code>${esc(s.tvdb_id||"—")}</code></div>
           <div class="id-box"><span class="id-label">TMDb</span><code>${esc(s.tmdb_id||"—")}</code></div>
         </div>
-        ${s.location?`<div class="path-box">${esc(s.location)}</div>`:""}<button id="previewLibraryRename" class="secondary">Preview Rename</button><button id="editShowSettings" class="secondary">Edit Show Settings</button><button id="editLibraryFolder" class="blue">Edit Library Folder</button>
+        ${s.location?`<div class="path-box">${esc(s.location)}</div>`:""}<button id="refreshSceneMapping" class="secondary">Refresh Scene Mapping</button><button id="previewLibraryRename" class="secondary">Preview Rename</button><button id="editShowSettings" class="secondary">Edit Show Settings</button><button id="editLibraryFolder" class="blue">Edit Library Folder</button>
         <div class="actions show-actions">
           <button id="refreshMetadata" class="blue">Refresh Metadata</button>
           ${s.imdb_id?`<a class="btn secondary" target="_blank" href="https://www.imdb.com/title/${esc(s.imdb_id)}/">IMDb</a>`:""}
@@ -157,6 +157,7 @@ async function openShow(id){
 
 
 
+  document.getElementById('refreshSceneMapping').onclick=async function(){this.disabled=true;const message=document.getElementById('refreshMessage');message.textContent='Refreshing scene mapping…';try{const r=await fetch('/api/shows/'+id+'/scene-refresh',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error);message.textContent=d.message+'; enable scene numbering in Show Settings to use these mappings.';}catch(e){message.textContent=e.message;}finally{this.disabled=false;}};
   document.getElementById('previewLibraryRename').onclick=async()=>{try{await ensureFolderEditor();await previewLibraryRename(id);}catch(e){document.getElementById('refreshMessage').textContent=e.message;}};
   document.getElementById('editShowSettings').onclick=async()=>{try{await ensureFolderEditor();await editShowPreferences(id,s.name);}catch(e){document.getElementById('refreshMessage').textContent=e.message;}};
   document.getElementById('editLibraryFolder').onclick=async()=>{
@@ -189,7 +190,7 @@ async function openShow(id){
     if(!modal){modal=document.createElement("div");modal.id="mappingModal";modal.className="search-modal";document.body.appendChild(modal)}
     modal.hidden=false;modal.innerHTML=`<div class="modal-card"><div class="modal-head"><h2>Scene / Anime Mapping — ${esc(s.name)}</h2><button class="close-x" onclick="mappingModal.hidden=true">Close</button></div><div id="mappingBody">Loading…</div></div>`;
     const r=await fetch(`/api/shows/${id}/scene-mappings`),d=await r.json();
-    mappingBody.innerHTML=`<div class="form-grid compact-grid"><label>Season<input id="ms" type="number"></label><label>Episode<input id="me" type="number"></label><label>Scene season<input id="mss" type="number"></label><label>Scene episode<input id="mse" type="number"></label><label>Absolute #<input id="ma" type="number"></label><label>Alias<input id="mal"></label></div><button id="addMapping" class="blue">Add Mapping / Alias</button><div class="mapping-list">${d.results.map(x=>`<div class="result-card"><strong>${x.alias?esc(x.alias)+" • ":""}${x.season!=null?`S${x.season}E${x.episode}`:""}${x.scene_season!=null?` → Scene S${x.scene_season}E${x.scene_episode}`:""}${x.absolute_number!=null?` • Absolute ${x.absolute_number}`:""}</strong></div>`).join("")||'<p class="muted">No mappings yet.</p>'}</div>`;
+    mappingBody.innerHTML=`<div class="form-grid compact-grid"><label>Season<input id="ms" type="number"></label><label>Episode<input id="me" type="number"></label><label>Scene season<input id="mss" type="number"></label><label>Scene episode<input id="mse" type="number"></label><label>Absolute #<input id="ma" type="number"></label><label>Alias<input id="mal"></label></div><button id="addMapping" class="blue">Add Mapping / Alias</button><div class="mapping-list">${d.results.map(x=>`<div class="result-card"><strong>${x.source==='xem'?'XEM • ':'Manual • '}${x.alias?esc(x.alias)+" • ":""}${x.season!=null?`S${x.season}E${x.episode}`:""}${x.scene_season!=null?` → Scene S${x.scene_season}E${x.scene_episode}`:""}${x.absolute_number!=null?` • Absolute ${x.absolute_number}`:""}</strong></div>`).join("")||'<p class="muted">No mappings yet.</p>'}</div>`;
     addMapping.onclick=async()=>{await fetch(`/api/shows/${id}/scene-mappings`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({season:ms.value?+ms.value:null,episode:me.value?+me.value:null,scene_season:mss.value?+mss.value:null,scene_episode:mse.value?+mse.value:null,absolute_number:ma.value?+ma.value:null,alias:mal.value})});sceneMapping.click()}
   };
 

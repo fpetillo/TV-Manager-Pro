@@ -164,7 +164,13 @@ def refresh_show(show_id):
                        last_refresh=CURRENT_TIMESTAMP,last_status='OK',last_error=NULL,updated_at=CURRENT_TIMESTAMP""",
                   (show_id,))
         c.commit()
-    return {"show_id":show_id,"name":info.get("name") or show["name"],
+    scene_result=None
+    if dict(show).get("scene_numbering"):
+        try:
+            import scene_sync
+            scene_result=scene_sync.refresh(show_id)
+        except ValueError as exc:scene_result={"error":str(exc)}
+    return {"scene_mapping":scene_result,"show_id":show_id,"name":info.get("name") or show["name"],
             "tmdb_id":tmdb_id,"inserted":inserted,"updated":updated}
 
 def refresh_batch(limit=None, batch_size=None):

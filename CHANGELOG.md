@@ -1,3 +1,7 @@
+## 18.4.3 - 2026-09-07
+
+Cached XEM mappings, manual-override precedence and reverse scene matching. Refresh action and daily metadata-triggered refresh. 286 tests pass. Public XEM sample returned 403; live compatibility remains unverified.
+
 ## 18.4.2 - 2026-09-07
 
 Six native notification services with event choices, masked credentials and delivery status; NZBGet/Transmission/Deluge polling and handoff validation. 283 tests pass; disabled service setup verified in isolated browser. Full parity/live certification remain incomplete.
