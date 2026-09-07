@@ -1,7 +1,7 @@
 """Validated per-show behavior shared by search, metadata and subtitles."""
 import re
 
-COLUMNS={'metadata_language':"TEXT DEFAULT 'en-US'",'past_episode_status':"TEXT DEFAULT 'Wanted'",'future_episode_status':"TEXT DEFAULT 'Wanted'",'subtitles_enabled':'INTEGER DEFAULT 1'}
+COLUMNS={'metadata_provider':"TEXT DEFAULT 'tmdb'",'episode_order':"TEXT DEFAULT 'official'",'metadata_language':"TEXT DEFAULT 'en-US'",'past_episode_status':"TEXT DEFAULT 'Wanted'",'future_episode_status':"TEXT DEFAULT 'Wanted'",'subtitles_enabled':'INTEGER DEFAULT 1'}
 BOOLS={'paused','monitor_new','search_enabled','season_folders','scene_numbering','air_by_date','sports','metadata_enabled','favorite','anime','subtitles_enabled'}
 IDS={'quality_profile_id','retention_policy_id'}
 TEXT={'preferred_words','required_words','ignored_words','metadata_language','past_episode_status','future_episode_status'}

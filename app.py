@@ -1056,6 +1056,14 @@ def not_found_page(error):
 def search():
     q=(request.args.get("q") or "").strip()
     if not q:return jsonify(error="Enter a TV show name."),400
+    if request.args.get("provider")=="tvdb":
+        import tvdb_client
+        try:
+            out=tvdb_client.search(q,request.args.get("year"),DB)
+            with cx(readonly=True) as c:
+                for row in out:row['saved']=bool(existing(c,tvdb=row['tvdb_id']))
+            return jsonify(results=out,count=len(out))
+        except ValueError as exc:return jsonify(error=str(exc)),400
     p={"query":q,"include_adult":"false","language":"en-US","page":1}
     if request.args.get("year"):p["first_air_date_year"]=request.args["year"]
     try:
@@ -1388,6 +1396,9 @@ def refresh_show_metadata(sid):
         show=c.execute("SELECT * FROM shows WHERE id=?",(sid,)).fetchone()
     if not show:
         return jsonify(error="Show not found"),404
+    if dict(show).get('metadata_provider')=='tvdb':
+        try:return jsonify(ok=True,**metadata_service.refresh_show(sid))
+        except ValueError as exc:return jsonify(error=str(exc)),400
     try:
         tmdb_id=resolve_tmdb_show(show)
         if not tmdb_id:
@@ -1555,13 +1566,18 @@ def add():
     with cx() as c:
         c.execute("BEGIN IMMEDIATE")
         try:
+            if x.get('episode_order','official') not in {'official','dvd'}:raise ValueError('Unknown episode order')
+            if x.get('episode_order')=='dvd' and x.get('metadata_provider')!='tvdb':raise ValueError('DVD order requires TVDB')
+            if x.get('metadata_provider','tmdb') not in {'tmdb','tvdb'}:raise ValueError('Unknown metadata provider')
+            if x.get('metadata_provider')=='tvdb' and not str(x.get('tvdb_id','')).isdigit():raise ValueError('A TVDB ID is required')
             __import__("show_preferences").options(x)
             location=requested_show_destination(x,name,c)
         except ValueError as exc: return jsonify(error=str(exc)),400
-        if existing(c,tmdb=x.get("tmdb_id"),imdb=x.get("imdb_id"),name=name):return jsonify(ok=True,message=f"{name} is already in TV Manager.")
+        if existing(c,tmdb=x.get("tmdb_id"),imdb=x.get("imdb_id"),tvdb=x.get("tvdb_id"),name=name):return jsonify(ok=True,message=f"{name} is already in TV Manager.")
         c.execute("""INSERT INTO shows(tmdb_id,imdb_id,name,original_name,first_air_date,overview,poster,vote_average,status,location,season_folders)
                    VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(x.get("tmdb_id"),x.get("imdb_id"),name,x.get("original_name"),x.get("first_air_date"),x.get("overview"),x.get("poster"),x.get("vote_average"),"Wanted",location,1))
         sid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        c.execute('UPDATE shows SET metadata_provider=?,tvdb_id=?,episode_order=? WHERE id=?',(x.get('metadata_provider','tmdb'),x.get('tvdb_id'),x.get('episode_order','official'),sid))
         try: __import__("show_preferences").apply(c,sid,{**__import__("show_preferences").defaults(c),**x})
         except ValueError as exc:
             c.rollback();return jsonify(error=str(exc)),400
@@ -2289,6 +2305,22 @@ def api_scene_refresh(sid):
     import scene_sync
     try:return jsonify(ok=True,**scene_sync.refresh(sid,force=True))
     except ValueError as exc:return jsonify(error=str(exc)),400
+
+@app.get("/metadata-sources")
+def metadata_sources_page():return render_template('metadata_sources.html')
+
+@app.get("/api/metadata-sources/tvdb")
+def tvdb_config_status():
+    import tvdb_client
+    key,pin=tvdb_client.credentials(DB)
+    return jsonify(configured=bool(key),api_key='********' if key else '',pin='********' if pin else '')
+
+@app.put("/api/metadata-sources/tvdb")
+def tvdb_config_save():
+    body=request.get_json() or {}
+    for field in ('api_key','pin'):
+        if field in body and body[field]!='********':engine.set_setting('TVDB',field,str(body[field] or '').strip(),is_secret=1)
+    return jsonify(ok=True)
 
 @app.get("/api/shows/defaults")
 def api_show_defaults():

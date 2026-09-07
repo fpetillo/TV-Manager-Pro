@@ -83,7 +83,7 @@ async function runMetadataBatch(){
 }
 function fullMetaOptions(){return {batch_size:Number(byId('fullMetaBatch')?.value||10),stale_only:!!byId('fullMetaStaleOnly')?.checked};}
 async function previewFullMetadata(){
-  try{const d=await jsonFetch('/api/metadata/refresh/full/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fullMetaOptions())});setHtml('fullMetaStatus',message('info',`Full refresh would scan ${Number(d.total||0).toLocaleString()} shows. TMDb configured: ${d.tmdb?.configured?'yes':'no'}.`));}
+  try{const d=await jsonFetch('/api/metadata/refresh/full/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fullMetaOptions())});setHtml('fullMetaStatus',message('info',`Full refresh would scan ${Number(d.total||0).toLocaleString()} shows. TMDb configured: ${d.tmdb?.configured?'yes':'no'}. TVDB configured: ${d.tvdb_configured?'yes':'no'}.`));}
   catch(ex){setHtml('fullMetaStatus',message('error',ex.message));}
 }
 async function startFullMetadata(){

@@ -20,7 +20,7 @@ for n in nodes:n.decorator_list=[]
 c=sqlite3.connect(':memory:',isolation_level=None);c.row_factory=sqlite3.Row
 c.execute('CREATE TABLE settings(section,name,value)')
 c.execute('INSERT INTO settings VALUES(?,?,?)',('General','root_dirs',roots))
-c.execute('CREATE TABLE shows(id INTEGER PRIMARY KEY,tmdb_id,imdb_id,name,original_name,first_air_date,overview,poster,vote_average,status,location,season_folders,trakt_id,trakt_slug,tvdb_id,network,quality,monitor_new,search_enabled,added_at)')
+c.execute('CREATE TABLE shows(id INTEGER PRIMARY KEY,tmdb_id,imdb_id,name,original_name,first_air_date,overview,poster,vote_average,status,location,season_folders,trakt_id,trakt_slug,tvdb_id,network,quality,monitor_new,search_enabled,added_at,metadata_provider,episode_order)')
 @contextmanager
 def cx():
     with c:yield c

@@ -34,6 +34,7 @@ def init():
                 "still_url": "TEXT",
                 "still_path": "TEXT",
                 "tmdb_episode_id": "INTEGER",
+                "tvdb_episode_id": "INTEGER",
                 "metadata_updated_at": "TEXT",
             }.items():
                 if name not in cols:
@@ -97,6 +98,9 @@ def refresh_show(show_id):
     with cx() as c:
         show=c.execute("SELECT * FROM shows WHERE id=?",(int(show_id),)).fetchone()
     if not show:raise ValueError("Show not found")
+    if dict(show).get("metadata_provider")=="tvdb":
+        import tvdb_client
+        return tvdb_client.refresh_show(dict(show),DB)
     language=dict(show).get("metadata_language") or "en-US"
     tmdb_id=resolve_tmdb(show)
     if not tmdb_id:raise ValueError("Could not resolve show to TMDb")
@@ -248,12 +252,12 @@ def _eligible_show_ids(include_paused=False, stale_only=False):
 def full_refresh_preview(include_paused=False, stale_only=False):
     tmdb = tmdb_status()
     rows = _eligible_show_ids(include_paused=include_paused, stale_only=stale_only)
-    return {"ok": True, "tmdb": tmdb, "total": len(rows), "sample": [{"show_id": sid, "name": name} for sid, name in rows[:25]],
+    return {"ok": True, "tvdb_configured":bool(__import__("tvdb_client").credentials(DB)[0]), "tmdb": tmdb, "total": len(rows), "sample": [{"show_id": sid, "name": name} for sid, name in rows[:25]],
             "include_paused": bool(include_paused), "stale_only": bool(stale_only)}
 
 def start_full_refresh(batch_size=10, include_paused=False, stale_only=False, delay_seconds=0.15):
     status = tmdb_status()
-    if not status.get("configured"):
+    if not status.get("configured") and not __import__("tvdb_client").credentials(DB)[0]:
         raise tmdb_client.TMDBConfigurationError("TMDb is not configured. Add TMDB_BEARER_TOKEN or TMDB_API_KEY in .env before running a full-library metadata refresh.")
     rows = _eligible_show_ids(include_paused=include_paused, stale_only=stale_only)
     job_id = uuid.uuid4().hex[:12]
@@ -335,7 +339,7 @@ def missing_metadata_preview(limit=200, include_paused=False):
 
 def refresh_missing_metadata(limit=200, include_paused=False, delay_seconds=0.15, progress_callback=None):
     status=tmdb_status()
-    if not status.get("configured"):
+    if not status.get("configured") and not __import__("tvdb_client").credentials(DB)[0]:
         raise tmdb_client.TMDBConfigurationError("TMDb is not configured. Add TMDB_BEARER_TOKEN or TMDB_API_KEY before scheduling missing metadata refresh.")
     rows=missing_metadata_candidates(limit=limit, include_paused=include_paused)
     total=len(rows)

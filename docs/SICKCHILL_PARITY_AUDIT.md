@@ -27,8 +27,8 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Post processing | Archive extraction and extra scripts | Post Processing | Missing | No complete SickChill-compatible archive extraction and post-processing script workflow. |
 | Post processing | Rename existing library in place | Show Detail / Library | Complete | library_rename.py: signed preview, selected approval, no overwrite, sidecars, multi-episode grouping, rollback and recovery journals. |
 | Metadata | TMDb refresh and language | Show Settings | Partial | metadata_service.py: per-show language and default new-episode statuses; requires TMDb configuration. |
-| Metadata | TVDB / AniDB as primary indexers | Metadata | Missing | Imported IDs are preserved but native TVDB/AniDB metadata providers are not implemented. |
-| Metadata | DVD episode ordering | Show Settings | Missing | No alternate DVD-order metadata workflow. Upstream wiki also notes TVDB API limitations. |
+| Metadata | TVDB / AniDB as primary indexers | Metadata Sources / Add Show | Partial | tvdb_client.py implements TVDB v4 search and refresh for new shows. AniDB and existing-library source migration remain missing; live TVDB credentials required. |
+| Metadata | DVD episode ordering | TVDB Add Show | Partial | New TVDB shows can choose aired/DVD order. Existing-library order migration is not implemented. Live TVDB validation is outstanding. |
 | Metadata | NFO and artwork format coverage | Metadata | Partial | Metadata/artwork routines exist; full upstream format and consumer compatibility are not verified. |
 | Subtitles | Automatic subtitle search and per-show switch | Subtitles / Show Settings | Partial | sync.py and production.py: OpenSubtitles adapter and per-show opt-out; upstream subtitle-provider coverage is incomplete. |
 | Notifications | Native notification services | Notification Services | Partial | notifiers.py: native Discord, Slack, Telegram, Gotify, Pushover and Pushbullet event delivery. Other upstream adapters remain missing; live delivery is unverified. |
@@ -164,3 +164,5 @@ Each entry below requires its own adapter and live compatibility check. A generi
 18.4.2 adds six native notifier adapters and three client pollers, with mocked service tests (283 total passing) and isolated configuration UI verification. Live services remain uncertified; see the release notes for API references and limitations.
 
 18.4.3 adds cached XEM mappings and reverse matching. 286 tests pass; public XEM sample returned HTTP 403, so live compatibility is not verified.
+
+18.5.0 adds native TVDB search/refresh and aired/DVD order for new TVDB shows. 291 tests pass; a synthetic browser add flow verified source/order persistence. Live credentials, AniDB and existing-library provider/order migration remain outstanding.

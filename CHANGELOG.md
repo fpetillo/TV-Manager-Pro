@@ -1,3 +1,7 @@
+## 18.5.0 - 2026-09-07
+
+Native TVDB search/refresh, metadata source setup and aired/DVD order for new TVDB shows. Preserves episode paths/statuses and rejects changed identities. 291 tests pass; synthetic browser add flow verified. Live credentials and remaining parity work outstanding.
+
 ## 18.4.3 - 2026-09-07
 
 Cached XEM mappings, manual-override precedence and reverse scene matching. Refresh action and daily metadata-triggered refresh. 286 tests pass. Public XEM sample returned 403; live compatibility remains unverified.

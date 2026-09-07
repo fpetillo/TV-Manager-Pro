@@ -1,26 +1,28 @@
 {
   "product": "TV Manager",
-  "version": "18.4.3",
-  "release_name": "Cached Scene Mappings",
-  "generated_at": "2026-09-07T21:03:18.985487+00:00",
+  "version": "18.5.0",
+  "release_name": "Native TVDB Metadata",
+  "generated_at": "2026-09-07T21:14:08.707671+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Cached XEM mappings",
-    "Manual override precedence",
-    "Reverse scene episode matching"
+    "TMDb or TVDB search provider",
+    "TVDB credential setup",
+    "Native translated TVDB refresh",
+    "Aired/DVD order for new TVDB shows"
   ],
   "validation": {
     "pytest": {
-      "passed": 286,
+      "passed": 291,
       "failed": 0
     },
     "focused_checks": "passed",
     "python_compile": "passed",
     "javascript_syntax": "passed",
-    "browser": "isolated scene action and missing-ID guidance verified",
+    "browser": "unconfigured guidance and synthetic TVDB/DVD add workflow verified",
     "fully_green": true,
     "external_integrations": "not certified",
-    "xem_live": "HTTP 403; not verified"
+    "xem_live": "HTTP 403; not verified",
+    "tvdb_live": "not tested; operator credentials required"
   },
   "activation": "Restart required; no automatic database or media relocation",
   "sickchill_replacement_server_runbook": true,

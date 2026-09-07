@@ -1,4 +1,4 @@
-window.chooseShowDestination=async function(name,saveLabel='Add Show',currentLocation=null){
+window.chooseShowDestination=async function(name,saveLabel='Add Show',currentLocation=null,metadataProvider='tmdb'){
   const r=await fetch('/api/library/destinations'),d=await r.json();
   if(!r.ok)throw new Error(d.error||'Could not load library folders');
   let profiles=[],defaults={};
@@ -21,6 +21,8 @@ window.chooseShowDestination=async function(name,saveLabel='Add Show',currentLoc
       const option=document.createElement('label');option.className='field';option.innerHTML='<span><input type="checkbox" id="rebaseEpisodePaths"> Update stored episode paths too (files have already been moved)</span>';dialog.querySelector('.toolbar').before(option);
       const note=document.createElement('p');note.textContent='Saving changes the destination for future processing. Existing files are not moved. Select the option above only if files already exist under the new folder; paths outside the old show folder stay unchanged.';option.after(note);
     }
+    let order=null;
+    if(currentLocation===null&&metadataProvider==='tvdb'){const label=document.createElement('label');label.className='field';label.textContent='TVDB episode order';order=document.createElement('select');for(const [value,text] of [['official','Aired order'],['dvd','DVD order']]){const option=document.createElement('option');option.value=value;option.textContent=text;order.append(option);}label.append(order);dialog.querySelector('.toolbar').before(label);}
     let readPreferences=()=>({});
     if(currentLocation===null){const host=document.createElement('div');dialog.querySelector('.toolbar').before(host);readPreferences=buildShowPreferences(host,defaults,profiles);}
     let version=0,approved=null;
@@ -32,7 +34,7 @@ window.chooseShowDestination=async function(name,saveLabel='Add Show',currentLoc
     input.oninput=update;select.onchange=update;
     const finish=value=>{version++;dialog.close();dialog.remove();resolve(value);};
     dialog.querySelector('[type=button]').onclick=()=>finish(null);dialog.oncancel=e=>{e.preventDefault();finish(null);};
-    dialog.querySelector('form').onsubmit=e=>{e.preventDefault();if(approved)finish({...approved,...readPreferences(),...(currentLocation!==null?{previous_location:currentLocation,update_episode_paths:dialog.querySelector("#rebaseEpisodePaths").checked}:{})});};
+    dialog.querySelector('form').onsubmit=e=>{e.preventDefault();if(approved)finish({...approved,...readPreferences(),...(order?{episode_order:order.value}:{}),...(currentLocation!==null?{previous_location:currentLocation,update_episode_paths:dialog.querySelector("#rebaseEpisodePaths").checked}:{})});};
     document.body.append(dialog);dialog.showModal();update();
     const manage=document.createElement('a');manage.href='/library-storage';manage.textContent='Manage library locations';dialog.querySelector('.toolbar').before(manage);
     const storage=document.createElement('div');dialog.querySelector('.toolbar').before(storage);
