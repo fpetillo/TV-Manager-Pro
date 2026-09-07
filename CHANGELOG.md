@@ -1,3 +1,7 @@
+## 18.4.1 - 2026-09-07
+
+Saved new-show defaults and preview/confirm existing-library rename, including sidecars, multi-episode files, conflict guards, rollback and recovery journals. Shared file-operation lock. 269 tests pass and isolated browser workflow verified. Full parity remains incomplete.
+
 ## 18.4.0 — 2026-09-07
 
 SickChill audit and per-show preferences: correct profile IDs, language/default statuses, subtitles and numbering search, flat naming, UTC scheduler leases and magnet hashes. 260 tests pass. Full parity remains incomplete; see docs/SICKCHILL_PARITY_AUDIT.md and release notes.

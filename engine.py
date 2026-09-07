@@ -1839,6 +1839,13 @@ def _choose_postprocess_show(shows, path):
     return best, None
 
 def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None):
+    import media_operations
+    args=(dry_run,limit,root_override,selected_sources,process_method_override,progress_callback)
+    if dry_run:return _scan_postprocess(*args)
+    with media_operations.exclusive(BASE):return _scan_postprocess(*args)
+
+
+def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None):
     """Scan/process completed TV downloads.
 
     root_override lets an operator temporarily process another completed-downloads

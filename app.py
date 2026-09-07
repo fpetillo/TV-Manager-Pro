@@ -667,7 +667,7 @@ def api_trakt_add_show():
              body.get("first_air_date") or body.get("first_aired"),body.get("overview") or "",
              body.get("network") or "", "Wanted", body.get("quality") or "HD", 1, 1, datetime.now().isoformat(timespec="seconds"),location,1))
         sid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
-        try: __import__("show_preferences").apply(c,sid,body)
+        try: __import__("show_preferences").apply(c,sid,{**__import__("show_preferences").defaults(c),**body})
         except ValueError as exc:
             c.rollback();return jsonify(error=str(exc)),400
         c.commit()
@@ -1562,7 +1562,7 @@ def add():
         c.execute("""INSERT INTO shows(tmdb_id,imdb_id,name,original_name,first_air_date,overview,poster,vote_average,status,location,season_folders)
                    VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(x.get("tmdb_id"),x.get("imdb_id"),name,x.get("original_name"),x.get("first_air_date"),x.get("overview"),x.get("poster"),x.get("vote_average"),"Wanted",location,1))
         sid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
-        try: __import__("show_preferences").apply(c,sid,x)
+        try: __import__("show_preferences").apply(c,sid,{**__import__("show_preferences").defaults(c),**x})
         except ValueError as exc:
             c.rollback();return jsonify(error=str(exc)),400
     return jsonify(ok=True,show_id=sid,message=f"{name} added to TV Manager."),201
@@ -2233,6 +2233,43 @@ def api_episode_update(eid):
         c.execute("UPDATE episodes SET "+",".join(fields)+" WHERE id=?",vals)
         c.commit()
     return jsonify(ok=True)
+
+@app.post("/api/shows/<int:sid>/rename-preview")
+def api_library_rename_preview(sid):
+    import library_rename
+    from itsdangerous import URLSafeTimedSerializer
+    try:
+        plan=library_rename.preview(DB,sid,engine.get_setting("General","naming_pattern","Season %0S/%SN - S%0SE%0E - %EN"),engine.as_bool(engine.get_setting("General","move_associated_files","1"),True))
+        token=URLSafeTimedSerializer(app.secret_key,salt="library-rename").dumps(plan)
+        return jsonify(plan=plan,token=token)
+    except (ValueError,OSError) as exc:return jsonify(error=str(exc)),400
+
+@app.post("/api/shows/<int:sid>/rename-apply")
+def api_library_rename_apply(sid):
+    import library_rename, media_operations
+    from itsdangerous import URLSafeTimedSerializer, BadData
+    body=request.get_json() or {}
+    try:
+        plan=URLSafeTimedSerializer(app.secret_key,salt="library-rename").loads(body.get("token",""),max_age=1800)
+        if plan['show_id']!=sid:raise ValueError("Preview belongs to another show")
+        with media_operations.exclusive(BASE):
+            result=library_rename.apply(DB,plan,body.get("selected",[]),BASE/"rename-journals")
+        return jsonify(ok=True,**result)
+    except BadData:return jsonify(error="Preview expired or is invalid. Preview again."),400
+    except (ValueError,OSError) as exc:return jsonify(error=str(exc)),400
+
+@app.get("/api/shows/defaults")
+def api_show_defaults():
+    import show_preferences
+    with cx(readonly=True) as c:return jsonify(preferences=show_preferences.defaults(c))
+
+@app.put("/api/shows/defaults")
+def api_save_show_defaults():
+    import show_preferences
+    try:
+        with cx() as c:values=show_preferences.save_defaults(c,request.get_json() or {})
+        return jsonify(ok=True,preferences=values)
+    except ValueError as exc:return jsonify(error=str(exc)),400
 
 @app.patch("/api/shows/<int:sid>/options")
 def api_show_options(sid):

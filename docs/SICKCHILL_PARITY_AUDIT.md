@@ -13,7 +13,7 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Shows | Edit show folder and preferences | Show Detail / Library | Complete | show_preferences.py: typed profile IDs, pause, language, statuses, subtitle and numbering options. |
 | Shows | Browse shows and episodes | Show Queue / Show Detail | Complete | manager.js, show_detail.js: paging, filtering and episode detail. |
 | Shows | Import SickChill library | Import Center | Partial | sickchill_importer.py: imports show/episode data; not every upstream configuration field is translated. |
-| Shows | Save add-show preferences as defaults | Add Show | Missing | Per-show preferences are supported; reusable defaults for all new shows are not yet available. |
+| Shows | Save add-show preferences as defaults | Edit Show Settings / Add Show | Complete | show_preferences.py: save defaults without changing existing shows; Search and Trakt add routes inherit them. |
 | Episodes | Bulk episode status management | Manage Center | Complete | episode_rules.py and sickchill_parity.py: preview/apply episode changes. |
 | Episodes | Specials / Season 00 control | Show Detail / Settings | Complete | episode_rules.py: ignored specials excluded from search and missing counts. |
 | Search | Manual and backlog episode search | Show Detail / Missing | Partial | engine.py: search and scoring implemented; live provider behavior needs validation. |
@@ -25,7 +25,7 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Post processing | Preview and approve completed files | Post Processing | Complete | engine.py: matched/blocked/unmatched review and explicit approval before processing. |
 | Post processing | Naming and season folders | Naming / Show Settings | Complete | naming.py: configured naming and per-show flat/season folders. |
 | Post processing | Archive extraction and extra scripts | Post Processing | Missing | No complete SickChill-compatible archive extraction and post-processing script workflow. |
-| Post processing | Rename existing library in place | Naming | Partial | Naming preview and download processing exist; a complete existing-library preview/apply rename workflow is missing. |
+| Post processing | Rename existing library in place | Show Detail / Library | Complete | library_rename.py: signed preview, selected approval, no overwrite, sidecars, multi-episode grouping, rollback and recovery journals. |
 | Metadata | TMDb refresh and language | Show Settings | Partial | metadata_service.py: per-show language and default new-episode statuses; requires TMDb configuration. |
 | Metadata | TVDB / AniDB as primary indexers | Metadata | Missing | Imported IDs are preserved but native TVDB/AniDB metadata providers are not implemented. |
 | Metadata | DVD episode ordering | Show Settings | Missing | No alternate DVD-order metadata workflow. Upstream wiki also notes TVDB API limitations. |
@@ -150,11 +150,13 @@ Each entry below requires its own adapter and live compatibility check. A generi
 ## Acceptance work remaining
 
 1. Complete native indexer coverage and automatic numbering synchronization.
-2. Implement and test remaining library workflows: saved add-show defaults, existing-file rename, complete restore, archive/script processing.
+2. Implement and test remaining library workflows: complete restore and archive/script processing.
 3. Verify each provider, downloader, subtitle service and notifier independently with its configured service.
 4. Test the full search → handoff → completion → processing → notification sequence for each supported client.
 5. Update this matrix only with implementation and test evidence.
 
 ## This iteration validation
 
-260 automated tests passed before release checks; final results are recorded in the release manifest. Isolated browser testing verified Show Settings opens, saves profile ID 4, language fr-FR, Skipped defaults, and disabled subtitles/season folders; reopening preserves them. Production media and configuration were not used for these tests.
+269 automated tests passed before release checks; final results are recorded in the release manifest. Isolated browser testing verified Show Settings opens, saves profile ID 4, language fr-FR, Skipped defaults, and disabled subtitles/season folders; reopening preserves them. Production media and configuration were not used for these tests.
+
+18.4.1 isolated browser also verified media/subtitle rename and saving new-show defaults; both add APIs inherited saved preferences.

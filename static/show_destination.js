@@ -1,10 +1,10 @@
 window.chooseShowDestination=async function(name,saveLabel='Add Show',currentLocation=null){
   const r=await fetch('/api/library/destinations'),d=await r.json();
   if(!r.ok)throw new Error(d.error||'Could not load library folders');
-  let profiles=[];
+  let profiles=[],defaults={};
   if(currentLocation===null){
-    if(typeof window.buildShowPreferences!=='function')await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/static/show_preferences.js?v=18.4.0';script.onload=resolve;script.onerror=()=>reject(new Error('Show preferences could not load'));document.head.append(script);});
-    const response=await fetch('/api/quality-profiles');if(!response.ok)throw new Error('Quality profiles could not load');profiles=(await response.json()).results||[];
+    if(typeof window.buildShowPreferences!=='function')await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/static/show_preferences.js?v=18.4.1';script.onload=resolve;script.onerror=()=>reject(new Error('Show preferences could not load'));document.head.append(script);});
+    const response=await fetch('/api/quality-profiles');if(!response.ok)throw new Error('Quality profiles could not load');profiles=(await response.json()).results||[];const dr=await fetch('/api/shows/defaults');if(!dr.ok)throw new Error('Show defaults could not load');defaults=(await dr.json()).preferences||{};
   }
   return new Promise(resolve=>{
     const dialog=document.createElement('dialog');dialog.className='destination-dialog';
@@ -22,7 +22,7 @@ window.chooseShowDestination=async function(name,saveLabel='Add Show',currentLoc
       const note=document.createElement('p');note.textContent='Saving changes the destination for future processing. Existing files are not moved. Select the option above only if files already exist under the new folder; paths outside the old show folder stay unchanged.';option.after(note);
     }
     let readPreferences=()=>({});
-    if(currentLocation===null){const host=document.createElement('div');dialog.querySelector('.toolbar').before(host);readPreferences=buildShowPreferences(host,{},profiles);}
+    if(currentLocation===null){const host=document.createElement('div');dialog.querySelector('.toolbar').before(host);readPreferences=buildShowPreferences(host,defaults,profiles);}
     let version=0,approved=null;
     async function update(){const turn=++version;submit.disabled=true;approved=null;error.textContent='';preview.textContent='';
       if(!select.value){error.textContent='No library roots configured. Open Library Locations to add a root, then try again.';return;}

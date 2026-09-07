@@ -73,5 +73,6 @@ def associated_destinations(source,destination):
         if f.suffix.lower() not in allowed:continue
         if not f.name.lower().startswith(prefix.lower()):continue
         tail=f.name[len(prefix):]
+        if not tail.startswith("."):continue
         out.append((f,destination.with_name(destination.stem+tail)))
     return out

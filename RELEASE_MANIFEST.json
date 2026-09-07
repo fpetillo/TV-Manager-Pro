@@ -1,25 +1,24 @@
 {
   "product": "TV Manager",
-  "version": "18.4.0",
-  "release_name": "SickChill Audit and Show Preferences",
-  "generated_at": "2026-09-07T20:34:52.533862+00:00",
+  "version": "18.4.1",
+  "release_name": "Show Defaults and Library Rename",
+  "generated_at": "2026-09-07T20:46:10.521914+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Editable per-show preferences",
-    "Typed profile IDs and numbering-aware searches",
-    "Subtitle opt-out and flat season folders",
-    "UTC scheduler leases and magnet hashes",
-    "Evidence-backed SickChill coverage gaps"
+    "Saved new-show defaults",
+    "Preview and confirm library rename",
+    "Cross-process media operation exclusion",
+    "No overwrite and recovery journals"
   ],
   "validation": {
     "pytest": {
-      "passed": 260,
+      "passed": 269,
       "failed": 0
     },
     "focused_checks": "passed",
     "python_compile": "passed",
     "javascript_syntax": "passed",
-    "browser": "isolated settings save and reopen passed",
+    "browser": "isolated rename with subtitle, defaults save and both add APIs passed",
     "fully_green": true,
     "external_integrations": "not certified"
   },

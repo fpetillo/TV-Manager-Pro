@@ -26,3 +26,6 @@ db-emergency/
 build/
 dist/
 release/
+
+.media-files.lock
+rename-journals/

@@ -56,3 +56,20 @@ def apply(c,sid,body):
     for field,table in (('quality_profile_id','quality_profiles'),('retention_policy_id','retention_policies')):
         if values.get(field) and not c.execute(f'SELECT id FROM {table} WHERE id=?',(values[field],)).fetchone():raise ValueError('Selected profile no longer exists')
     if values:c.execute('UPDATE shows SET '+','.join(k+'=?' for k in values)+' WHERE id=?',[*values.values(),sid])
+
+
+def defaults(c):
+    import json
+    row=c.execute("SELECT value FROM settings WHERE section='ShowDefaults' AND name='preferences'").fetchone()
+    return options(json.loads(row[0])) if row else {}
+
+
+def save_defaults(c,body):
+    import json
+    values=options(body)
+    for field,table in (('quality_profile_id','quality_profiles'),('retention_policy_id','retention_policies')):
+        if values.get(field) and not c.execute(f'SELECT id FROM {table} WHERE id=?',(values[field],)).fetchone():raise ValueError('Selected profile no longer exists')
+    c.execute("""INSERT INTO settings(section,name,value,is_secret,source,updated_at)
+                 VALUES('ShowDefaults','preferences',?,0,'tvmanager',CURRENT_TIMESTAMP)
+                 ON CONFLICT(section,name) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP""",(json.dumps(values),))
+    return values
