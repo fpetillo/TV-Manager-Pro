@@ -1,3 +1,7 @@
+## 18.5.1 - 2026-09-07
+
+Prevent aired XEM mappings from misidentifying DVD-order episodes; retain manual overrides. 292 tests pass.
+
 ## 18.5.0 - 2026-09-07
 
 Native TVDB search/refresh, metadata source setup and aired/DVD order for new TVDB shows. Preserves episode paths/statuses and rejects changed identities. 291 tests pass; synthetic browser add flow verified. Live credentials and remaining parity work outstanding.

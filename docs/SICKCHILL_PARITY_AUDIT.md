@@ -166,3 +166,5 @@ Each entry below requires its own adapter and live compatibility check. A generi
 18.4.3 adds cached XEM mappings and reverse matching. 286 tests pass; public XEM sample returned HTTP 403, so live compatibility is not verified.
 
 18.5.0 adds native TVDB search/refresh and aired/DVD order for new TVDB shows. 291 tests pass; a synthetic browser add flow verified source/order persistence. Live credentials, AniDB and existing-library provider/order migration remain outstanding.
+
+18.5.1 prevents aired XEM mappings from applying to DVD-order libraries. Automatic DVD scene mapping remains unsupported; explicit manual overrides work. 292 tests pass.

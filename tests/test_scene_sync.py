@@ -5,7 +5,7 @@ import scene_sync
 @pytest.fixture
 def store(tmp_path,monkeypatch):
     db=tmp_path/'db';monkeypatch.setattr(scene_sync,'DB',db);scene_sync.init()
-    c=sqlite3.connect(db);c.executescript('''CREATE TABLE shows(id,tvdb_id);INSERT INTO shows VALUES(1,123);
+    c=sqlite3.connect(db);c.executescript('''CREATE TABLE shows(id,tvdb_id,episode_order);INSERT INTO shows VALUES(1,123,'official');
     CREATE TABLE episodes(id,show_id,season,episode,scene_season,scene_episode,absolute_number);
     INSERT INTO episodes VALUES(1,1,1,1,NULL,NULL,1),(2,1,1,2,NULL,NULL,2);''');c.commit();c.close()
     return db
@@ -42,3 +42,19 @@ def test_double_mapping_and_bad_payload():
     assert len(scene_sync.parse(data))==3
     data['data'][0]['scene']['episode']='not a number'
     with pytest.raises(ValueError):scene_sync.parse(data)
+
+
+def test_dvd_order_ignores_aired_cache_but_keeps_manual_overrides(store,monkeypatch):
+    c=sqlite3.connect(store)
+    c.execute("UPDATE shows SET episode_order='dvd'")
+    c.execute('INSERT INTO xem_mappings VALUES(1,1,1,2,3,1,13)')
+    c.commit();c.row_factory=sqlite3.Row
+    monkeypatch.setattr(scene_sync.requests,'get',lambda *a,**k:pytest.fail('Must not fetch aired mappings for DVD'))
+    with pytest.raises(ValueError,match='aired episode order'):scene_sync.refresh(1,force=True)
+    original={'season':1,'episode':1}
+    assert scene_sync.for_search(1,original)==original
+    assert scene_sync.episode_rows(c,1,2,3)==[]
+    assert [r['id'] for r in scene_sync.episode_rows(c,1,1,1)]==[1]
+    c.execute('UPDATE episodes SET scene_season=2,scene_episode=3 WHERE id=2');c.commit()
+    assert [r['id'] for r in scene_sync.episode_rows(c,1,2,3)]==[2]
+    c.close()

@@ -1,24 +1,22 @@
 {
   "product": "TV Manager",
-  "version": "18.5.0",
-  "release_name": "Native TVDB Metadata",
-  "generated_at": "2026-09-07T21:14:08.707671+00:00",
+  "version": "18.5.1",
+  "release_name": "DVD Scene Mapping Guard",
+  "generated_at": "2026-09-07T21:19:54.602698+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "TMDb or TVDB search provider",
-    "TVDB credential setup",
-    "Native translated TVDB refresh",
-    "Aired/DVD order for new TVDB shows"
+    "Prevent aired-order XEM mappings from identifying DVD-order episodes",
+    "Preserve explicit manual numbering overrides"
   ],
   "validation": {
     "pytest": {
-      "passed": 291,
+      "passed": 292,
       "failed": 0
     },
     "focused_checks": "passed",
     "python_compile": "passed",
     "javascript_syntax": "passed",
-    "browser": "unconfigured guidance and synthetic TVDB/DVD add workflow verified",
+    "browser": "No UI changes; prior TVDB add workflow verified in 18.5.0",
     "fully_green": true,
     "external_integrations": "not certified",
     "xem_live": "HTTP 403; not verified",

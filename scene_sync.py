@@ -34,9 +34,10 @@ def parse(payload):
 
 def refresh(show_id,force=False):
     with dbcore.connect(DB,readonly=True) as c:
-        show=c.execute('SELECT tvdb_id FROM shows WHERE id=?',(show_id,)).fetchone()
+        show=c.execute('SELECT tvdb_id,episode_order FROM shows WHERE id=?',(show_id,)).fetchone()
         previous=c.execute('SELECT checked_at,status FROM xem_refresh WHERE show_id=?',(show_id,)).fetchone()
     if not show or not show['tvdb_id']:raise ValueError('A TVDB show ID is required for scene mapping')
+    if (show['episode_order'] or 'official') != 'official':raise ValueError('XEM scene mapping requires aired episode order; DVD order is not supported')
     if not force and previous and time.time()-previous['checked_at']<86400:return {'cached':True,'message':previous['status']}
     try:
         response=requests.get('https://thexem.info/map/all',params={'id':int(show['tvdb_id']),'origin':'tvdb','destination':'scene'},timeout=15)
@@ -45,8 +46,8 @@ def refresh(show_id,force=False):
         # Preserve the last good mappings if the external service fails.
         raise ValueError('Scene mapping could not be refreshed; previous mappings were preserved') from exc
     with dbcore.connect(DB) as c:
-        current=c.execute('SELECT tvdb_id FROM shows WHERE id=?',(show_id,)).fetchone()
-        if not current or current['tvdb_id']!=show['tvdb_id']:raise ValueError('Show identity changed during refresh')
+        current=c.execute('SELECT tvdb_id,episode_order FROM shows WHERE id=?',(show_id,)).fetchone()
+        if not current or (current['tvdb_id'],current['episode_order'])!=(show['tvdb_id'],show['episode_order']):raise ValueError('Show identity changed during refresh')
         c.execute('DELETE FROM xem_mappings WHERE show_id=?',(show_id,))
         c.executemany('INSERT INTO xem_mappings VALUES(?,?,?,?,?,?,?)',[(show_id,*row) for row in rows])
         message=f'{len(rows)} scene mappings available'
@@ -58,6 +59,8 @@ def for_search(show_id,episode):
     # Existing per-episode values are explicit/imported overrides.
     if result.get('scene_season') is not None and result.get('scene_episode') is not None:return result
     with dbcore.connect(DB,readonly=True) as c:
+        show=c.execute('SELECT episode_order FROM shows WHERE id=?',(show_id,)).fetchone()
+        if not show or (show['episode_order'] or 'official')!='official':return result
         row=c.execute('SELECT * FROM xem_mappings WHERE show_id=? AND season=? AND episode=? ORDER BY scene_season,scene_episode LIMIT 1',(show_id,result['season'],result['episode'])).fetchone()
     if row:
         result['scene_season']=row['scene_season'];result['scene_episode']=row['scene_episode']
@@ -67,6 +70,9 @@ def for_search(show_id,episode):
 def episode_rows(c,show_id,season,episode):
     manual=c.execute('SELECT * FROM episodes WHERE show_id=? AND scene_season=? AND scene_episode=?',(show_id,season,episode)).fetchall()
     if manual:return manual
+    show=c.execute('SELECT episode_order FROM shows WHERE id=?',(show_id,)).fetchone()
+    if not show or (show['episode_order'] or 'official')!='official':
+        return c.execute('SELECT * FROM episodes WHERE show_id=? AND season=? AND episode=?',(show_id,season,episode)).fetchall()
     rows=c.execute('''SELECT e.* FROM episodes e JOIN xem_mappings x ON x.show_id=e.show_id AND x.season=e.season AND x.episode=e.episode
                       WHERE x.show_id=? AND x.scene_season=? AND x.scene_episode=?
                       AND (e.scene_season IS NULL OR e.scene_episode IS NULL) ORDER BY e.season,e.episode''',(show_id,season,episode)).fetchall()
