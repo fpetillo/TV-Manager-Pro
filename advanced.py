@@ -233,6 +233,8 @@ def fire_webhooks(event_type,payload):
             r=requests.post(w["url"],json={"event":event_type,"payload":payload},headers=headers,timeout=12)
             out.append({"name":w["name"],"ok":r.ok,"status":r.status_code})
         except Exception as e:out.append({"name":w["name"],"ok":False,"error":str(e)})
+    import notifiers
+    out.extend(notifiers.dispatch(event_type,payload))
     return out
 
 def media_servers():

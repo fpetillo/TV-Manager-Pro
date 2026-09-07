@@ -471,6 +471,8 @@ def mark_release_failed(download_id, reason="Marked failed by user", retry=True)
         c.commit()
     log("download_failed", f"{title}: {reason}", "warning",
         show_id=d["show_id"],episode_id=d["episode_id"])
+    try:advanced.fire_webhooks("failed",{"release":title})
+    except Exception:pass
     return {"ok":True,"episode_status":"Wanted" if retry else "Failed"}
 
 def notification_channels():
@@ -919,28 +921,21 @@ def test_deluge():
     return {"ok":True,"client":"Deluge","connected":bool(r.json().get("result"))}
 
 def send_nzbget(result):
-    host=(get_setting("NZBGet","nzbget_host","") or "").rstrip("/")
-    user=get_setting("NZBGet","nzbget_username","") or "";password=get_setting("NZBGet","nzbget_password","") or ""
-    cat=get_setting("NZBGet","nzbget_category","tv") or "tv"
-    # append accepts NZB content; URL append via appendurl on current NZBGet.
-    payload={"method":"appendurl","params":[result["title"]+".nzb",cat,0,False,result["url"]],"id":1}
-    r=requests.post(host+"/jsonrpc",json=payload,auth=(user,password) if user else None,timeout=15);r.raise_for_status()
-    data=r.json()
-    if data.get("error"):raise ValueError(str(data["error"]))
-    return str(data.get("result") or "")
+    from downloader_polling import nzb_rpc
+    category=get_setting("NZBGet","nzbget_category","tv") or "tv"
+    external=nzb_rpc(get_setting,"append",[result["title"]+".nzb",result["url"],category,0,False,False,"",0,"SCORE"])
+    if type(external) is not int or external<=0:raise ValueError("NZBGet did not accept the download")
+    return str(external)
+
 
 def send_transmission(result):
-    host=(get_setting("TORRENT","torrent_host","") or "").rstrip("/")
-    user=get_setting("TORRENT","torrent_username","") or "";password=get_setting("TORRENT","torrent_password","") or ""
-    url=host+"/transmission/rpc";auth=(user,password) if user else None
-    body={"method":"torrent-add","arguments":{"filename":result["url"]}}
-    r=requests.post(url,json=body,auth=auth,timeout=15)
-    if r.status_code==409:
-        sid=r.headers.get("X-Transmission-Session-Id")
-        r=requests.post(url,json=body,headers={"X-Transmission-Session-Id":sid},auth=auth,timeout=15)
-    r.raise_for_status();data=r.json()
-    args=data.get("arguments") or {};t=args.get("torrent-added") or args.get("torrent-duplicate") or {}
-    return str(t.get("hashString") or "")
+    from downloader_polling import transmission_rpc
+    args=transmission_rpc(get_setting,"torrent-add",{"filename":result["url"]})
+    torrent=args.get("torrent-added") or args.get("torrent-duplicate") or {}
+    external=torrent.get("hashString")
+    if not external:raise ValueError("Transmission did not return a torrent ID")
+    return str(external)
+
 
 def send_deluge(result):
     host=(get_setting("TORRENT","torrent_host","") or "").rstrip("/")
@@ -1556,6 +1551,18 @@ def poll_downloaders():
     if cfg["use_torrents"] and cfg["torrent_method"]=="qbittorrent":
         try: results.append(poll_qbit_downloads())
         except Exception as e: results.append({"client":"qBittorrent","error":str(e)})
+    from downloader_polling import snapshot, update
+    clients=[]
+    if cfg["use_nzbs"] and cfg["nzb_method"]=="nzbget":clients.append("NZBGet")
+    if cfg["use_torrents"] and cfg["torrent_method"] in {"transmission","deluge"}:clients.append({"transmission":"Transmission","deluge":"Deluge"}[cfg["torrent_method"]])
+    for client in clients:
+        try:
+            result=update(DB,client,snapshot(client,get_setting))
+            for failure in result.pop("failures",[]):
+                try:advanced.fire_webhooks("failed",failure)
+                except Exception:pass
+            results.append(result)
+        except Exception:results.append({"client":client,"error":"Polling failed; check client availability and configuration"})
     return {"results":results}
 
 def write_show_metadata(show_id, artwork=True, episode_nfo=True):

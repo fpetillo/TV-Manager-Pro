@@ -189,6 +189,10 @@ def download_subtitle(episode_id,provider_name,file_id,language="en"):
         c.execute("""INSERT INTO subtitle_downloads(episode_id,provider,language,destination,status,message)
                      VALUES(?,?,?,?,?,?)""",(episode_id,provider_name,language,str(dest),"Downloaded","OK"))
         c.execute("UPDATE episodes SET subtitle_status='Present' WHERE id=?",(episode_id,));c.commit()
+    try:
+        import advanced
+        advanced.fire_webhooks("subtitle",{"message":"Subtitle downloaded", "season":e["season"], "episode":e["episode"]})
+    except Exception:pass
     return {"ok":True,"destination":str(dest)}
 
 def validate_backup(path):

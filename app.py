@@ -2258,6 +2258,32 @@ def api_library_rename_apply(sid):
     except BadData:return jsonify(error="Preview expired or is invalid. Preview again."),400
     except (ValueError,OSError) as exc:return jsonify(error=str(exc)),400
 
+@app.get("/notifications")
+def native_notifications_page():return render_template("notifications.html")
+
+@app.get("/api/notification-services")
+def native_notifications_list():
+    import notifiers
+    return jsonify(results=notifiers.listing())
+
+@app.post("/api/notification-services")
+def native_notifications_save():
+    import notifiers
+    try:return jsonify(ok=True,id=notifiers.save(request.get_json() or {}))
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
+@app.delete("/api/notification-services/<int:sid>")
+def native_notifications_remove(sid):
+    import notifiers
+    try:notifiers.remove(sid);return jsonify(ok=True)
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
+@app.post("/api/notification-services/<int:sid>/test")
+def native_notifications_test(sid):
+    import notifiers
+    try:return jsonify(results=notifiers.dispatch("test",{"message":"TV Manager test notification"},only_id=sid))
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
 @app.get("/api/shows/defaults")
 def api_show_defaults():
     import show_preferences
@@ -3416,6 +3442,7 @@ def hist():
 backup_before_upgrade()
 init()
 engine.init_engine()
+__import__("notifiers").init()
 sickchill_parity.init(DB)
 migrations.migrate(DB)
 lifecycle.init()

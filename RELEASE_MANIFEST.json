@@ -1,24 +1,24 @@
 {
   "product": "TV Manager",
-  "version": "18.4.1",
-  "release_name": "Show Defaults and Library Rename",
-  "generated_at": "2026-09-07T20:46:10.521914+00:00",
+  "version": "18.4.2",
+  "release_name": "Native Notifications and Client Polling",
+  "generated_at": "2026-09-07T20:55:57.104080+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Saved new-show defaults",
-    "Preview and confirm library rename",
-    "Cross-process media operation exclusion",
-    "No overwrite and recovery journals"
+    "Six native notification adapters",
+    "Event choices and masked credentials",
+    "NZBGet, Transmission and Deluge polling",
+    "Client handoff validation"
   ],
   "validation": {
     "pytest": {
-      "passed": 269,
+      "passed": 283,
       "failed": 0
     },
     "focused_checks": "passed",
     "python_compile": "passed",
     "javascript_syntax": "passed",
-    "browser": "isolated rename with subtitle, defaults save and both add APIs passed",
+    "browser": "isolated disabled notification service save passed; no live messages sent",
     "fully_green": true,
     "external_integrations": "not certified"
   },

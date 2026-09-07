@@ -1,0 +1,11 @@
+# TV Manager 18.4.2 — Native notifications and downloader polling
+
+Notification Services now supports Discord, Slack, Telegram, Gotify, Pushover and Pushbullet with add/edit/remove, event selection, enable/disable, explicit Send Test, and last-delivery status. Secrets and credential-bearing URLs are masked; redirects are not followed. Changing the service type requires credentials for the new type. Imported legacy notification settings are not automatically activated. No live messages were sent by development tests.
+
+Events connect to existing snatched/processed hooks, explicit failed-download management, new client polling failures, and subtitle downloads. This is not every upstream notification trigger or service. Configure and test the destination before relying on delivery. Failed notification delivery is recorded but not automatically retried.
+
+NZBGet, Transmission and Deluge polling now updates episode and season-pack acquisitions. It preserves importing/completed states, treats missing client entries conservatively, waits for NZBGet post-processing history, and does not overwrite existing downloaded-episode status on failures. NZBGet uses append with a returned numeric ID; Transmission handoff checks RPC success and requires the torrent hash. Transmission uses its documented legacy RPC, supported by current Transmission 4; future versions may require JSON-RPC 2.0 migration.
+
+Validation: 283 pytest tests passed. Tests cover native request payloads, masked credentials, event filtering, sanitized errors, client states/session handling and database transitions. Browser verified saving a disabled test service in isolated QA. Live client and notification integration certification remains outstanding. Normal restart after active jobs finish is needed for activation.
+
+API references: [Discord](https://docs.discord.com/developers/resources/webhook), [Slack](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/), [Telegram](https://core.telegram.org/bots/api#sendmessage), [Gotify](https://gotify.net/docs/pushmsg), [Pushover](https://pushover.net/api), [Pushbullet](https://docs.pushbullet.com/), [NZBGet](https://nzbget.com/documentation/api/append/), [Transmission](https://github.com/transmission/transmission/blob/4.0.6/docs/rpc-spec.md), [Deluge](https://deluge.readthedocs.io/en/latest/modules/deluge.core.html).
