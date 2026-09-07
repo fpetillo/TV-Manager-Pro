@@ -1,88 +1,39 @@
 {
   "product": "TV Manager",
-  "version": "18.1.0",
-  "package": "imdb-tv-manager-v18.1.0.zip",
-  "release_name": "Version 18 Professional Polish",
-  "generated_at": "2026-09-07T08:43:00-04:00",
+  "version": "18.3.3",
+  "release_name": "Library Locations and Processing Review",
+  "generated_at": "2026-09-07T20:01:54.700Z",
+  "distribution": "GitHub source update",
   "highlights": [
-    "Promotes TV Manager to Version 18.",
-    "Adds Launchpad Version 18 readiness checklist.",
-    "Adds safe Windows release-and-push.ps1 for GitHub source commits.",
-    "Keeps Show Queue Downloads sorting based on real numeric downloaded counts.",
-    "Updates navigation and polish documentation for Version 18."
+    "Library location management with in-use removal guard",
+    "Show destination picker and existing-show editor",
+    "Optional stored episode path rebasing",
+    "Nonblocking library disk space",
+    "Preview approval and unmatched diagnostics",
+    "Compact database sizes"
   ],
-  "validation": [
-    "python compile",
-    "javascript syntax",
-    "full pytest suite",
-    "package hygiene"
-  ],
+  "validation": {
+    "focused_checks": "passed",
+    "python_compile": "passed",
+    "javascript_syntax": "all static scripts passed",
+    "pytest": {
+      "passed": 244,
+      "failed": 8,
+      "failures": [
+        "magnet hash helper: 1",
+        "scheduler leases: 2",
+        "Windows database/import cleanup: 5"
+      ]
+    },
+    "fully_green": false
+  },
+  "activation": "Restart required; no automatic database or media relocation",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
-  "windows_exe_installer_assets": true,
-  "large_library_paging": true,
-  "responsive_layout_audit": true,
-  "package_hygiene": "passed",
-  "python_tests": "184/184 tests passing",
   "files": [
-    "docs/NAVIGATION_CENTER.md",
-    "docs/RELEASE_NOTES_v17.16.0.md",
-    "docs/RELEASE_NOTES_v17.18.0.md",
-    "docs/SHOW_DETAIL_DRILLDOWN.md",
-    "docs/SICKCHILL_PARITY_MANAGE.md",
-    "docs/SICKCHILL_REPLACEMENT_SERVER_INSTALL.md",
-    "scripts/install-linux-service.sh",
     "server_preflight.py",
-    "sickchill_parity.py",
-    "static/global.js",
-    "static/manage.js",
-    "static/show_detail.js",
-    "static/show_queue.js",
-    "static/style.css",
-    "static/trakt.js",
-    "templates/_nav.html",
-    "templates/manage.html",
-    "templates/show_detail.html",
-    "templates/show_queue.html",
-    "templates/trakt.html",
-    "tests/test_v17_16_0_sickchill_parity.py",
-    "tests/test_v17_18_0_navigation_center.py",
-    "trakt_client.py"
-  ],
-  "features": [
-    "Windows EXE build works from paths with spaces",
-    "Safe external staging under TEMP",
-    "Final EXE payload under release/windows/TVManager"
-  ],
-  "compile_check": "passed",
-  "javascript_syntax": "passed",
-  "show_detail_drilldown": true,
-  "windows_exe_build_script_safe": true,
-  "windows_exe_output": "release/windows/TVManager",
-  "windows_exe_robocopy_argument_array": true,
-  "release": "Version 18 Professional Polish",
-  "created_at": "2026-09-07T03:06:41",
-  "built_at": "2026-09-07T02:40:00",
-  "sickchill_parity_manage": true,
-  "new_routes": [
-    "/api/system/release-readiness"
-  ],
-  "navigation_center": true,
-  "shared_navigation_template": "templates/_nav.html",
-  "menu_sections": [
-    "Command Center",
-    "Library",
-    "Discovery & Search",
-    "Processing",
-    "Setup & Migration",
-    "Administration"
-  ],
-  "quick_actions": [
-    "/jobs",
-    "/logs",
-    "/database-safety"
-  ],
-  "version_18_readiness": true,
-  "github_release_automation": true,
-  "notes": "SickChill queue counts, missing episode numbers, downloaded totals, and Season 00 ignore option."
+    "library_locations.py",
+    "library_destinations.py",
+    "library_storage.py"
+  ]
 }

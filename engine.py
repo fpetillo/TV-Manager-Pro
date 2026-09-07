@@ -346,7 +346,10 @@ def init_engine():
     if get_setting("TVManager", "background_worker_limit") is None:
         set_setting("TVManager", "background_worker_limit", "4")
     if get_setting("TVManager", "ignore_season_zero_counts") is None:
-        set_setting("TVManager", "ignore_season_zero_counts", "0")
+        set_setting("TVManager", "ignore_season_zero_counts", "1")
+    if get_setting("TVManager", "specials_hidden_from_wanted_v18_3_1") is None:
+        set_setting("TVManager", "ignore_season_zero_counts", "1")
+        set_setting("TVManager", "specials_hidden_from_wanted_v18_3_1", "1")
     try:
         episode_rules.init(DB)
     except Exception:
@@ -717,6 +720,14 @@ def search_generic_provider(provider, show, episode, timeout=25):
     return out
 
 
+
+def ignore_specials_from_wanted() -> bool:
+    """Global product policy: S00/Specials are hidden from Missing/Wanted workflows unless explicitly re-enabled."""
+    return as_bool(get_setting("TVManager", "ignore_season_zero_counts", "1"), True)
+
+def specials_wanted_sql(alias="e") -> str:
+    return f" AND COALESCE({alias}.season,-1)<>0" if ignore_specials_from_wanted() else ""
+
 def _episode_context(episode_id):
     with cx() as c:
         row = c.execute("""SELECT e.*,s.name show_name,s.paused,s.search_enabled,
@@ -732,6 +743,8 @@ def search_episode(episode_id, auto_grab=False):
         raise ValueError("Episode not found")
     if ctx["paused"] or not ctx["search_enabled"] or not ctx["monitored"] or ctx.get("ignored") or str(ctx.get("status") or "").lower()=="ignored":
         return {"episode_id": episode_id, "results": [], "message": "Show or episode is paused/unmonitored or ignored."}
+    if ignore_specials_from_wanted() and int(ctx["season"] or 0) == 0:
+        return {"episode_id": episode_id, "results": [], "message": "Season 00 / Specials are globally hidden from Missing/Wanted and search processing."}
     show = {
         "id": ctx["show_id"], "name": ctx["show_name"],
         "preferred_words": ctx["preferred_words"], "required_words": ctx["required_words"],
@@ -1068,6 +1081,8 @@ def eligible_episodes(kind="recent", limit=25):
     params = []
     where = ["""lower(COALESCE(e.status,'')) IN ('wanted','failed')""",
              "COALESCE(e.monitored,1)=1", "COALESCE(e.ignored,0)=0", "lower(COALESCE(e.status,''))<>'ignored'", "COALESCE(s.paused,0)=0", "COALESCE(s.search_enabled,1)=1"]
+    if ignore_specials_from_wanted():
+        where.append("COALESCE(e.season,-1)<>0")
     if kind == "recent":
         days = max(1, as_int(get_setting("TVManager", "recent_days", "14"), 14))
         start = (today - timedelta(days=days)).isoformat()
@@ -1107,7 +1122,22 @@ def run_search_job(kind="recent", auto_grab=None):
 
 
 SUB_EXTS={".srt",".ass",".ssa",".sub",".vtt"}
-def subtitle_scan(show_id=None, progress_callback=None, max_seconds=None, batch_size=50):
+
+def _is_probably_remote_media_path(path_text):
+    """Return True for UNC/mapped network paths that can freeze on stat()."""
+    raw=str(path_text or "").strip()
+    if raw.startswith('\\') or raw.startswith('//'):
+        return True
+    if os.name == 'nt' and len(raw) >= 2 and raw[1] == ':':
+        try:
+            import ctypes
+            root=raw[:3] if len(raw) >= 3 and raw[2] in ('\\','/') else raw[:2]+'\\'
+            dtype=ctypes.windll.kernel32.GetDriveTypeW(root)
+            return int(dtype) == 4  # DRIVE_REMOTE
+        except Exception:
+            return False
+    return False
+def subtitle_scan(show_id=None, progress_callback=None, max_seconds=None, batch_size=50, max_candidates=None):
     """Scan downloaded episodes for subtitle sidecars without locking the UI.
 
     v18.2.2 changes this from one long database write transaction into:
@@ -1125,16 +1155,26 @@ def subtitle_scan(show_id=None, progress_callback=None, max_seconds=None, batch_
         batch_size = max(10, min(int(batch_size or 50), 250))
     except Exception:
         batch_size = 50
+    try:
+        max_candidates = int(max_candidates if max_candidates is not None else get_setting("TVManager", "subtitle_scan_max_candidates", "200"))
+    except Exception:
+        max_candidates = 200
+    max_candidates = max(25, min(max_candidates, 2000))
+    scan_network = as_bool(get_setting("TVManager", "subtitle_scan_network_paths", "0"))
 
     with cx(readonly=True) as c:
         if show_id:
             rows=c.execute("""SELECT e.id,e.show_id,e.season,e.episode,e.location,s.name show_name
                               FROM episodes e JOIN shows s ON s.id=e.show_id
-                              WHERE e.show_id=? AND e.location IS NOT NULL AND trim(e.location)<>''""",(show_id,)).fetchall()
+                              WHERE e.show_id=? AND e.location IS NOT NULL AND trim(e.location)<>''
+                              ORDER BY e.season,e.episode
+                              LIMIT ?""",(show_id,max_candidates)).fetchall()
         else:
             rows=c.execute("""SELECT e.id,e.show_id,e.season,e.episode,e.location,s.name show_name
                               FROM episodes e JOIN shows s ON s.id=e.show_id
-                              WHERE e.location IS NOT NULL AND trim(e.location)<>''""").fetchall()
+                              WHERE e.location IS NOT NULL AND trim(e.location)<>''
+                              ORDER BY s.name,e.season,e.episode
+                              LIMIT ?""",(max_candidates,)).fetchall()
     rows=[dict(r) for r in rows]
     found=missing_count=0;items=[];total=len(rows);processed=0;partial=False;errors=[];updates=[];dir_cache={}
     started=time.monotonic()
@@ -1166,6 +1206,12 @@ def subtitle_scan(show_id=None, progress_callback=None, max_seconds=None, batch_
             })
         media=Path(e["location"] or "")
         try:
+            if _is_probably_remote_media_path(e.get("location")) and not scan_network:
+                status="SkippedRemote"
+                updates.append((status,e["id"]))
+                if len(items)<500:
+                    items.append({"episode_id":e["id"],"show":e["show_name"],"season":e.get("season"),"episode":e.get("episode"),"status":status,"file":str(media)})
+                continue
             if not media.exists():
                 continue
             parent=str(media.parent).lower()
@@ -1189,7 +1235,7 @@ def subtitle_scan(show_id=None, progress_callback=None, max_seconds=None, batch_
         except Exception as exc:
             errors.append(f"{e.get('show_name')} S{int(e.get('season') or 0):02d}E{int(e.get('episode') or 0):02d}: {exc}")
     flush_updates()
-    result={"checked":found+missing_count,"processed":processed,"present":found,"missing":missing_count,"total":total,"partial":partial,"errors":errors[:25],"items":items}
+    result={"checked":found+missing_count,"processed":processed,"present":found,"missing":missing_count,"total":total,"partial":partial,"max_candidates":max_candidates,"network_paths_scanned":scan_network,"errors":errors[:25],"items":items}
     if progress_callback:
         msg="Subtitle audit paused before completion." if partial else "Subtitle audit complete."
         progress_callback({"stage":"Subtitle audit complete" if not partial else "Subtitle audit paused","message":msg,"percent":100 if not partial else max(1,min(99,int(processed/max(1,total)*100))),"total":total,"processed":processed,"succeeded":found,"failed":missing_count,"result":result})
@@ -1206,15 +1252,17 @@ def upcoming(days=14):
     return [dict(r) | {"status_label":status_label(r["status"])} for r in rows]
 
 def missing(limit=500):
-    with cx() as c:
-        rows = c.execute("""SELECT e.*,s.name show_name,s.poster,s.network
+    sql = """SELECT e.*,s.name show_name,s.poster,s.network
                             FROM episodes e JOIN shows s ON s.id=e.show_id
                             WHERE lower(COALESCE(e.status,'')) IN ('wanted','failed')
                               AND (e.location IS NULL OR trim(e.location)='')
                               AND (e.airdate IS NULL OR e.airdate<=date('now'))
                               AND COALESCE(e.monitored,1)=1 AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored' AND COALESCE(s.paused,0)=0
+                         """ + specials_wanted_sql('e') + """
                             ORDER BY COALESCE(e.airdate,'1900-01-01') DESC,s.name,e.season,e.episode
-                            LIMIT ?""",(limit,)).fetchall()
+                            LIMIT ?"""
+    with cx() as c:
+        rows = c.execute(sql,(limit,)).fetchall()
     return [dict(r) | {"status_label":status_label(r["status"])} for r in rows]
 
 def activity(limit=200):
@@ -1663,6 +1711,111 @@ def episode_pattern(path):
         return int(m.group(1)), int(m.group(2))
     return None
 
+_EPISODE_MARKER_RE = re.compile(r"(?i)(?:^|[\s._\-\[\(])(?:S\d{1,2}E\d{1,3}|\d{1,2}x\d{1,3})(?:\b|[\s._\-\]\)])")
+
+def _normalize_release_title(value):
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+def _release_prefixes_for_match(path):
+    """Return normalized title prefixes before SxxEyy/1xYY from file/folder names.
+
+    Post-processing must not match short show names by arbitrary substring.
+    Examples that must be rejected:
+      * Friends.from.College.S01E03 -> show From
+      * Friends.S03E10...          -> show ER
+    The only reliable automatic match is the title segment before the episode
+    marker, preferably from the file name and then from the release folder.
+    """
+    raw_path = str(path)
+    # Accept both Windows and POSIX paths even when tests/tools run on Linux.
+    path_parts = [part for part in re.split(r"[\\/]+", raw_path) if part]
+    file_name = path_parts[-1] if path_parts else Path(path).name
+    raw_names = [Path(file_name).stem]
+    if len(path_parts) > 1:
+        raw_names.append(path_parts[-2])
+    else:
+        parent = Path(path).parent.name
+        if parent:
+            raw_names.append(parent)
+    prefixes = []
+    seen = set()
+    for source, raw in (("file", raw_names[0]), ("folder", raw_names[1] if len(raw_names) > 1 else "")):
+        if not raw:
+            continue
+        m = _EPISODE_MARKER_RE.search(raw)
+        prefix = raw[:m.start()] if m else raw
+        norm = _normalize_release_title(prefix)
+        if norm and norm not in seen:
+            prefixes.append({"source": source, "raw": prefix.strip(" ._-"), "normalized": norm})
+            seen.add(norm)
+    return prefixes
+
+def _show_match_names(show):
+    names = [show.get("name") or ""]
+    aliases = show.get("aliases") or []
+    if isinstance(aliases, str):
+        aliases = [aliases]
+    names.extend(aliases)
+    out = []
+    seen = set()
+    for raw in names:
+        norm = _normalize_release_title(raw)
+        if norm and norm not in seen:
+            out.append({"raw": str(raw), "normalized": norm, "token_count": len(norm.split()), "char_count": len(norm.replace(" ", ""))})
+            seen.add(norm)
+    return out
+
+def _score_postprocess_show_match(show, path):
+    prefixes = _release_prefixes_for_match(path)
+    if not prefixes:
+        return None
+    best = None
+    for name in _show_match_names(show):
+        norm = name["normalized"]
+        one_token = name["token_count"] == 1
+        short_title = one_token or name["char_count"] <= 5
+        for prefix in prefixes:
+            pnorm = prefix["normalized"]
+            score = None
+            reason = None
+            confidence = None
+            if pnorm == norm:
+                score = 10000 + name["char_count"]
+                reason = f"exact {prefix['source']} title prefix"
+                confidence = "high"
+            elif not short_title and pnorm.startswith(norm + " "):
+                # Longer multi-word titles may have release qualifiers after the
+                # show name, such as country/year tags. This remains lower than
+                # exact so a better title wins.
+                score = 7000 + name["char_count"]
+                reason = f"{prefix['source']} title prefix starts with show name"
+                confidence = "medium"
+            elif not short_title and (" " + norm + " ") in (" " + pnorm + " "):
+                # Last-resort for longer aliases only. Never use substring-only
+                # matching for one-word shows like FROM, ER, YOU, or IT.
+                score = 5200 + name["char_count"]
+                reason = f"long title token match in {prefix['source']} prefix"
+                confidence = "low"
+            if score is not None:
+                item = {"show": show, "score": score, "confidence": confidence, "reason": reason,
+                        "matched_title": name["raw"], "release_prefix": prefix["raw"],
+                        "release_prefix_source": prefix["source"]}
+                if best is None or item["score"] > best["score"]:
+                    best = item
+    return best
+
+def _choose_postprocess_show(shows, path):
+    matches = [m for m in (_score_postprocess_show_match(sh, path) for sh in shows) if m]
+    if not matches:
+        return None, "No show title matched the release prefix before SxxEyy/1xYY."
+    matches.sort(key=lambda x: x["score"], reverse=True)
+    best = matches[0]
+    if best["score"] < 7000:
+        return None, f"Low-confidence show match blocked: {best['show'].get('name')} matched by {best['reason']}."
+    if len(matches) > 1 and matches[1]["score"] >= best["score"] - 10:
+        return None, f"Ambiguous show match blocked between {best['show'].get('name')} and {matches[1]['show'].get('name')}."
+    return best, None
+
 def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None):
     """Scan/process completed TV downloads.
 
@@ -1674,7 +1827,7 @@ def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sourc
     root = ops.map_path(root_override or get_setting("General","tv_download_dir","") or "")
     selected_sources = set(str(x) for x in (selected_sources or []) if str(x).strip())
     result = {"root":root,"dry_run":dry_run,"files":0,"matched":0,"unmatched":0,
-              "blocked":0,"upgrades":0,"actions":[],"media_refresh":[],
+              "blocked":0,"upgrades":0,"actions":[],"media_refresh":[],"unmatched_details":[],
               "selected_sources":len(selected_sources)}
     if not root or not Path(root).exists():
         result["message"] = "Post-processing folder is not reachable from this computer."
@@ -1698,8 +1851,15 @@ def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sourc
         progress_callback({"stage":"Post-processing match","message":f"Matching {len(files):,} media files to shows and episodes.","percent":40,"processed":0,"total":len(files)})
 
     with cx() as c:
-        shows=c.execute("""SELECT id,name,location,season_folders
-                           FROM shows WHERE location IS NOT NULL AND trim(location)<>''""").fetchall()
+        shows=[dict(r) for r in c.execute("""SELECT id,name,location,season_folders
+                           FROM shows""").fetchall()]
+        alias_rows=c.execute("""SELECT show_id, alias FROM scene_mappings
+                                WHERE alias IS NOT NULL AND trim(alias)<>''""").fetchall()
+    aliases_by_show={}
+    for r in alias_rows:
+        aliases_by_show.setdefault(r["show_id"], []).append(r["alias"])
+    for sh in shows:
+        sh["aliases"] = aliases_by_show.get(sh["id"], [])
 
     touched_shows=set()
     for idx,p in enumerate(files, start=1):
@@ -1710,13 +1870,21 @@ def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sourc
         if not pairs:
             single=episode_pattern(p);pairs=[single] if single else []
         if not pairs:
-            result["unmatched"]+=1;continue
+            result["unmatched"]+=1
+            result["unmatched_details"].append({"source":str(p),"reason":"No episode number found (expected SxxEyy or 1xYY). Movies and unnumbered files cannot be processed as TV episodes."})
+            continue
 
-        normalized=re.sub(r"[^a-z0-9]+"," ",str(p).lower())
-        candidates=[sh for sh in shows if re.sub(r"[^a-z0-9]+"," ",sh["name"].lower()).strip() in normalized]
-        if not candidates:
-            result["unmatched"]+=1;continue
-        show=max(candidates,key=lambda sh:len(sh["name"]))
+        match, match_error = _choose_postprocess_show(shows, p)
+        if not match:
+            result["unmatched"]+=1
+            result.setdefault("unmatched_details",[]).append({"source":str(p),"reason":match_error})
+            continue
+        show=match["show"]
+        if not str(show.get("location") or "").strip():
+            result["matched"]+=1
+            result["blocked"]+=1
+            result["actions"].append({"source":str(p),"destination":"Library folder required","show":show["name"],"show_id":show["id"],"season":pairs[0][0],"episodes":[pair[1] for pair in pairs],"blocked":"Library folder required. Set the destination folder for this show, then preview again.","match_confidence":match["confidence"],"match_reason":match["reason"]})
+            continue
 
         episode_rows=[]
         with cx() as c:
@@ -1725,7 +1893,9 @@ def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sourc
                              (show["id"],season,epno)).fetchone()
                 if ep:episode_rows.append(ep)
         if not episode_rows:
-            result["unmatched"]+=1;continue
+            result["unmatched"]+=1
+            result["unmatched_details"].append({"source":str(p),"reason":f"Show matched {show['name']}, but the episode is missing from its metadata. Refresh show metadata, then preview again."})
+            continue
 
         season=episode_rows[0]["season"]
         incoming_quality=infer_quality(p.name)
@@ -1761,7 +1931,13 @@ def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sourc
                 "season":season,"episodes":[e["episode"] for e in episode_rows],
                 "episode_ids":[e["id"] for e in episode_rows],"quality":incoming_quality,
                 "rename_enabled":rename_enabled,"naming_pattern":naming_pattern,
-                "renamed":p.name!=dest.name}
+                "renamed":p.name!=dest.name,
+                "match_confidence":match.get("confidence"),
+                "match_reason":match.get("reason"),
+                "matched_title":match.get("matched_title"),
+                "release_prefix":match.get("release_prefix")}
+        if match.get("confidence") != "high":
+            action["review_note"] = "Review this match before processing."
 
         if blocked_reason:
             action["blocked"]=blocked_reason

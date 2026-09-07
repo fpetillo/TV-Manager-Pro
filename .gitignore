@@ -18,14 +18,11 @@ config.ini
 *.db
 *.db-wal
 *.db-shm
+*.log
 imports/
-db-emergency/
 corrupt-db/
-*.pyo
+db-emergency/
 .pytest_cache/
 build/
 dist/
 release/
-*.spec
-*.exe
-*.msi

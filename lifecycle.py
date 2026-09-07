@@ -187,7 +187,7 @@ def rollback_replacement(replacement_id):
     return {"ok":True,"restored":str(old)}
 
 def unified_queue(limit=300):
-    ignore_specials = _setting_bool("TVManager", "ignore_season_zero_counts", False)
+    ignore_specials = _setting_bool("TVManager", "ignore_season_zero_counts", True)
     scope = _episode_scope_filter(ignore_specials)
     with cx() as c:
         eps=[dict(r) for r in c.execute(f"""SELECT d.id,'episode' acquisition_type,d.status,d.client,d.release_name title,

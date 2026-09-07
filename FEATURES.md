@@ -1,3 +1,27 @@
+## v18.3.2 - Post-Processing Safe Show Matching Hotfix
+
+- Fixed post-processing rename matches so short/common show names are not matched from inside longer titles.
+- Prevents `Friends.from.College` from being renamed into the show `FROM`.
+- Prevents `Friends ... Where Rachel...` from being renamed into the show `ER`.
+- Matching now uses the release title prefix before SxxEyy/1xYY instead of arbitrary substring matching.
+- One-word/short shows such as `FROM`, `ER`, `YOU`, or `IT` must match the exact show-title prefix.
+- Preview results now display show-match confidence/reason before processing.
+- Added docs/RELEASE_NOTES_v18.3.2.md.
+
+## v18.3.1 - Global Specials Missing/Wanted Control
+
+- Added one-place global Season 00 / Specials control.
+- S00/Specials are hidden from Missing/Wanted and queue status by default.
+- Added preview, background ignore/include jobs, and search guard.
+- Added docs/RELEASE_NOTES_v18.3.1.md.
+
+
+## v18.2.6 — Real No-Wait Show Detail Hotfix
+
+- Show Detail now renders a usable screen immediately instead of showing an endless animated loading bar.
+- Episode first-page loading uses an explicit short timeout and smaller first load.
+- Added stronger Retry / Jobs / Logs fallback when SQLite is busy or blocked.
+
 
 
 ## v18.2.1 - Show Load Progress Polish
@@ -336,9 +360,35 @@ failed-download, GUI and advanced sections.
 - Updates documentation for Version 18 readiness and GitHub release automation.
 
 
+
+## v18.2.3 — Fast Show Open & Subtitle Scan Guard
+- Show Detail now opens the core show record first and loads expensive counts after the screen is usable.
+- Episode list paging uses quick fetch plus one-row lookahead instead of blocking on full count queries.
+- Episode API selects only UI-required columns for faster loads.
+- Subtitle scans now cap candidates and skip network paths by default to prevent NAS/SMB hangs.
+- Added fast episode indexes for show detail and episode-management filters.
+
 ## v18.2.2 — Fast Loading Hotfix
 
 - Prevents subtitle scans from holding the database writer lock for the entire scan.
 - Adds batched subtitle status writes and a scan safety time limit.
 - Makes Show Detail loading use read-only, fast-fail database access.
 - Adds a user-visible timeout message when show loading is blocked by background work.
+
+
+### v18.2.4 No-hang show loading
+Show Detail renders the show record and first episode page independently. Season counts refresh after first paint, and blocked reads fail fast with retry/log links instead of leaving the page stuck on Loading show.
+
+
+## v18.2.5 — Show Detail No-Wait Hotfix
+
+Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint. A hard browser watchdog replaces indefinite loading spinners with Retry, Jobs, and Logs actions when the database is busy.
+
+
+## Version 18.3 Online Help and Parity
+
+- Built-in Help Center.
+- SickChill feature parity matrix.
+- Operator workflow map.
+- Context help sections for key daily flows.
+- Honest gap tracking for provider depth, subtitle automation, media server depth, and anime/scene/XEM edge cases.

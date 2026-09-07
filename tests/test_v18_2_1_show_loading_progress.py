@@ -11,7 +11,7 @@ def test_show_detail_has_loading_progress_contract():
     assert 'progress-track indeterminate' in html
     assert 'showPageLoading' in js
     assert 'episodeLoadingRow' in js
-    assert 'Loading episode rows' in js
+    assert ('Loading episode rows' in js or 'Opening first page quickly' in js)
     assert 'tvmIndeterminate' in css
 
 

@@ -11,7 +11,7 @@ from pathlib import Path
 # timeout so background jobs do not crash with "database is locked" when two
 # operators or jobs write at once.
 DEFAULT_BUSY_TIMEOUT_MS = 120000
-DEFAULT_READ_BUSY_TIMEOUT_MS = 5000
+DEFAULT_READ_BUSY_TIMEOUT_MS = 1200
 DEFAULT_TIMEOUT_SECONDS = DEFAULT_BUSY_TIMEOUT_MS / 1000
 DEFAULT_READ_TIMEOUT_SECONDS = DEFAULT_READ_BUSY_TIMEOUT_MS / 1000
 _WRITE_LOCK = threading.RLock()

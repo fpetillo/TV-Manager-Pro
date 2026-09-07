@@ -64,17 +64,30 @@ def _as_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _ignore_specials(db_path: Path | str) -> bool:
+    try:
+        with cx(db_path) as c:
+            r = c.execute("SELECT value FROM settings WHERE section='TVManager' AND name='ignore_season_zero_counts'").fetchone()
+        return str((r[0] if r else '1') or '1').strip().lower() in {'1','true','yes','on'}
+    except Exception:
+        return True
+
+def _specials_clause(db_path: Path | str, alias: str = 'e') -> str:
+    return f" AND COALESCE({alias}.season,-1)<>0" if _ignore_specials(db_path) else ""
+
+
 def summary(db_path: Path | str) -> dict[str, Any]:
+    specials = _specials_clause(db_path, 'e')
     with cx(db_path) as c:
         counts = dict(c.execute(
-            """
+            f"""
             SELECT
               (SELECT COUNT(*) FROM shows) AS shows,
               (SELECT COUNT(*) FROM episodes) AS episodes,
-              (SELECT COUNT(*) FROM episodes WHERE lower(COALESCE(status,'')) IN ('wanted','failed')
-                 AND (location IS NULL OR trim(location)='')
-                 AND (airdate IS NULL OR airdate<=date('now'))
-                 AND COALESCE(monitored,1)=1 AND COALESCE(ignored,0)=0 AND lower(COALESCE(status,''))<>'ignored') AS wanted,
+              (SELECT COUNT(*) FROM episodes e WHERE lower(COALESCE(e.status,'')) IN ('wanted','failed')
+                 AND (e.location IS NULL OR trim(e.location)='')
+                 AND (e.airdate IS NULL OR e.airdate<=date('now'))
+                 AND COALESCE(e.monitored,1)=1 AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored' {specials}) AS wanted,
               (SELECT COUNT(*) FROM failed_releases) AS failed_releases,
               (SELECT COUNT(*) FROM scene_exceptions) AS scene_exceptions,
               (SELECT COUNT(*) FROM episodes WHERE location IS NOT NULL AND trim(location)<>''
@@ -89,6 +102,7 @@ def summary(db_path: Path | str) -> dict[str, Any]:
             {"name": "Backlog overview", "status": "available", "detail": "Wanted/failed aired episodes grouped by show."},
             {"name": "Manage searches", "status": "available", "detail": "Run recent or backlog searches as background jobs."},
             {"name": "Episode status management", "status": "available", "detail": "Preview and mass-update selected episode status values."},
+            {"name": "Global Specials control", "status": "available", "detail": "Hide or include S00/Specials across Missing/Wanted from one place."},
             {"name": "Failed downloads", "status": "available", "detail": "Review and blacklist failed releases so they are not grabbed again."},
             {"name": "Missed subtitle management", "status": "available", "detail": "Review downloaded episodes with missing subtitle status."},
             {"name": "Scene exceptions", "status": "available", "detail": "Add alternate show names used by release/indexer sites."},
@@ -100,9 +114,10 @@ def summary(db_path: Path | str) -> dict[str, Any]:
 
 def backlog_overview(db_path: Path | str, limit: int = 500) -> dict[str, Any]:
     limit = max(1, min(_as_int(limit, 500), 2000))
+    specials = _specials_clause(db_path, 'e')
     with cx(db_path) as c:
         rows = c.execute(
-            """
+            f"""
             SELECT s.id AS show_id, s.name AS show_name, s.network, s.quality, s.paused,
                    SUM(CASE WHEN lower(COALESCE(e.status,''))='wanted' THEN 1 ELSE 0 END) AS wanted,
                    SUM(CASE WHEN lower(COALESCE(e.status,''))='failed' THEN 1 ELSE 0 END) AS failed,
@@ -115,14 +130,14 @@ def backlog_overview(db_path: Path | str, limit: int = 500) -> dict[str, Any]:
                AND (e.location IS NULL OR trim(e.location)='')
                AND (e.airdate IS NULL OR e.airdate<=date('now'))
                AND COALESCE(e.monitored,1)=1
-               AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored'
+               AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored' {specials}
              GROUP BY s.id, s.name, s.network, s.quality, s.paused
              ORDER BY total_missing DESC, s.name COLLATE NOCASE
              LIMIT ?
             """,
             (limit,),
         ).fetchall()
-    return {"results": [dict(r) for r in rows], "count": len(rows), "limit": limit}
+    return {"results": [dict(r) for r in rows], "count": len(rows), "limit": limit, "ignore_season_zero_counts": _ignore_specials(db_path)}
 
 
 def status_preview(db_path: Path | str, filters: dict[str, Any]) -> dict[str, Any]:

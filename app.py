@@ -32,6 +32,7 @@ import trakt_client
 import database_safety
 import job_center
 import sickchill_parity
+import help_content
 import episode_rules
 
 BASE=Path(__file__).resolve().parent
@@ -636,12 +637,19 @@ def api_trakt_add_show():
     name=(body.get("name") or body.get("title") or "").strip()
     if not name:
         return jsonify(error="Trakt show payload is missing a show name."),400
+    try:
+        location=requested_show_destination(body,name)
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
     trakt_id=body.get("trakt_id")
     trakt_slug=body.get("trakt_slug")
     imdb_id=body.get("imdb_id")
     tmdb_id=body.get("tmdb_id")
     tvdb_id=body.get("tvdb_id")
     with cx() as c:
+        c.execute("BEGIN IMMEDIATE")
+        try: location=requested_show_destination(body,name,c)
+        except ValueError as exc: return jsonify(error=str(exc)),400
         found=c.execute("""SELECT id,name FROM shows WHERE
             (? IS NOT NULL AND trakt_id=?) OR
             (? IS NOT NULL AND imdb_id=?) OR
@@ -651,11 +659,11 @@ def api_trakt_add_show():
             LIMIT 1""",(trakt_id,trakt_id,imdb_id,imdb_id,tmdb_id,tmdb_id,tvdb_id,tvdb_id,name)).fetchone()
         if found:
             return jsonify(ok=True,created=False,show_id=found["id"],message=f"{found['name']} is already in TV Manager.")
-        c.execute("""INSERT INTO shows(trakt_id,trakt_slug,tmdb_id,imdb_id,tvdb_id,name,original_name,first_air_date,overview,network,status,quality,monitor_new,search_enabled,added_at)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        c.execute("""INSERT INTO shows(trakt_id,trakt_slug,tmdb_id,imdb_id,tvdb_id,name,original_name,first_air_date,overview,network,status,quality,monitor_new,search_enabled,added_at,location,season_folders)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (trakt_id,trakt_slug,tmdb_id,imdb_id,tvdb_id,name,body.get("original_name") or name,
              body.get("first_air_date") or body.get("first_aired"),body.get("overview") or "",
-             body.get("network") or "", "Wanted", body.get("quality") or "HD", 1, 1, datetime.now().isoformat(timespec="seconds")))
+             body.get("network") or "", "Wanted", body.get("quality") or "HD", 1, 1, datetime.now().isoformat(timespec="seconds"),location,1))
         sid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
         c.commit()
     return jsonify(ok=True,created=True,show_id=sid,message=f"{name} added from Trakt.tv.")
@@ -711,7 +719,7 @@ def _queue_download_percent(row):
     return round((downloaded / total) * 100, 4) if total else 0
 
 def _ignore_season_zero_counts():
-    return engine.as_bool(engine.get_setting("TVManager", "ignore_season_zero_counts", "0"), False)
+    return engine.as_bool(engine.get_setting("TVManager", "ignore_season_zero_counts", "1"), True)
 
 def _queue_episode_filter(alias="e", ignore_specials=None, include_ignored=False):
     if ignore_specials is None:
@@ -1153,12 +1161,100 @@ def shows():
     )
 
 
+
+
+def _lite_ro_connection():
+    """Very short-lived read-only connection for UI first-paint endpoints.
+
+    These endpoints are allowed to return stale/degraded data rather than wait behind
+    a long writer. They are used only to get the screen usable fast.
+    """
+    uri = f"file:{DB.as_posix()}?mode=ro"
+    con = sqlite3.connect(uri, uri=True, timeout=0.15)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA busy_timeout=150")
+    return con
+
+
+def _episode_order_sql(sort, direction):
+    sort=(sort or "season_episode").strip().lower()
+    direction=(direction or "asc").strip().lower()
+    desc = direction == "desc"
+    if sort == "season_episode":
+        return "season DESC, episode DESC" if desc else "season ASC, episode ASC"
+    order_map={
+        "episode":"episode",
+        "title":"COALESCE(name,'') COLLATE NOCASE",
+        "airdate":"COALESCE(airdate,'')",
+        "status":"COALESCE(status,'') COLLATE NOCASE",
+        "quality":"COALESCE(quality,'') COLLATE NOCASE",
+        "file":"COALESCE(location,'') COLLATE NOCASE",
+    }
+    return order_map.get(sort,"season ASC, episode ASC") + (" DESC" if desc else " ASC")
+
+
+@app.get("/api/shows/<int:sid>/snapshot")
+def api_show_snapshot(sid):
+    """Never-hang first-paint show snapshot.
+
+    The normal detail endpoint can be delayed by external SQLite locks or expensive
+    counts. This endpoint avoids counts, uses a tiny busy timeout, and returns a
+    degraded 200 response instead of leaving the browser waiting.
+    """
+    try:
+        with _lite_ro_connection() as c:
+            show=c.execute("SELECT id,name,network,status,quality,poster,overview,location,imdb_id,tmdb_id,tvdb_id,genre,first_air_date FROM shows WHERE id=?",(sid,)).fetchone()
+            if not show:
+                return jsonify(error="Show not found",show=None,degraded=True),404
+            return jsonify(show=dict(show),fast=True,degraded=False)
+    except Exception as e:
+        return jsonify(show={"id":sid,"name":f"Show #{sid}"},error=str(e),fast=True,degraded=True),200
+
+
+@app.get("/api/shows/<int:sid>/episodes-lite")
+def api_show_episodes_lite(sid):
+    """Never-hang first-page episode list.
+
+    Returns only what the table needs, avoids COUNT/GROUP BY, and fails soft with
+    actionable JSON instead of keeping the screen stuck on Loading.
+    """
+    season=request.args.get("season")
+    q=(request.args.get("q") or "").strip()
+    status=(request.args.get("status") or "").strip()
+    sort=(request.args.get("sort") or "season_episode").strip().lower()
+    direction=(request.args.get("direction") or "asc").strip().lower()
+    try: limit=max(1,min(int(request.args.get("limit") or 50),100))
+    except Exception: limit=50
+    try: offset=max(0,int(request.args.get("offset") or 0))
+    except Exception: offset=0
+    where=["show_id=?"]; params=[sid]
+    try:
+        if season not in (None, ""):
+            where.append("season=?"); params.append(int(season))
+        if status:
+            where.append("COALESCE(status,'')=?"); params.append(status)
+        if q:
+            like=f"%{q}%"
+            where.append("(COALESCE(name,'') LIKE ? COLLATE NOCASE OR COALESCE(location,'') LIKE ? COLLATE NOCASE OR CAST(season AS TEXT) LIKE ? OR CAST(episode AS TEXT) LIKE ?)")
+            params.extend([like,like,like,like])
+        where_sql=" WHERE "+" AND ".join(where)
+        order=_episode_order_sql(sort,direction)
+        cols="id,show_id,season,episode,name,airdate,status,location,file_size,quality,subtitle_status,monitored,ignored,ignored_reason,ignored_at,ignored_source,managed_note"
+        with _lite_ro_connection() as c:
+            fetched=c.execute(f"SELECT {cols} FROM episodes{where_sql} ORDER BY {order}, id ASC LIMIT ? OFFSET ?",params+[limit+1,offset]).fetchall()
+        has_more=len(fetched)>limit
+        rows=fetched[:limit]
+        return jsonify(episodes=[dict(r) for r in rows],count=len(rows),total=None,limit=limit,offset=offset,next_offset=(offset+limit if has_more else None),has_more=has_more,fast=True,degraded=False)
+    except Exception as e:
+        return jsonify(episodes=[],count=0,total=None,limit=limit,offset=offset,next_offset=None,has_more=False,fast=True,degraded=True,error=str(e)),200
+
 @app.get("/api/shows/<int:sid>/episodes")
 def eps(sid):
     season=request.args.get("season")
     q=(request.args.get("q") or "").strip()
     status=(request.args.get("status") or "").strip()
     all_mode=(request.args.get("all") or "").lower() in {"1","true","yes"}
+    quick=(request.args.get("quick") or "").lower() in {"1","true","yes"}
     sort=(request.args.get("sort") or "season_episode").strip().lower()
     direction=(request.args.get("direction") or "asc").strip().lower()
     try: limit=max(1,min(int(request.args.get("limit") or 100),500))
@@ -1188,8 +1284,8 @@ def eps(sid):
             where.append("COALESCE(status,'')=?"); params.append(status)
         if q:
             like=f"%{q}%"
-            where.append("(COALESCE(name,'') LIKE ? COLLATE NOCASE OR COALESCE(overview,'') LIKE ? COLLATE NOCASE OR COALESCE(location,'') LIKE ? COLLATE NOCASE OR CAST(season AS TEXT) LIKE ? OR CAST(episode AS TEXT) LIKE ?)")
-            params.extend([like,like,like,like,like])
+            where.append("(COALESCE(name,'') LIKE ? COLLATE NOCASE OR COALESCE(location,'') LIKE ? COLLATE NOCASE OR CAST(season AS TEXT) LIKE ? OR CAST(episode AS TEXT) LIKE ?)")
+            params.extend([like,like,like,like])
         where_sql=" WHERE "+" AND ".join(where)
         order_map={
             "season_episode":"season ASC, episode ASC",
@@ -1204,24 +1300,57 @@ def eps(sid):
             order="season DESC, episode DESC" if direction=="desc" else "season ASC, episode ASC"
         else:
             order=order_map.get(sort,"season ASC, episode ASC") + (" DESC" if direction=="desc" else " ASC")
-        total=int(c.execute(f"SELECT COUNT(*) FROM episodes{where_sql}",params).fetchone()[0])
-        rows=c.execute(f"SELECT * FROM episodes{where_sql} ORDER BY {order}, id ASC LIMIT ? OFFSET ?",params+[limit,offset]).fetchall()
-    return jsonify(show=dict(show),season=(int(season) if season not in (None,"") else None),episodes=[dict(r) for r in rows],total=total,count=len(rows),limit=limit,offset=offset,next_offset=(offset+limit if offset+limit<total else None),has_more=offset+limit<total)
+        # Fast episode-list path: keep the first paint lean. Heavy metadata such as overview/stills/release text is not needed for the table and can make large shows feel stuck.
+        cols="id,show_id,season,episode,name,airdate,status,location,file_size,quality,subtitle_status,monitored,ignored,ignored_reason,ignored_at,ignored_source,managed_note" if quick else "id,show_id,season,episode,name,airdate,status,location,file_size,release_name,quality,overview,still_url,subtitle_status,monitored,ignored,ignored_reason,ignored_at,ignored_source,managed_note"
+        if quick:
+            fetch_limit=limit+1
+            fetched=c.execute(f"SELECT {cols} FROM episodes{where_sql} ORDER BY {order}, id ASC LIMIT ? OFFSET ?",params+[fetch_limit,offset]).fetchall()
+            has_more=len(fetched)>limit
+            rows=fetched[:limit]
+            total=None
+        else:
+            total=int(c.execute(f"SELECT COUNT(*) FROM episodes{where_sql}",params).fetchone()[0])
+            rows=c.execute(f"SELECT {cols} FROM episodes{where_sql} ORDER BY {order}, id ASC LIMIT ? OFFSET ?",params+[limit,offset]).fetchall()
+            has_more=offset+limit<total
+    return jsonify(show=dict(show),season=(int(season) if season not in (None,"") else None),episodes=[dict(r) for r in rows],total=total,count=len(rows),limit=limit,offset=offset,next_offset=(offset+limit if has_more else None),has_more=has_more,quick=quick)
+
+@app.get("/api/shows/<int:sid>/seasons-fast")
+def api_show_seasons_fast(sid):
+    """Return season choices without full counting so Show Detail can paint immediately.
+
+    The older season summary did GROUP BY counts during first load. On large libraries or
+    while a subtitle scan is touching files, that made the page look hung. This endpoint
+    intentionally returns distinct seasons first; detailed counts refresh later.
+    """
+    try:
+        with cx(readonly=True) as c:
+            show=c.execute("SELECT id,name FROM shows WHERE id=?",(sid,)).fetchone()
+            if not show:
+                return jsonify(error="Show not found"),404
+            rows=c.execute("SELECT DISTINCT season FROM episodes WHERE show_id=? ORDER BY season LIMIT 1000",(sid,)).fetchall()
+        return jsonify(show=dict(show),seasons=[{"season": int(r["season"] or 0)} for r in rows],fast=True)
+    except Exception as e:
+        return jsonify(error=str(e),seasons=[],fast=True),200
+
 
 @app.get("/api/shows/<int:sid>")
 def show_detail(sid):
+    fast=(request.args.get("fast") or "").lower() in {"1","true","yes"}
     with cx(readonly=True) as c:
-        show=c.execute("""
-            SELECT s.*,
-                   (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id) AS episode_count,
-                   (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored') AS considered_episode_count,
-                   (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND (COALESCE(e.ignored,0)=1 OR lower(COALESCE(e.status,''))='ignored')) AS ignored_episode_count,
-                   (SELECT COUNT(DISTINCT season) FROM episodes e WHERE e.show_id=s.id AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored') AS season_count
-            FROM shows s WHERE s.id=?
-        """,(sid,)).fetchone()
+        if fast:
+            show=c.execute("SELECT * FROM shows WHERE id=?",(sid,)).fetchone()
+        else:
+            show=c.execute("""
+                SELECT s.*,
+                       (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id) AS episode_count,
+                       (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored') AS considered_episode_count,
+                       (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND (COALESCE(e.ignored,0)=1 OR lower(COALESCE(e.status,''))='ignored')) AS ignored_episode_count,
+                       (SELECT COUNT(DISTINCT season) FROM episodes e WHERE e.show_id=s.id AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored') AS season_count
+                FROM shows s WHERE s.id=?
+            """,(sid,)).fetchone()
         if not show:
             return jsonify(error="Show not found"),404
-    return jsonify(show=dict(show))
+    return jsonify(show=dict(show),fast=fast)
 
 
 def resolve_tmdb_show(show):
@@ -1325,18 +1454,106 @@ def dashboard():
         shows=c.execute("SELECT COUNT(*) c FROM shows").fetchone()["c"]
         episodes=c.execute("SELECT COUNT(*) c FROM episodes").fetchone()["c"]
         downloaded=c.execute("SELECT COUNT(*) c FROM episodes WHERE location IS NOT NULL AND TRIM(location)<>''").fetchone()["c"]
-        wanted=c.execute("""SELECT COUNT(*) c FROM episodes
+        wanted_sql="""SELECT COUNT(*) c FROM episodes
                             WHERE (location IS NULL OR TRIM(location)='')
-                              AND lower(COALESCE(status,'')) IN ('wanted','failed')""").fetchone()["c"]
+                              AND lower(COALESCE(status,'')) IN ('wanted','failed')
+                              AND COALESCE(ignored,0)=0 AND lower(COALESCE(status,''))<>'ignored'"""
+        if _ignore_season_zero_counts():
+            wanted_sql += " AND COALESCE(season,-1)<>0"
+        wanted=c.execute(wanted_sql).fetchone()["c"]
     return jsonify(shows=shows,episodes=episodes,downloaded=downloaded,wanted=wanted)
+
+
+from library_destinations import library_roots, show_destination, rebase_episode_location
+
+@app.get("/library-storage")
+def library_storage_page():
+    return render_template("library_storage.html")
+
+@app.get("/api/library/storage")
+def api_library_storage():
+    import library_storage
+    roots,_=library_roots(engine.get_setting("General","root_dirs",""))
+    return jsonify(results=library_storage.storage_status(roots,ops.map_path),cache_seconds=60)
+
+@app.get("/api/library/locations")
+def api_library_locations():
+    import library_locations
+    with cx() as c:
+        return jsonify(results=library_locations.locations(c))
+
+@app.post("/api/library/locations")
+def api_library_locations_change():
+    import library_locations
+    body=request.get_json(silent=True) or {}
+    with cx() as c:
+        c.execute("BEGIN IMMEDIATE")
+        try:
+            results=library_locations.change(c,body)
+        except library_locations.LocationInUse as exc:
+            return jsonify(error=str(exc),shows=exc.shows),409
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+    return jsonify(ok=True,results=results)
+
+@app.get("/api/library/destinations")
+def api_library_destinations():
+    roots, default=library_roots(engine.get_setting("General","root_dirs",""))
+    return jsonify(roots=roots, default=default)
+
+def requested_show_destination(body, name, connection=None):
+    if connection is None:
+        raw=engine.get_setting("General","root_dirs","")
+    else:
+        row=connection.execute("SELECT value FROM settings WHERE lower(section)='general' AND lower(name)='root_dirs'").fetchone()
+        raw=row["value"] if row else ""
+    return show_destination(raw,body.get("library_root"),body.get("folder_name") or name)
+
+@app.post("/api/library/destination-preview")
+def api_library_destination_preview():
+    body=request.get_json(silent=True) or {}
+    try:
+        return jsonify(location=requested_show_destination(body, body.get("name") or ""))
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
+
+@app.patch("/api/shows/<int:sid>/destination")
+def api_show_destination(sid):
+    body=request.get_json(silent=True) or {}
+    with cx() as c:
+        c.execute("BEGIN IMMEDIATE")
+        show=c.execute("SELECT name,location FROM shows WHERE id=?",(sid,)).fetchone()
+        if not show: return jsonify(error="Show not found"),404
+        if "previous_location" not in body or (body.get("previous_location") or "") != (show["location"] or ""):
+            return jsonify(error="The library folder has changed. Refresh the show and try again."),409
+        try:
+            location=requested_show_destination(body,show["name"],c)
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+        updated=0
+        if body.get("update_episode_paths") is True:
+            for ep in c.execute("SELECT id,location FROM episodes WHERE show_id=?",(sid,)).fetchall():
+                target=rebase_episode_location(ep["location"],show["location"],location)
+                if target != ep["location"]:
+                    c.execute("UPDATE episodes SET location=? WHERE id=?",(target,ep["id"]))
+                    updated+=1
+        c.execute("UPDATE shows SET location=? WHERE id=?",(location,sid))
+    return jsonify(ok=True,location=location,episode_paths_updated=updated)
 
 @app.post("/api/shows")
 def add():
     x=request.get_json() or {}; name=(x.get("name") or "").strip()
+    try:
+        location=requested_show_destination(x,name)
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
     with cx() as c:
+        c.execute("BEGIN IMMEDIATE")
+        try: location=requested_show_destination(x,name,c)
+        except ValueError as exc: return jsonify(error=str(exc)),400
         if existing(c,tmdb=x.get("tmdb_id"),imdb=x.get("imdb_id"),name=name):return jsonify(ok=True,message=f"{name} is already in TV Manager.")
-        c.execute("""INSERT INTO shows(tmdb_id,imdb_id,name,original_name,first_air_date,overview,poster,vote_average,status)
-                   VALUES(?,?,?,?,?,?,?,?,?)""",(x.get("tmdb_id"),x.get("imdb_id"),name,x.get("original_name"),x.get("first_air_date"),x.get("overview"),x.get("poster"),x.get("vote_average"),"Wanted"))
+        c.execute("""INSERT INTO shows(tmdb_id,imdb_id,name,original_name,first_air_date,overview,poster,vote_average,status,location,season_folders)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(x.get("tmdb_id"),x.get("imdb_id"),name,x.get("original_name"),x.get("first_air_date"),x.get("overview"),x.get("poster"),x.get("vote_average"),"Wanted",location,1))
     return jsonify(ok=True,message=f"{name} added to TV Manager."),201
 
 def _save_sickchill_upload():
@@ -1490,6 +1707,34 @@ def settings_api():
 
 
 
+
+@app.get("/help")
+def help_center_page():
+    return render_template("help.html", section=None)
+
+@app.get("/help/<slug>")
+def help_section_page(slug):
+    return render_template("help.html", section=slug)
+
+@app.get("/api/help")
+def api_help_index():
+    return jsonify(sections=help_content.help_index(), workflows=help_content.WORKFLOW_MAP)
+
+@app.get("/api/help/<slug>")
+def api_help_section(slug):
+    section=help_content.help_section(slug)
+    if not section:
+        return jsonify(error="Help section not found"),404
+    return jsonify(section={"slug":slug, **section})
+
+@app.get("/api/help/sickchill-parity")
+def api_sickchill_parity_help():
+    return jsonify(help_content.parity_summary())
+
+@app.get("/api/product/workflow-map")
+def api_product_workflow_map():
+    return jsonify(workflows=help_content.WORKFLOW_MAP)
+
 @app.get("/dashboard")
 def dashboard_page(): return render_template("dashboard.html")
 
@@ -1618,6 +1863,39 @@ def api_show_include_specials_start(sid):
         job_center.update_job(job_id, status="complete", stage="Complete", message=f"Included {result.get('affected',0)} Season 00 episode(s).", percent=100, result=result, processed=result.get("affected",0), succeeded=result.get("affected",0))
         return result
     return jsonify(ok=True, job=job_center.run_background("include_show_specials", worker, stage="Queued", message="Include Specials queued.", meta={"show_id":sid}))
+
+@app.post("/api/episodes/specials/global-preview")
+def api_global_specials_preview():
+    try:
+        episode_rules.init(DB)
+        body=request.get_json(silent=True) or {}
+        return jsonify(ok=True, ignore_season_zero_counts=_ignore_season_zero_counts(), **episode_rules.preview(DB, {"specials": True, **body}))
+    except Exception as e:
+        return jsonify(error=str(e)),400
+
+@app.post("/api/episodes/specials/global-ignore/start")
+def api_global_specials_ignore_start():
+    def worker(job_id):
+        job_center.update_job(job_id, stage="Global Specials", message="Turning on global rule: hide S00/Specials from Missing/Wanted.", percent=10)
+        engine.set_setting("TVManager", "ignore_season_zero_counts", "1")
+        job_center.update_job(job_id, stage="Global Specials", message="Marking all Season 00 / Specials as ignored and unmonitored.", percent=45)
+        result=episode_rules.ignore_specials(DB, None, reason="Season 00 / Specials hidden from Missing/Wanted globally")
+        engine.log("global_ignore_specials", f"Globally ignored Season 00 / Specials: {result.get('affected',0)} episode(s)", data=result)
+        job_center.update_job(job_id, status="complete", stage="Complete", message=f"S00/Specials are hidden from Missing/Wanted. {result.get('affected',0)} episode(s) updated.", percent=100, result=result, processed=result.get("affected",0), succeeded=result.get("affected",0))
+        return result
+    return jsonify(ok=True, job=job_center.run_background("global_ignore_specials", worker, stage="Queued", message="Global Specials ignore queued."))
+
+@app.post("/api/episodes/specials/global-include/start")
+def api_global_specials_include_start():
+    def worker(job_id):
+        job_center.update_job(job_id, stage="Global Specials", message="Turning off global S00/Specials hiding rule.", percent=10)
+        engine.set_setting("TVManager", "ignore_season_zero_counts", "0")
+        job_center.update_job(job_id, stage="Global Specials", message="Returning ignored Season 00 / Specials to considered workflow.", percent=45)
+        result=episode_rules.include_specials(DB, None)
+        engine.log("global_include_specials", f"Globally included Season 00 / Specials: {result.get('affected',0)} episode(s)", data=result)
+        job_center.update_job(job_id, status="complete", stage="Complete", message=f"S00/Specials can appear in Missing/Wanted again. {result.get('affected',0)} episode(s) updated.", percent=100, result=result, processed=result.get("affected",0), succeeded=result.get("affected",0))
+        return result
+    return jsonify(ok=True, job=job_center.run_background("global_include_specials", worker, stage="Queued", message="Global Specials include queued."))
 
 @app.get("/api/manage/failed-downloads")
 def api_manage_failed_downloads():
@@ -2039,7 +2317,7 @@ def api_tvmanager_config():
         metadata_missing_limit=engine.as_int(engine.get_setting("TVManager","metadata_missing_limit","200"),200),
         artwork_refresh_limit=engine.as_int(engine.get_setting("TVManager","artwork_refresh_limit","200"),200),
         background_worker_limit=engine.as_int(engine.get_setting("TVManager","background_worker_limit","4"),4),
-        ignore_season_zero_counts=engine.as_bool(engine.get_setting("TVManager","ignore_season_zero_counts","0"),False),
+        ignore_season_zero_counts=engine.as_bool(engine.get_setting("TVManager","ignore_season_zero_counts","1"),True),
     )
 
 @app.patch("/api/shows/<int:sid>/seasons/<int:season>")
@@ -2153,6 +2431,8 @@ def api_setting_section(section):
 
 @app.patch("/api/settings/section/<section>/<name>")
 def api_setting_value(section,name):
+    if section.lower()=="general" and name.lower()=="root_dirs":
+        return jsonify(error="Manage library paths under Library Locations so shows-in-use checks are applied.",url="/library-storage"),400
     body=request.get_json(silent=True) or {}
     engine.update_setting_safe(section,name,body.get("value",""))
     return jsonify(ok=True)
@@ -3101,4 +3381,4 @@ engine.normalize_statuses()
 
 if __name__=="__main__":
     engine.start_scheduler()
-    app.run(host="127.0.0.1",port=int(os.getenv("PORT","5050")),debug=True,use_reloader=False)
+    app.run(host="127.0.0.1",port=int(os.getenv("PORT","5050")),debug=False,use_reloader=False,threaded=True)

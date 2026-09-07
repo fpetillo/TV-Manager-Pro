@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const elements={};const get=id=>elements[id]??=( {value:'',disabled:false,addEventListener(){},scrollIntoView(){}} );
+const checks=[{value:'one',checked:true}];
+const context={document:{getElementById:get,querySelectorAll:q=>q.includes(':checked')?checks.filter(x=>x.checked):checks},window:{addEventListener(){}},setTimeout,confirm:()=>true};
+vm.createContext(context);vm.runInContext(fs.readFileSync('static/postprocess.js','utf8'),context);
+get('defaultDir').value='folder';get('method').value='copy';
+vm.runInContext('updateSelection()',context);assert(get('runAll').disabled);
+vm.runInContext('previewRoot="folder";render({actions:[{source:"one",show:"Show",season:1,episodes:[1]},{source:"blocked",blocked:"Existing file"}]})',context);
+assert(!get('runSelected').disabled);assert(!get('runAll').disabled);assert(get('selectionSummary').textContent.includes('1 of 1'));
+checks[0].checked=false;vm.runInContext('updateSelection()',context);assert(get('runSelected').disabled);assert(!get('runAll').disabled);
+let submitted;context.fetch=async(url,options)=>{if(options){submitted=JSON.parse(options.body);return {ok:true,text:async()=>JSON.stringify({job:{job_id:'test'}})}}return {ok:true,text:async()=>JSON.stringify({job:{status:'complete',result:{actions:[]}}})}};
+(async()=>{await vm.runInContext('processFiles("all")',context);assert.deepStrictEqual(submitted.selected_sources,['one']);assert(get('runAll').disabled);
+vm.runInContext('previewRoot="folder";lastPreview=[{source:"one"}];',context);get('defaultDir').value='changed';vm.runInContext('updateSelection()',context);assert(get('runAll').disabled);
+const c={window:{addEventListener(){}}};vm.createContext(c);vm.runInContext(fs.readFileSync('static/database_safety.js','utf8'),c);for(const [v,w]of [[0,'0 KB'],[1024,'1 KB'],[1048576,'1 MB'],[1073741824,'1 GB']])assert.equal(vm.runInContext('formatBytes('+v+')',c),w);
+console.log('PASS: preview gating, selection, blocked exclusions, reviewed-only submission, repeat-run guard, changed-folder guard, KB/MB/GB boundaries');})().catch(e=>{console.error(e);process.exitCode=1});

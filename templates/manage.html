@@ -11,6 +11,9 @@
 
 <section class="panel"><div class="toolbar"><div><h2>Backlog Overview</h2><p class="muted">Wanted and failed aired episodes grouped by show.</p></div><div class="spacer"></div><button id="refreshBacklog" class="secondary">Refresh</button></div><div id="backlogList" class="table-wrap"></div></section>
 
+
+<section class="panel"><div class="toolbar"><div><p class="section-kicker">GLOBAL SPECIALS RULE</p><h2>Season 00 / Specials</h2><p class="muted">One control for the entire library. When enabled, S00/Specials are hidden from Missing/Wanted, queues and automatic searches.</p></div><div class="spacer"></div><a class="btn secondary" href="/help/ignore-rules">Help</a></div><div class="notice good"><strong>Recommended:</strong> keep S00/Specials ignored unless you intentionally collect specials. They remain visible in episode lists but are not considered wanted.</div><div class="actions"><button id="previewGlobalSpecials" class="secondary">Preview S00 / Specials</button><button id="ignoreGlobalSpecials" class="blue">Ignore S00 / Specials Everywhere</button><button id="includeGlobalSpecials" class="secondary">Include S00 / Specials Again</button></div><div id="globalSpecialsPreview"></div><div id="globalSpecialsProgress"></div></section>
+
 <section class="panel"><h2>Episode Status Management</h2><p class="muted">Preview before applying large changes. Use this for SickChill-style mass updates.</p><div class="form-grid compact-grid">
 <label>Show<select id="statusShow"><option value="">All shows</option></select></label>
 <label>Season<input id="statusSeason" placeholder="All" type="number" min="0"></label>

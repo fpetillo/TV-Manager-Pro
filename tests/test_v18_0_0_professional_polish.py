@@ -8,7 +8,7 @@ def read(rel):
 
 
 def test_version_18_identity_and_docs():
-    assert read("VERSION").strip() in {"18.0.0", "18.1.0", "18.2.0", "18.2.1", "18.2.2"}
+    assert read("VERSION").strip() in {"18.0.0", "18.1.0", "18.2.0", "18.2.1", "18.2.2", "18.2.3", "18.2.4", "18.2.6", "18.3.0", "18.3.1", "18.3.2", "18.3.3"}
     assert (ROOT / "docs" / "RELEASE_NOTES_v18.0.0.md").exists()
     assert (ROOT / "docs" / "VERSION_18_READINESS.md").exists()
     assert (ROOT / "docs" / "GITHUB_RELEASE_AUTOMATION.md").exists()
@@ -42,7 +42,7 @@ def test_navigation_and_show_queue_v18_polish():
     nav = read("templates/_nav.html")
     show_queue = read("templates/show_queue.html")
     css = read("static/style.css")
-    assert 'data-nav-version="18.0.0"' in nav or 'data-nav-version="18.1.0", "18.2.0"' in nav
+    assert 'data-nav-version="18.3.2"' in nav or 'data-nav-version="18.3.0"' in nav
     assert "Version 18" in nav
     assert "actual downloaded count" in show_queue
     assert "v18.0.0 professional polish" in css

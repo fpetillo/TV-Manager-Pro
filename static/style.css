@@ -299,3 +299,24 @@ html{overflow-x:hidden} body{overflow-x:hidden}.shell.has-side-navigation{width:
 
 /* v18.2.1 show load progress indicators */
 .show-page-loading{position:fixed;right:22px;bottom:22px;z-index:9999;width:min(440px,calc(100vw - 44px));box-shadow:0 24px 70px rgba(0,0,0,.36);border-radius:16px}.show-page-loading[hidden]{display:none}.show-page-loading .import-progress{margin:0}.show-loading-progress .progress-track.indeterminate .progress-fill{animation:tvmIndeterminate 1.05s ease-in-out infinite;min-width:24%;}.loading-row .import-progress{margin:8px 0}.loading-box .import-progress{margin:0}.show-open-link{cursor:pointer}@keyframes tvmIndeterminate{0%{transform:translateX(-115%);width:35%}50%{width:58%}100%{transform:translateX(260%);width:35%}}
+
+/* v18.3 Help Center and parity audit */
+.help-shell .help-hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start;margin-bottom:16px}
+.help-search-card{background:#101823;border:1px solid #2a374b;border-radius:16px;padding:16px;display:grid;gap:9px}
+.help-topic-list{display:grid;gap:10px}
+.help-topic{width:100%;text-align:left;background:#101823;border:1px solid #2a374b;color:#e8f0ff;border-radius:13px;padding:13px;display:grid;gap:5px}
+.help-topic:hover,.help-topic.active{background:#1a2a42;border-color:#5a8dff}
+.help-topic small{color:#9eb1cc;line-height:1.35}
+.help-table td{vertical-align:top;line-height:1.35}
+.help-steps{display:grid;gap:10px;color:#cbd7e8;line-height:1.45;margin:14px 0 18px}
+.parity-complete{background:#123f27;color:#bdf4cb}.parity-better-than-sickchill{background:#193f66;color:#cbe3ff}.parity-partial{background:#4a3512;color:#ffe2a8}.parity-missing{background:#4a1e1e;color:#ffc7c7}
+.dashboard-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:980px){.help-shell .help-hero{grid-template-columns:1fr}.dashboard-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.notice.inline-note{display:inline-block;margin-top:6px;padding:4px 7px;border-radius:8px;font-size:.78rem;line-height:1.25}
+
+.destination-dialog{width:min(620px,90vw);max-height:90vh;overflow:auto;background:#101c2b;color:#e8f1ff;border:1px solid #536c89;border-radius:18px;padding:24px}
+.destination-dialog::backdrop{background:#0009}
+.destination-dialog .field{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+.destination-dialog select,.destination-dialog input{width:100%;min-width:0;box-sizing:border-box}
+.destination-dialog .path-box{overflow-wrap:anywhere}
+.destination-error{color:#ffbdab}

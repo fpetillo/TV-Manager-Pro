@@ -1,3 +1,40 @@
+## v18.3.3 — Library Locations and Processing Review
+
+- Manage library roots: add, edit unused paths, set default, remove unused paths.
+- Block removal/replacement when shows use a path; list affected shows for reassignment.
+- Add Show and Edit Library Folder use configured roots and preview destinations.
+- Edit show destinations, optionally updating stored episode paths for files already moved.
+- Direct Library editor, reviewed-file approval controls, and unmatched/blocked explanations.
+- Free/total disk space with background checks and unavailable status.
+- Compact database sizes in KB/MB/GB.
+- Restart TV Manager to activate backend changes, then refresh the browser.
+
+Configuration changes do not move or delete media files. Reassign shows before replacing a root they use. Source releases now include a version bump, notes, GitHub push and version tag per iteration.
+
+## v18.3.2 - Post-Processing Safe Show Matching Hotfix
+
+- Fixed post-processing rename matches so short/common show names are not matched from inside longer titles.
+- Prevents `Friends.from.College` from being renamed into the show `FROM`.
+- Prevents `Friends ... Where Rachel...` from being renamed into the show `ER`.
+- Matching now uses the release title prefix before SxxEyy/1xYY instead of arbitrary substring matching.
+- One-word/short shows such as `FROM`, `ER`, `YOU`, or `IT` must match the exact show-title prefix.
+- Preview results now display show-match confidence/reason before processing.
+- Added docs/RELEASE_NOTES_v18.3.2.md.
+
+## v18.3.1 - Global Specials Missing/Wanted Control
+
+- Added one-place global Season 00 / Specials control.
+- S00/Specials are hidden from Missing/Wanted and queue status by default.
+- Added preview, background ignore/include jobs, and search guard.
+- Added docs/RELEASE_NOTES_v18.3.1.md.
+
+
+## v18.2.6 — Real No-Wait Show Detail Hotfix
+
+- Show Detail now renders a usable screen immediately instead of showing an endless animated loading bar.
+- Episode first-page loading uses an explicit short timeout and smaller first load.
+- Added stronger Retry / Jobs / Logs fallback when SQLite is busy or blocked.
+
 
 
 ## v18.2.1 - Show Load Progress Polish
@@ -472,9 +509,31 @@ Adds `/manage` with Backlog Overview, Manage Searches, Episode Status Management
 - Updates documentation for Version 18 readiness and GitHub release automation.
 
 
+
+## v18.2.3 — Fast Show Open & Subtitle Scan Guard
+- Show Detail now opens the core show record first and loads expensive counts after the screen is usable.
+- Episode list paging uses quick fetch plus one-row lookahead instead of blocking on full count queries.
+- Episode API selects only UI-required columns for faster loads.
+- Subtitle scans now cap candidates and skip network paths by default to prevent NAS/SMB hangs.
+- Added fast episode indexes for show detail and episode-management filters.
+
 ## v18.2.2 — Fast Loading Hotfix
 
 - Prevents subtitle scans from holding the database writer lock for the entire scan.
 - Adds batched subtitle status writes and a scan safety time limit.
 - Makes Show Detail loading use read-only, fast-fail database access.
 - Adds a user-visible timeout message when show loading is blocked by background work.
+
+
+### v18.2.4 performance hotfix
+The Show Command Center now opens using fast independent requests for the show header, season choices, and episode list. Long scans should no longer make the screen sit indefinitely on Loading show.
+
+
+## v18.2.5 — Show Detail No-Wait Hotfix
+
+Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint. A hard browser watchdog replaces indefinite loading spinners with Retry, Jobs, and Logs actions when the database is busy.
+
+
+## Help Center
+
+Open `/help` for the Version 18.3 Help Center. It includes a SickChill parity matrix, recommended workflows, and guides for Show Queue, Episode Management, Ignore Rules, Download Center, Post Processing, Subtitles, and Troubleshooting.

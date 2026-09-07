@@ -20,7 +20,7 @@
       <label class="field"><span>Processing method</span><select id="method"><option value="move">Move</option><option value="copy">Copy</option><option value="hardlink">Hardlink</option></select></label>
       <label class="field"><span>Scan limit</span><input id="limit" type="number" min="1" max="1000" value="300"></label>
     </div>
-    <div class="toolbar postprocess-toolbar"><button id="saveConfig" class="secondary">Save Default Folder</button><button id="scan" class="primary">Preview Folder</button><button id="runSelected" class="blue">Process Selected</button><button id="runAll" class="secondary">Process All Approved</button></div>
+    <div class="toolbar postprocess-toolbar"><button id="saveConfig" class="secondary">Save Default Folder</button><button id="scan" class="primary">Preview Folder</button></div>
     <div class="notice"><strong>Operator note:</strong> browsers cannot safely expose a full server filesystem picker. Enter the path as seen by the TV Manager server. On Windows this may be <code>D:\Downloads\TV</code>; on Linux it may be <code>/downloads/tv</code>.</div>
     <div id="message" class="message"></div>
   </section>
@@ -28,6 +28,11 @@
   <section class="panel col-12">
     <div class="section-heading"><p class="eyebrow">Preview results</p><h2>Actions waiting for approval</h2></div>
     <div id="summary"></div>
+    <div class="toolbar postprocess-toolbar" aria-label="Confirm preview matches">
+      <p id="selectionSummary" role="status">Preview a folder to review and confirm episode matches.</p>
+      <button id="runSelected" class="blue" disabled>Confirm &amp; Process Selected</button>
+      <button id="runAll" class="secondary" disabled>Confirm &amp; Process All Approved</button>
+    </div>
     <div id="actions" class="table-wrap"></div>
   </section>
 </section>

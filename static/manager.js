@@ -1,4 +1,11 @@
 
+async function ensureFolderEditor(){
+  for(const [globalName,url] of [['loadLibraryStorage','/static/library_storage.js?v=folder-editor4'],['chooseShowDestination','/static/show_destination.js?v=folder-editor4']]){
+    if(typeof window[globalName]==='function')continue;
+    await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(new Error('Could not load folder editor. Refresh and retry.'));document.head.append(script);});
+  }
+}
+
 const showList=document.getElementById("showList");
 const summary=document.getElementById("summary");
 const detail=document.getElementById("detailPanel");
@@ -121,7 +128,7 @@ async function openShow(id){
           <div class="id-box"><span class="id-label">TVDb</span><code>${esc(s.tvdb_id||"—")}</code></div>
           <div class="id-box"><span class="id-label">TMDb</span><code>${esc(s.tmdb_id||"—")}</code></div>
         </div>
-        ${s.location?`<div class="path-box">${esc(s.location)}</div>`:""}
+        ${s.location?`<div class="path-box">${esc(s.location)}</div>`:""}<button id="editLibraryFolder" class="blue">Edit Library Folder</button>
         <div class="actions show-actions">
           <button id="refreshMetadata" class="blue">Refresh Metadata</button>
           ${s.imdb_id?`<a class="btn secondary" target="_blank" href="https://www.imdb.com/title/${esc(s.imdb_id)}/">IMDb</a>`:""}
@@ -150,6 +157,13 @@ async function openShow(id){
 
 
 
+  document.getElementById('editLibraryFolder').onclick=async()=>{
+    const message=document.getElementById('refreshMessage');
+    try{await ensureFolderEditor();const destination=await chooseShowDestination(s.name,'Save Library Folder',s.location||'');if(!destination)return;
+      const r=await fetch('/api/shows/'+id+'/destination',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(destination)}),d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save folder');
+      await openShow(id);document.getElementById('refreshMessage').textContent='Library folder saved. '+d.episode_paths_updated+' episode paths updated. No files moved.';
+    }catch(e){message.textContent=e.message;message.className='message error';}
+  };
   fetch("/api/quality-profiles").then(r=>r.json()).then(d=>{
     optQuality.innerHTML='<option value="">No profile</option>'+d.results.map(p=>`<option value="${p.id}" ${String(s.quality_profile_id||"")===String(p.id)?"selected":""}>${esc(p.name)}</option>`).join("");
   });
