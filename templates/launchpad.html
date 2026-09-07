@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TV Manager Launchpad</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">TV MANAGER LAUNCHPAD</p><h1>Operate your TV library with confidence.</h1><p class="subtitle">A polished command surface for import, health, automation, cutover readiness and day-to-day decisions.</p></div><nav class="nav"><a class="btn blue" href="/import">Import SickChill</a><a class="btn secondary" href="/library-health">Health Check</a><a class="btn secondary" href="/download-center">Downloader Check</a></nav></header>
+{% include "_nav.html" %}
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
+<section class="launch-hero"><div><p class="section-kicker">Premium SickChill replacement</p><h2>The next best action, always visible.</h2><p>Launchpad turns TV Manager into an operator-ready product: it summarizes readiness, shows health risks, and guides the migration/cutover path without hunting through menus.</p></div><div class="readiness-meter"><span id="readyLabel">Checking</span><strong id="readyScore">--</strong><small title="Readiness summarizes import status, health findings, metadata, downloader setup, and remaining cutover actions.">replacement readiness</small></div></section>
+<section id="readinessExplain" class="notice info">Checking Launchpad replacement readiness…</section>
+<section class="dashboard-grid dashboard-8" id="launchStats"></section>
+<section class="panel"><div class="toolbar"><h2>Recommended operator actions</h2><div class="spacer"></div><button class="btn secondary" id="refreshLaunchpad">Refresh</button></div><div id="nextActions" class="action-grid"><div class="loading-box">Loading next actions…</div></div></section>
+<div class="page-grid">
+<section class="panel col-4"><h2>Migration</h2><p class="muted">Analyze and preview first. Import only from a copied SickChill database.</p><a class="btn blue" href="/import">Open Import Center</a></section>
+<section class="panel col-4"><h2>Health</h2><p class="muted">Fix folder paths, missing files, metadata gaps and duplicate candidates before cutover.</p><a class="btn secondary" href="/library-health">Open Library Health</a></section>
+<section class="panel col-4"><h2>Operations</h2><p class="muted">Configure automation, quality, subtitles, backups, diagnostics and server deployment.</p><a class="btn secondary" href="/operations">Open Operations</a></section>
+</div>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/launchpad.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

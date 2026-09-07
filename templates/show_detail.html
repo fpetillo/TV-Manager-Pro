@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Show Detail</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell layout-audited show-detail-page" data-show-id="{{ show_id }}"><header class="topbar product-hero"><div><p class="eyebrow">SHOW COMMAND CENTER</p><h1 id="detailTitle">Loading show…</h1><p class="subtitle" id="detailSubtitle">Browse episodes, filter seasons/status, search/download exactly the episode you need, and return here automatically after queueing.</p></div><nav class="nav"><a class="btn secondary" href="/show-queue">Show Queue</a><a class="btn secondary" href="/download-center">Download Center</a><a class="btn secondary" href="/jobs">Jobs</a><a class="btn secondary" href="/manager?show={{ show_id }}">Classic Detail</a></nav></header>
+{% include "_nav.html" %}
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
+
+<section class="panel show-detail-command-card" id="showHeader"><div class="loading-box">Loading show details…</div></section>
+<section class="panel episode-command-panel">
+  <div class="toolbar show-episode-toolbar">
+    <input id="episodeSearch" class="grow" placeholder="Find episode title, description, file path, season, or episode number…">
+    <select id="seasonFilter"><option value="">All seasons</option></select>
+    <select id="episodeStatus"><option value="">All statuses</option><option>Wanted</option><option>Snatched</option><option>Downloaded</option><option>Failed</option><option>Skipped</option><option>Ignored</option><option>Archived</option><option>Unaired</option></select>
+    <select id="episodeLimit"><option>50</option><option selected>100</option><option>250</option><option>500</option></select>
+    <button id="episodeRefresh" class="secondary">Refresh</button>
+  </div>
+  <div class="list-heading"><strong id="episodeSummary">Loading…</strong><span class="muted">Click an episode Search button to find/download it.</span></div>
+  <div class="table-wrap"><table class="episode-drill-table compact-table"><thead><tr><th data-sort="season_episode">Ep</th><th data-sort="title">Title</th><th data-sort="airdate">Air date</th><th data-sort="status">Status</th><th data-sort="quality">Quality</th><th data-sort="file">File / Path</th><th>Action</th></tr></thead><tbody id="episodeBody"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
+  <div class="toolbar"><button id="episodePrev" class="secondary">Previous</button><button id="episodeNext" class="secondary">Next</button></div>
+  <div id="episodeMessage" class="message"></div>
+</section>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/show_detail.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

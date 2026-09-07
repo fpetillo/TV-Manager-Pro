@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TV Manager Workflow</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">OPERATOR WORKFLOW</p><h1>Replacement Command Workflow</h1><p class="subtitle">A guided, end-to-end workflow for replacing SickChill with confidence: import, validate, configure, operate, and cut over safely.</p></div><nav class="nav"><a class="btn blue" href="/import">Start Import</a><a class="btn secondary" href="/library-health">Validate Health</a></nav></header>
+{% include "_nav.html" %}
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
+<section class="product-hero cinematic"><div><p class="section-kicker">SickChill replacement cockpit</p><h2>Know exactly what to do next.</h2><p>TV Manager now presents the migration and operations journey as a clear operator workflow, with confidence checks before each major action.</p></div><div class="product-badges"><span class="product-badge">Import-safe</span><span class="product-badge">Health-driven</span><span class="product-badge">Cutover-ready</span><span class="product-badge">v{{ app_version }}</span></div></section>
+<section class="workflow-stage" id="workflowStages"><div class="loading-box">Loading workflow status…</div></section>
+<div class="page-grid">
+<section class="panel col-4"><h2>1. Import</h2><p class="muted">Analyze and preview the copied SickChill database before writing records.</p><a class="btn blue" href="/import">Open Import Center</a></section>
+<section class="panel col-4"><h2>2. Validate</h2><p class="muted">Review missing files, duplicate groups, metadata gaps, and folder path issues.</p><a class="btn secondary" href="/library-health">Open Library Health</a></section>
+<section class="panel col-4"><h2>3. Operate</h2><p class="muted">Configure automation, downloads, quality, subtitles, naming, backups, and diagnostics.</p><a class="btn secondary" href="/operations">Open Operations</a></section>
+<section class="panel col-8"><div class="toolbar"><h2>Recommended next actions</h2><div class="spacer"></div><button id="refreshWorkflow" class="btn secondary">Refresh</button></div><div id="workflowRecommendations"></div></section>
+<section class="panel col-4"><h2>Readiness Snapshot</h2><div id="readinessSnapshot" class="detail-grid"></div></section>
+</div>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/workflow.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

@@ -1,0 +1,89 @@
+<nav class="appnav professional-nav side-nav nav-v18" aria-label="TV Manager navigation" data-nav-version="17.20.0">
+  <div class="nav-brand nav-brand-pro">
+    <a class="brand-lockup" href="/launchpad" aria-label="TV Manager Launchpad">
+      <span class="brand-mark">TV</span>
+      <span><strong>TV Manager</strong><small>v{{ app_version }}</small></span>
+    </a>
+    <span class="nav-health-dot" title="Navigation ready"></span>
+  </div>
+
+  <div class="nav-search-wrap">
+    <input id="navFilter" class="nav-filter" autocomplete="off" placeholder="Filter menu…" aria-label="Filter navigation menu">
+  </div>
+
+  <div class="nav-quick-actions" aria-label="Operator quick actions">
+    <a href="/jobs" data-nav-badge="jobs" title="Active background jobs"><span>Jobs</span><b></b></a>
+    <a href="/logs" data-nav-badge="logs" title="Logs and events"><span>Logs</span><b></b></a>
+    <a href="/database-safety" data-nav-badge="safety" title="Database safety center"><span>Safety</span><b></b></a>
+  </div>
+
+  <div class="nav-section" data-section="command">
+    <button class="nav-section-toggle" type="button" aria-expanded="true"><span>Command Center</span><em>Daily control</em></button>
+    <div class="nav-links">
+      <a href="/launchpad"><span class="nav-icon">⌂</span><span>Launchpad</span><small>Start here</small></a>
+      <a href="/dashboard"><span class="nav-icon">▦</span><span>Dashboard</span><small>Status overview</small></a>
+      <a href="/workflow"><span class="nav-icon">↻</span><span>Workflow Cockpit</span><small>Operator flow</small></a>
+      <a href="/jobs"><span class="nav-icon">▶</span><span>Active Jobs</span><small>Progress monitor</small></a>
+      <a href="/logs"><span class="nav-icon">≡</span><span>Logs & Events</span><small>Audit trail</small></a>
+    </div>
+  </div>
+
+  <div class="nav-section" data-section="library">
+    <button class="nav-section-toggle" type="button" aria-expanded="true"><span>Library</span><em>Shows & episodes</em></button>
+    <div class="nav-links">
+      <a href="/show-queue"><span class="nav-icon">☷</span><span>Show Queue</span><small>All shows table</small></a>
+      <a href="/manager"><span class="nav-icon">TV</span><span>Shows</span><small>Classic manager</small></a>
+      <a href="/manage"><span class="nav-icon">✓</span><span>Manage Center</span><small>Backlog & status</small></a>
+      <a href="/library-health"><span class="nav-icon">♥</span><span>Library Health</span><small>Scan & repair</small></a>
+      <a href="/upcoming"><span class="nav-icon">◷</span><span>Upcoming</span><small>Future episodes</small></a>
+      <a href="/missing"><span class="nav-icon">!</span><span>Missing</span><small>Wanted episodes</small></a>
+    </div>
+  </div>
+
+  <div class="nav-section" data-section="acquisition">
+    <button class="nav-section-toggle" type="button" aria-expanded="true"><span>Discovery & Search</span><em>Find content</em></button>
+    <div class="nav-links">
+      <a href="/"><span class="nav-icon">＋</span><span>Add/Search Show</span><small>IMDb/TMDb search</small></a>
+      <a href="/trakt"><span class="nav-icon">★</span><span>Trakt Discover</span><small>Trending/popular</small></a>
+      <a href="/download-center"><span class="nav-icon">⇣</span><span>Download Center</span><small>Handoff monitor</small></a>
+      <a href="/queue"><span class="nav-icon">≋</span><span>Queue</span><small>Acquisition queue</small></a>
+      <a href="/upgrades"><span class="nav-icon">⬆</span><span>Upgrades</span><small>Quality upgrades</small></a>
+    </div>
+  </div>
+
+  <div class="nav-section" data-section="processing">
+    <button class="nav-section-toggle" type="button" aria-expanded="true"><span>Processing</span><em>Files & subtitles</em></button>
+    <div class="nav-links">
+      <a href="/postprocess"><span class="nav-icon">⚙</span><span>Post Processing</span><small>Completed folder</small></a>
+      <a href="/subtitles"><span class="nav-icon">CC</span><span>Subtitles</span><small>Audit and scan</small></a>
+      <a href="/quality"><span class="nav-icon">HD</span><span>Quality Profiles</span><small>Wanted quality</small></a>
+      <a href="/operations"><span class="nav-icon">⚑</span><span>Operations</span><small>Maintenance tools</small></a>
+    </div>
+  </div>
+
+  <div class="nav-section" data-section="migration">
+    <button class="nav-section-toggle" type="button" aria-expanded="false"><span>Setup & Migration</span><em>Install/cutover</em></button>
+    <div class="nav-links">
+      <a href="/setup-assistant"><span class="nav-icon">◆</span><span>Setup Assistant</span><small>First-run wizard</small></a>
+      <a href="/import"><span class="nav-icon">⇪</span><span>SickChill Import</span><small>Migration center</small></a>
+      <a href="/advanced"><span class="nav-icon">λ</span><span>Advanced</span><small>Expert tools</small></a>
+    </div>
+  </div>
+
+  <div class="nav-section" data-section="admin">
+    <button class="nav-section-toggle" type="button" aria-expanded="false"><span>Administration</span><em>System & safety</em></button>
+    <div class="nav-links">
+      <a href="/settings"><span class="nav-icon">☰</span><span>Settings</span><small>Automation/config</small></a>
+      <a href="/database-safety"><span class="nav-icon">▣</span><span>Database Safety</span><small>Backups/recovery</small></a>
+      <a href="/system"><span class="nav-icon">⌘</span><span>System</span><small>Runtime status</small></a>
+      <a href="/build-info"><span class="nav-icon">#</span><span>Build Info</span><small>Version paths</small></a>
+      <a href="/routes"><span class="nav-icon">↬</span><span>Routes</span><small>API map</small></a>
+      <a href="/about"><span class="nav-icon">i</span><span>About</span><small>Release info</small></a>
+    </div>
+  </div>
+
+  <div class="nav-footer-actions">
+    <a href="/logs">View logs</a>
+    <a href="/jobs">Monitor jobs</a>
+  </div>
+</nav>

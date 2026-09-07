@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About TV Manager</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell"><header class="topbar"><div><p class="eyebrow">ABOUT</p><h1>TV Manager</h1><p class="subtitle">Version, build, deployment and support information for this installation.</p></div></header>
+{% include "_nav.html" %}
+<section class="product-hero"><div><h2>Product Identity</h2><p>Clear version, runtime, deployment and support information for screenshots and troubleshooting.</p></div><div class="product-badges"><span class="product-badge">Visible version</span><span class="product-badge">Server-rendered</span></div></section>
+<section class="panel about-card">
+  <p class="eyebrow">RUNNING BUILD</p>
+  <h2>TV Manager v{{ about.version if about else app_version }}</h2>
+  <div class="detail-grid">
+    <div><span>Product</span><strong>{{ about.product if about else 'TV Manager' }}</strong></div>
+    <div><span>Version</span><strong>v{{ about.version if about else app_version }}</strong></div>
+    <div><span>Build</span><strong>{{ about.build if about else 'v' ~ app_version }}</strong></div>
+    <div><span>Source</span><strong>{{ about.source if about else 'VERSION' }}</strong></div>
+    <div><span>Runtime</span><strong>{{ about.runtime if about else 'Python / Flask / Waitress' }}</strong></div>
+    <div><span>Database</span><strong>{{ about.database if about else 'SQLite local-first' }}</strong></div>
+  </div>
+  <p class="notice good">This page is server-rendered and does not require JavaScript. Use it for support screenshots and install verification.</p>
+</section>
+<section class="panel"><h2>Support checklist</h2><ul class="clean-list"><li>Open <a href="/system">System</a> for health checks and diagnostics.</li><li>Use <a href="/library-health">Library Health</a> for missing files, duplicate candidates and metadata gaps.</li><li>Use <a href="/import">Import Center</a> to analyze and preview SickChill migrations before importing.</li><li>Check <code>/api/version</code> or <code>/api/about</code> for machine-readable version details.</li></ul></section>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main></body></html>

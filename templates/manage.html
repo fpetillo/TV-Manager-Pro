@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SickChill Manage</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell"><header class="topbar"><div><p class="eyebrow">SICKCHILL PARITY</p><h1>Manage</h1><p class="subtitle">Backlog overview, manage searches, mass status updates, failed downloads, missed subtitles and scene exceptions.</p></div></header>
+{% include "_nav.html" %}
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
+
+<section class="dashboard-grid" id="manageCards"></section>
+
+<section class="panel"><div class="toolbar"><div><h2>Manage Search Jobs</h2><p class="muted">Run SickChill-style recent/backlog searches without blocking the screen.</p></div><div class="spacer"></div><button id="runRecent" class="secondary">Run Recent Search</button><button id="runBacklog" class="blue">Run Backlog Search</button><button id="openJobs" class="secondary">Active Jobs</button></div><div id="searchJobProgress"></div></section>
+
+<section class="panel"><div class="toolbar"><div><h2>Backlog Overview</h2><p class="muted">Wanted and failed aired episodes grouped by show.</p></div><div class="spacer"></div><button id="refreshBacklog" class="secondary">Refresh</button></div><div id="backlogList" class="table-wrap"></div></section>
+
+<section class="panel"><h2>Episode Status Management</h2><p class="muted">Preview before applying large changes. Use this for SickChill-style mass updates.</p><div class="form-grid compact-grid">
+<label>Show<select id="statusShow"><option value="">All shows</option></select></label>
+<label>Season<input id="statusSeason" placeholder="All" type="number" min="0"></label>
+<label>Current status<select id="fromStatus"><option value="">Any</option><option>Wanted</option><option>Failed</option><option>Skipped</option><option>Ignored</option><option>Downloaded</option><option>Snatched</option></select></label>
+<label>New status<select id="newStatus"><option>Wanted</option><option>Skipped</option><option>Ignored</option><option>Downloaded</option><option>Archived</option><option>Failed</option></select></label>
+<label class="checkline"><input id="onlyAired" type="checkbox" checked> Aired only</label>
+<label class="checkline"><input id="onlyMissing" type="checkbox"> Missing files only</label>
+</div><div class="actions"><button id="previewStatus" class="secondary">Preview Changes</button><button id="applyStatus" class="blue">Apply Changes</button></div><div id="statusPreview"></div><div id="statusJobProgress"></div></section>
+
+<section class="panel"><div class="toolbar"><div><h2>Failed Downloads</h2><p class="muted">Blacklist bad releases so they are not grabbed again.</p></div><div class="spacer"></div></div><div class="form-grid compact-grid"><label>Release title<input id="failedTitle" placeholder="Release.Group.S01E01.1080p"></label><label>GUID/URL<input id="failedGuid" placeholder="Optional"></label><label>Reason<input id="failedReason" value="Manual blacklist"></label><button id="addFailed" class="secondary">Add Blacklist Entry</button></div><div id="failedList" class="table-wrap"></div></section>
+
+<section class="panel"><div class="toolbar"><div><h2>Missed Subtitle Management</h2><p class="muted">Downloaded episodes marked as missing subtitles.</p></div><div class="spacer"></div><a class="btn secondary" href="/subtitles">Open Subtitles</a><button id="refreshSubs" class="secondary">Refresh</button></div><div id="subtitleList" class="table-wrap"></div></section>
+
+<section class="panel"><h2>Scene Exceptions</h2><p class="muted">Add alternate show names used by release groups and provider/indexer listings.</p><div class="form-grid compact-grid"><label>Show<select id="sceneShow"><option value="">Select show</option></select></label><label>Exception name<input id="sceneName" placeholder="Alternate release name"></label><label>Notes<input id="sceneNotes" placeholder="Optional"></label><button id="addScene" class="secondary">Add Scene Exception</button></div><div id="sceneList" class="table-wrap"></div></section>
+
+<section class="panel"><div class="toolbar"><div><h2>Mass Refresh</h2><p class="muted">Combined SickChill-style maintenance pass for metadata, artwork and subtitles.</p></div></div><div class="form-grid compact-grid"><label class="checkline"><input id="massMetadata" type="checkbox" checked> Missing metadata</label><label class="checkline"><input id="massArtwork" type="checkbox" checked> Show/episode artwork</label><label class="checkline"><input id="massSubtitles" type="checkbox"> Subtitle scan</label><label>Limit<input id="massLimit" type="number" min="1" max="2000" value="200"></label></div><div class="actions"><button id="startMassRefresh" class="blue">Start Mass Refresh</button></div><div id="massJobProgress"></div></section>
+
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/manage.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

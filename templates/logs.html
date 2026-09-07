@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Logs</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell layout-audited"><header class="topbar product-hero"><div><p class="eyebrow">DETAILED LOGGING</p><h1>Logs & Events</h1><p class="subtitle">SickChill-style operational logs with filtering, sorting, search, and downloader/search/job history visibility.</p></div><nav class="nav"><a class="btn secondary" href="/activity">Activity</a><a class="btn secondary" href="/jobs">Active Jobs</a></nav></header>
+{% include "_nav.html" %}
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
+<section class="panel"><div class="toolbar"><div><p class="section-kicker">Logs</p><h2>Filter Events</h2></div><div class="spacer"></div><button id="refreshLogs" class="secondary">Refresh</button></div>
+  <div class="postprocess-form-grid log-filter-grid">
+    <label class="field"><span>Search</span><input id="logSearch" placeholder="message, show, event, JSON data"></label>
+    <label class="field"><span>Level</span><select id="logLevel"><option value="">All levels</option></select></label>
+    <label class="field"><span>Event type</span><select id="logEvent"><option value="">All events</option></select></label>
+    <label class="field"><span>Sort</span><select id="logSort"><option value="created_at">Date/time</option><option value="level">Level</option><option value="event_type">Event</option><option value="show">Show</option><option value="message">Message</option><option value="id">ID</option></select></label>
+    <label class="field"><span>Direction</span><select id="logDirection"><option value="desc">Newest/highest first</option><option value="asc">Oldest/lowest first</option></select></label>
+    <label class="field"><span>Rows</span><select id="logLimit"><option>100</option><option selected>200</option><option>500</option><option>1000</option></select></label>
+  </div>
+</section>
+<section class="panel"><div class="toolbar"><h2>Event Log</h2><p id="logSummary" class="muted"></p></div><div id="logTable" class="table-wrap"></div><div class="actions"><button id="prevLogs" class="secondary">Previous</button><button id="nextLogs" class="secondary">Next</button></div></section>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/logs.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

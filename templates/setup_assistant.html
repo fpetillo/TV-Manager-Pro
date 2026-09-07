@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TV Manager Setup Assistant</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">SETUP ASSISTANT</p><h1>Finish the replacement system with confidence.</h1><p class="subtitle">A guided operator checklist for installing, importing, validating, configuring and cutting over from SickChill.</p></div><nav class="nav"><a class="btn blue" href="/import">Start Import</a><a class="btn secondary" href="/workflow">Workflow</a></nav></header>
+{% include "_nav.html" %}
+<section class="launch-hero setup-hero"><div><p class="section-kicker">Guided cutover readiness</p><h2>From SickChill backup to TV Manager production.</h2><p>The assistant keeps the operator focused on the correct order: install side-by-side, import a copied database, clear health findings, configure automation, then cut over.</p></div><div class="readiness-meter"><span id="setupReadyLabel">Loading</span><strong id="setupReadyScore">--</strong><small>cutover readiness</small></div></section>
+<section class="dashboard-grid dashboard-8" id="setupStats"></section>
+<section class="panel"><div class="toolbar"><h2>Replacement checklist</h2><div class="spacer"></div><button class="btn secondary" id="refreshSetup">Refresh</button></div><div id="setupStages" class="setup-stage-grid"><div class="loading-box">Loading setup status…</div></div></section>
+<div class="page-grid">
+<section class="panel col-6"><h2>Current blockers</h2><div id="setupBlockers"><div class="loading-box">Checking blockers…</div></div></section>
+<section class="panel col-6"><h2>Server replacement documents</h2><p class="muted">Use these when installing on the SickChill server.</p><div class="doc-link-grid"><a class="doc-link" href="/api/docs">API Docs Index</a><a class="doc-link" href="/workflow">Cutover Workflow</a><a class="doc-link" href="/system">System Health</a><a class="doc-link" href="/routes">Routes</a></div></section>
+</div>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/setup_assistant.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>
