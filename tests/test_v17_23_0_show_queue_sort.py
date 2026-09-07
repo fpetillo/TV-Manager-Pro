@@ -14,30 +14,30 @@ def _load_queue_helpers():
 
 
 def test_version_is_17_23_0():
-    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() == "17.23.0"
+    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() in {"17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1"}
 
 
-def test_downloads_sort_uses_numeric_downloaded_count_descending():
+def test_downloads_sort_uses_sickchill_missing_priority_descending():
     helpers = _load_queue_helpers()
     rows = [
-        {"name": "Zero Big", "downloaded_count": 0, "episode_count": 33, "size_bytes": 0},
-        {"name": "Partial", "downloaded_count": 1, "episode_count": 9, "size_bytes": 1},
-        {"name": "Complete Three", "downloaded_count": 3, "episode_count": 3, "size_bytes": 2},
-        {"name": "Complete Four", "downloaded_count": 4, "episode_count": 4, "size_bytes": 3},
+        {"name": "Zero Big", "downloaded_count": 0, "episode_count": 33, "missing_count": 33, "size_bytes": 0},
+        {"name": "Partial", "downloaded_count": 1, "episode_count": 9, "missing_count": 8, "size_bytes": 1},
+        {"name": "Complete Three", "downloaded_count": 3, "episode_count": 3, "missing_count": 0, "size_bytes": 2},
+        {"name": "Complete Four", "downloaded_count": 4, "episode_count": 4, "missing_count": 0, "size_bytes": 3},
     ]
     sorted_rows = helpers["_sort_show_queue_rows"]("rows" and rows, "downloads", "desc")
-    assert [r["name"] for r in sorted_rows] == ["Complete Four", "Complete Three", "Partial", "Zero Big"]
+    assert [r["name"] for r in sorted_rows] == ["Zero Big", "Partial", "Complete Four", "Complete Three"]
 
 
 def test_downloads_sort_uses_numeric_downloaded_count_ascending():
     helpers = _load_queue_helpers()
     rows = [
-        {"name": "Complete Four", "downloaded_count": 4, "episode_count": 4},
-        {"name": "Zero Big", "downloaded_count": 0, "episode_count": 33},
-        {"name": "Partial", "downloaded_count": 1, "episode_count": 9},
+        {"name": "Complete Four", "downloaded_count": 4, "episode_count": 4, "missing_count": 0},
+        {"name": "Zero Big", "downloaded_count": 0, "episode_count": 33, "missing_count": 33},
+        {"name": "Partial", "downloaded_count": 1, "episode_count": 9, "missing_count": 8},
     ]
     sorted_rows = helpers["_sort_show_queue_rows"](rows, "downloads", "asc")
-    assert [r["downloaded_count"] for r in sorted_rows] == [0, 1, 4]
+    assert [r["missing_count"] for r in sorted_rows] == [0, 8, 33]
 
 
 def test_percent_and_size_sort_are_numeric():

@@ -18,7 +18,9 @@
 <label>New status<select id="newStatus"><option>Wanted</option><option>Skipped</option><option>Ignored</option><option>Downloaded</option><option>Archived</option><option>Failed</option></select></label>
 <label class="checkline"><input id="onlyAired" type="checkbox" checked> Aired only</label>
 <label class="checkline"><input id="onlyMissing" type="checkbox"> Missing files only</label>
-</div><div class="actions"><button id="previewStatus" class="secondary">Preview Changes</button><button id="applyStatus" class="blue">Apply Changes</button></div><div id="statusPreview"></div><div id="statusJobProgress"></div></section>
+<label class="checkline"><input id="specialsOnly" type="checkbox"> Season 00 / Specials only</label>
+<label class="checkline"><input id="ignoredOnly" type="checkbox"> Ignored only</label>
+</div><div class="actions"><button id="previewStatus" class="secondary">Preview Changes</button><button id="applyStatus" class="blue">Apply Status</button><button id="ignoreMatches" class="secondary">Ignore Matching</button><button id="includeMatches" class="secondary">Include Matching</button></div><div class="notice">Ignored episodes remain visible but are not considered when TV Manager looks for missing seasons/episodes.</div><div id="statusPreview"></div><div id="statusJobProgress"></div></section>
 
 <section class="panel"><div class="toolbar"><div><h2>Failed Downloads</h2><p class="muted">Blacklist bad releases so they are not grabbed again.</p></div><div class="spacer"></div></div><div class="form-grid compact-grid"><label>Release title<input id="failedTitle" placeholder="Release.Group.S01E01.1080p"></label><label>GUID/URL<input id="failedGuid" placeholder="Optional"></label><label>Reason<input id="failedReason" value="Manual blacklist"></label><button id="addFailed" class="secondary">Add Blacklist Entry</button></div><div id="failedList" class="table-wrap"></div></section>
 

@@ -4,7 +4,7 @@
 <div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
 <div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
 
-<section class="panel show-detail-command-card" id="showHeader"><div class="loading-box">Loading show details…</div></section>
+<section class="panel show-detail-command-card" id="showHeader"><div class="loading-box"><div class="import-progress show-loading-progress"><div class="progress-head"><strong>Loading show</strong><span>Working</span></div><div class="progress-track indeterminate"><div class="progress-fill" style="width:45%"></div></div><p class="muted">Loading show details, season counts, and episode rules…</p></div></div></section>
 <section class="panel episode-command-panel">
   <div class="toolbar show-episode-toolbar">
     <input id="episodeSearch" class="grow" placeholder="Find episode title, description, file path, season, or episode number…">
@@ -13,8 +13,24 @@
     <select id="episodeLimit"><option>50</option><option selected>100</option><option>250</option><option>500</option></select>
     <button id="episodeRefresh" class="secondary">Refresh</button>
   </div>
-  <div class="list-heading"><strong id="episodeSummary">Loading…</strong><span class="muted">Click an episode Search button to find/download it.</span></div>
-  <div class="table-wrap"><table class="episode-drill-table compact-table"><thead><tr><th data-sort="season_episode">Ep</th><th data-sort="title">Title</th><th data-sort="airdate">Air date</th><th data-sort="status">Status</th><th data-sort="quality">Quality</th><th data-sort="file">File / Path</th><th>Action</th></tr></thead><tbody id="episodeBody"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
+  <div class="list-heading"><strong id="episodeSummary">Loading…</strong><span class="muted">Select episodes or whole seasons to mark ignored/not considered, wanted, downloaded, or unmonitored.</span></div>
+  <div class="bulk-episode-panel">
+    <div class="toolbar wrap">
+      <button id="selectPageEpisodes" class="secondary">Select Page</button>
+      <button id="clearEpisodeSelection" class="secondary">Clear</button>
+      <button id="bulkIgnoreSelected" class="secondary">Ignore Selected</button>
+      <button id="bulkIncludeSelected" class="secondary">Include Selected</button>
+      <button id="bulkWantedSelected" class="secondary">Set Wanted</button>
+      <button id="bulkDownloadedSelected" class="secondary">Set Downloaded</button>
+      <button id="bulkUnmonitorSelected" class="secondary">Unmonitor</button>
+      <button id="bulkIgnoreSpecials" class="blue">Ignore S00 Specials</button>
+      <button id="bulkIncludeSpecials" class="secondary">Include S00 Specials</button>
+      <button id="bulkIgnoreMissing" class="secondary">Ignore Filtered Missing</button>
+    </div>
+    <div class="form-grid compact-grid"><label>Ignore reason / note<input id="bulkReason" value="Not considered for wanted seasons/episodes"></label><div class="notice">Ignored episodes stay visible but are excluded from missing counts, searches, queue totals, and progress meters.</div></div>
+    <div id="bulkMessage" class="message"></div>
+  </div>
+  <div class="table-wrap"><table class="episode-drill-table compact-table"><thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('.episode-check').forEach(x=>x.checked=this.checked)"></th><th data-sort="season_episode">Ep</th><th data-sort="title">Title</th><th data-sort="airdate">Air date</th><th data-sort="status">Status / Rules</th><th data-sort="quality">Quality</th><th data-sort="file">File / Path</th><th>Action</th></tr></thead><tbody id="episodeBody"><tr class="loading-row"><td colspan="8"><div class="import-progress show-loading-progress"><div class="progress-head"><strong>Loading episodes</strong><span>Working</span></div><div class="progress-track indeterminate"><div class="progress-fill" style="width:45%"></div></div><p class="muted">Loading episode list…</p></div></td></tr></tbody></table></div>
   <div class="toolbar"><button id="episodePrev" class="secondary">Previous</button><button id="episodeNext" class="secondary">Next</button></div>
   <div id="episodeMessage" class="message"></div>
 </section>

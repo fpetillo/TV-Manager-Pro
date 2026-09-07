@@ -4,7 +4,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_v17_18_version_and_docs():
-    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() in {"17.20.0", "17.21.0", "17.22.0", "17.23.0"}
+    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() in {"17.20.0", "17.21.0", "17.22.0", "17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1"}
     assert (ROOT / "docs" / "RELEASE_NOTES_v17.18.0.md").exists()
     assert (ROOT / "docs" / "NAVIGATION_CENTER.md").exists()
 

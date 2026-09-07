@@ -1,21 +1,28 @@
 const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 let data=[];
-async function load(){const r=await fetch("/api/queue/unified"),d=await r.json();data=d.results||[];render()}
+async function load(){refreshQueue.disabled=true;refreshQueue.textContent="Refreshing…";try{const r=await fetch("/api/queue/unified"),d=await r.json();data=d.results||[];render()}finally{refreshQueue.disabled=false;refreshQueue.textContent="Refresh"}}
 function code(x){
   if(x.acquisition_type==="season_pack") return `Season ${String(x.season).padStart(2,"0")} Pack`;
   return x.season!=null?`S${String(x.season).padStart(2,"0")}E${String(x.episode).padStart(2,"0")}`:"";
 }
+function pct(x){const t=Number(x.episode_total||0),d=Number(x.downloaded_total||0);return t?Math.round((d/t)*100):0}
 function render(){
   const q=queueSearch.value.toLowerCase(),st=queueStatus.value;
-  const rows=data.filter(x=>(!st||x.status===st)&&(!q||[x.show_name,x.title,x.client,x.status,x.acquisition_type].join(" ").toLowerCase().includes(q)));
-  queueList.innerHTML=rows.length?rows.map(x=>`<div class="queue-row">
+  const rows=data.filter(x=>(!st||x.status===st)&&(!q||[x.show_name,x.title,x.client,x.status,x.acquisition_type,x.missing_episode_numbers].join(" ").toLowerCase().includes(q)))
+    .sort((a,b)=> (Number(b.missing_total||0)-Number(a.missing_total||0)) || (Number(b.downloaded_total||0)-Number(a.downloaded_total||0)) || (Number(b.episode_total||0)-Number(a.episode_total||0)) || String(a.show_name||"").localeCompare(String(b.show_name||"")));
+  queueList.innerHTML=rows.length?rows.map(x=>{
+    const missing=Number(x.missing_total||0), downloaded=Number(x.downloaded_total||0), total=Number(x.episode_total||0), pp=pct(x);
+    const meterClass=total===0?'empty':(downloaded>=total?'complete':(downloaded>0?'partial':'empty'));
+    return `<div class="queue-row">
     <div class="queue-main"><div class="result-top"><strong>${esc(x.show_name||"Unknown Show")} ${esc(code(x))}</strong>
     <span class="status-pill ${esc(x.status)}">${esc(x.status)}</span></div>
     <div class="queue-release">${esc(x.title||"")}</div>
+    <div class="download-summary"><div class="download-meter ${meterClass}"><span style="width:${Math.max(0,Math.min(100,pp))}%"></span><strong>${downloaded}/${total}</strong></div><small>${missing} missing${x.ignore_season_zero_counts?' · S00 ignored':''}</small></div>
+    <div class="muted tiny">Missing episodes: ${esc(x.missing_episode_numbers||"Complete")}</div>
     <div class="result-meta">${esc(x.client||"")} • ${esc(x.acquisition_type==="season_pack"?"Season pack":"Episode")} • ${esc(x.created_at||"")}</div></div>
     <div class="queue-actions"><button class="secondary action-btn" onclick="historyFor('${x.acquisition_type}',${x.id})">History</button>
     ${x.acquisition_type==="episode"&&x.status!=="Failed"?`<button class="secondary action-btn" onclick="fail(${x.id})">Fail & Retry</button>`:""}</div>
-    </div>`).join(""):'<div class="notice good">Queue is clear for this filter.</div>';
+    </div>`}).join(""):'<div class="notice good">Queue is clear for this filter.</div>';
 }
 queueSearch.oninput=render;queueStatus.onchange=render;refreshQueue.onclick=load;
 window.historyFor=async(kind,id)=>{

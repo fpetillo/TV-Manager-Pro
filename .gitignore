@@ -15,37 +15,17 @@ tvmanager.db-wal
 tvmanager.db-shm
 config.ini
 .tvmanager-session-key
-# Runtime/private files
-.env
-tvmanager.db
 *.db
 *.db-wal
 *.db-shm
-
-# Runtime folders
-logs/
-diagnostics/
-backups/
-managed_trash/
 imports/
 db-emergency/
 corrupt-db/
-
-# Python/cache/build
-.venv/
-__pycache__/
-*.pyc
+*.pyo
 .pytest_cache/
 build/
 dist/
 release/
 *.spec
-
-# Packages/installers
-*.zip
 *.exe
 *.msi
-
-# Local OS/editor
-.DS_Store
-Thumbs.db*.pyo

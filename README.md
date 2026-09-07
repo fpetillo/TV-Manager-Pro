@@ -1,3 +1,28 @@
+
+
+## v18.2.1 - Show Load Progress Polish
+- Added visible loading/progress indicators while opening a show from Show Queue.
+- Added Show Detail header progress while show metadata, season counts, and episode rules load.
+- Added episode-table progress row while episodes are loading or filters refresh.
+- Added an indeterminate progress style for operations that are actively waiting on API/database responses.
+
+
+## Version 18.2.0 — Bulk Episode Management & Ignore Rules
+
+- Adds SickChill-style bulk episode management.
+- Adds episode-level ignored/not-considered rules.
+- Adds Show Detail controls for selected episodes, filtered missing episodes, and Season 00 / Specials.
+- Adds Manage page filters for Specials-only and Ignored-only operations.
+- Excludes ignored episodes from wanted/missing/search/count logic while keeping them visible for audit and re-include.
+- Adds docs/EPISODE_BULK_MANAGEMENT.md and docs/RELEASE_NOTES_v18.2.0.md.
+
+## Version 18.1.0 — SickChill Queue Counts & Season 00 Ignore
+
+- Show Queue and Download Queue now sort SickChill-style by missing episode count first, then downloaded/total counts.
+- Queues now show missing episode numbers and downloaded totals for each show.
+- Added a TV Manager setting to ignore Season 00 / Specials in show counts, missing totals, downloaded totals, and progress meters while preserving S00 episodes in the database.
+- Added API support for `ignore_season_zero_counts`, `missing_episode_numbers`, and queue count metadata.
+
 ## v17.13.3 - Windows EXE Robocopy Quoting Patch
 
 ## v17.21.0 — SQLite Lock Guard + Media Server Maintenance
@@ -436,3 +461,12 @@ Adds `/manage` with Backlog Overview, Manage Searches, Episode Status Management
 - Added stable sort indicators and better default sort direction for numeric columns.
 - Normalized legacy SickChill ordinal dates in the Show Queue so numeric airdate artifacts do not appear.
 - Improved Downloads progress-bar state and numeric column alignment.
+
+## v18.0.0 - Professional Polish Release
+
+- Promotes TV Manager to Version 18.
+- Adds Launchpad Version 18 readiness checklist.
+- Adds `/api/system/release-readiness` for runtime polish verification.
+- Adds safe Windows `release-and-push.ps1` GitHub source commit automation.
+- Keeps Show Queue Downloads sorting based on real numeric downloaded counts.
+- Updates documentation for Version 18 readiness and GitHub release automation.

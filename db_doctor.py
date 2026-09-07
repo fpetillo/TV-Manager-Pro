@@ -67,6 +67,11 @@ EPISODE_COLUMNS = {
     "still_path": "TEXT",
     "tmdb_episode_id": "INTEGER",
     "metadata_updated_at": "TEXT",
+    "ignored": "INTEGER DEFAULT 0",
+    "ignored_reason": "TEXT",
+    "ignored_at": "TEXT",
+    "ignored_source": "TEXT",
+    "managed_note": "TEXT",
 }
 
 CREATE_TABLES = [
@@ -129,6 +134,11 @@ CREATE_TABLES = [
       still_path TEXT,
       tmdb_episode_id INTEGER,
       metadata_updated_at TEXT,
+      ignored INTEGER DEFAULT 0,
+      ignored_reason TEXT,
+      ignored_at TEXT,
+      ignored_source TEXT,
+      managed_note TEXT,
       UNIQUE(show_id,season,episode)
     )
     """,

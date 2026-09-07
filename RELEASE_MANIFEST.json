@@ -1,18 +1,21 @@
 {
   "product": "TV Manager",
-  "version": "17.21.0",
-  "package": "imdb-tv-manager-v17.21.0.zip",
-  "release_name": "Professional Navigation Center",
-  "generated_at": "2026-09-06T22:55:00-04:00",
+  "version": "18.1.0",
+  "package": "imdb-tv-manager-v18.1.0.zip",
+  "release_name": "Version 18 Professional Polish",
+  "generated_at": "2026-09-07T08:43:00-04:00",
   "highlights": [
-    "Episode-search downloader workflow returns to the same episode list after queueing.",
-    "Search modal includes Back to Episodes navigation.",
-    "Show detail adds Download Center and Active Jobs links."
+    "Promotes TV Manager to Version 18.",
+    "Adds Launchpad Version 18 readiness checklist.",
+    "Adds safe Windows release-and-push.ps1 for GitHub source commits.",
+    "Keeps Show Queue Downloads sorting based on real numeric downloaded counts.",
+    "Updates navigation and polish documentation for Version 18."
   ],
   "validation": [
     "python compile",
     "javascript syntax",
-    "static v17.19 tests"
+    "full pytest suite",
+    "package hygiene"
   ],
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
@@ -57,20 +60,12 @@
   "windows_exe_build_script_safe": true,
   "windows_exe_output": "release/windows/TVManager",
   "windows_exe_robocopy_argument_array": true,
-  "release": "Downloader Validation Center",
+  "release": "Version 18 Professional Polish",
   "created_at": "2026-09-07T03:06:41",
   "built_at": "2026-09-07T02:40:00",
   "sickchill_parity_manage": true,
   "new_routes": [
-    "/manage",
-    "/api/manage/summary",
-    "/api/manage/backlog-overview",
-    "/api/manage/episode-status/preview",
-    "/api/manage/episode-status/apply",
-    "/api/manage/failed-downloads",
-    "/api/manage/missed-subtitles",
-    "/api/manage/scene-exceptions",
-    "/api/manage/mass-refresh/start"
+    "/api/system/release-readiness"
   ],
   "navigation_center": true,
   "shared_navigation_template": "templates/_nav.html",
@@ -86,5 +81,8 @@
     "/jobs",
     "/logs",
     "/database-safety"
-  ]
+  ],
+  "version_18_readiness": true,
+  "github_release_automation": true,
+  "notes": "SickChill queue counts, missing episode numbers, downloaded totals, and Season 00 ignore option."
 }

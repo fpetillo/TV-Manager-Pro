@@ -27,6 +27,30 @@ TRANSITIONS={
 def cx():
     return dbcore.connect(DB)
 
+def _setting_bool(section, name, default=False):
+    try:
+        with cx() as c:
+            r = c.execute("SELECT value FROM settings WHERE lower(section)=lower(?) AND lower(name)=lower(?)", (section, name)).fetchone()
+        if not r or r["value"] is None:
+            return default
+        return str(r["value"]).strip().lower() in {"1", "true", "yes", "on"}
+    except Exception:
+        return default
+
+def _episode_scope_filter(ignore_specials):
+    return " AND COALESCE(e2.season,0)<>0" if ignore_specials else ""
+
+def _missing_episode_summary(show_id, ignore_specials=False, limit=10):
+    filt = " AND COALESCE(season,0)<>0" if ignore_specials else ""
+    with cx() as c:
+        rows = c.execute(f"""SELECT season,episode FROM episodes
+                            WHERE show_id=? {filt}
+                              AND (location IS NULL OR TRIM(location)='')
+                            ORDER BY season,episode LIMIT ?""", (int(show_id), int(limit)+1)).fetchall()
+    codes = [f"S{int(r['season']):02d}E{int(r['episode']):02d}" for r in rows[:limit]]
+    more = max(0, len(rows)-limit)
+    return ", ".join(codes) + (f" +{more} more" if more else "") if codes else "Complete"
+
 def init():
     with cx() as c:
         c.executescript("""
@@ -163,15 +187,34 @@ def rollback_replacement(replacement_id):
     return {"ok":True,"restored":str(old)}
 
 def unified_queue(limit=300):
+    ignore_specials = _setting_bool("TVManager", "ignore_season_zero_counts", False)
+    scope = _episode_scope_filter(ignore_specials)
     with cx() as c:
-        eps=[dict(r) for r in c.execute("""SELECT d.id,'episode' acquisition_type,d.status,d.client,d.release_name title,
-                      d.external_id,d.added_at created_at,e.id episode_id,e.season,e.episode,s.name show_name
+        eps=[dict(r) for r in c.execute(f"""SELECT d.id,'episode' acquisition_type,d.status,d.client,d.release_name title,
+                      d.external_id,d.added_at created_at,e.id episode_id,e.season,e.episode,e.show_id,s.name show_name,
+                      (SELECT COUNT(*) FROM episodes e2 WHERE e2.show_id=s.id {scope}) episode_total,
+                      (SELECT COUNT(*) FROM episodes e2 WHERE e2.show_id=s.id {scope} AND e2.location IS NOT NULL AND TRIM(e2.location)<>'') downloaded_total,
+                      (SELECT COUNT(*) FROM episodes e2 WHERE e2.show_id=s.id {scope} AND (e2.location IS NULL OR TRIM(e2.location)='')) missing_total
                       FROM downloads d JOIN episodes e ON e.id=d.episode_id JOIN shows s ON s.id=e.show_id
                       WHERE d.status NOT IN ('Completed','Superseded') ORDER BY d.id DESC LIMIT ?""",(int(limit),)).fetchall()]
-        packs=[dict(r) for r in c.execute("""SELECT p.id,'season_pack' acquisition_type,p.status,p.client,p.title,
-                      p.external_id,p.created_at,NULL episode_id,p.season,NULL episode,s.name show_name
+        packs=[dict(r) for r in c.execute(f"""SELECT p.id,'season_pack' acquisition_type,p.status,p.client,p.title,
+                      p.external_id,p.created_at,NULL episode_id,p.season,NULL episode,p.show_id,s.name show_name,
+                      (SELECT COUNT(*) FROM episodes e2 WHERE e2.show_id=s.id {scope}) episode_total,
+                      (SELECT COUNT(*) FROM episodes e2 WHERE e2.show_id=s.id {scope} AND e2.location IS NOT NULL AND TRIM(e2.location)<>'') downloaded_total,
+                      (SELECT COUNT(*) FROM episodes e2 WHERE e2.show_id=s.id {scope} AND (e2.location IS NULL OR TRIM(e2.location)='')) missing_total
                       FROM season_pack_downloads p JOIN shows s ON s.id=p.show_id
                       WHERE p.status NOT IN ('Completed','Superseded') ORDER BY p.id DESC LIMIT ?""",(int(limit),)).fetchall()]
     rows=eps+packs
-    rows.sort(key=lambda x:x.get("created_at") or "",reverse=True)
+    for row in rows:
+        row["ignore_season_zero_counts"] = ignore_specials
+        try:
+            row["missing_episode_numbers"] = _missing_episode_summary(row.get("show_id"), ignore_specials)
+        except Exception:
+            row["missing_episode_numbers"] = ""
+        total = int(row.get("episode_total") or 0)
+        got = int(row.get("downloaded_total") or 0)
+        row["download_percent"] = round((got/total)*100, 4) if total else 0
+    # SickChill-style triage: biggest missing shows first, then highest downloaded totals.
+    rows.sort(key=lambda x:(int(x.get("missing_total") or 0), int(x.get("downloaded_total") or 0), int(x.get("episode_total") or 0), x.get("show_name") or ""), reverse=True)
     return rows[:int(limit)]
+

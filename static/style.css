@@ -280,3 +280,22 @@ html{overflow-x:hidden} body{overflow-x:hidden}.shell.has-side-navigation{width:
 .download-handoff-progress .notice.good{border-left:4px solid #2f9e44}
 .search-modal .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .show-queue-table th.sorted{background:#1f4f83;color:#fff}.show-queue-table .downloads-cell{min-width:150px}.show-queue-table .num-cell{text-align:right;white-space:nowrap}.show-queue-table .center-cell{text-align:center}.download-meter.empty span{background:#68707a}.download-meter.partial span{background:linear-gradient(90deg,#2c6e0b,#60a917)}.download-meter.complete span{background:linear-gradient(90deg,#2d8a12,#67c51a)}
+
+/* v18.0.0 professional polish */
+.v18-readiness-panel{margin-top:16px}.v18-checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px}.v18-score{grid-column:1/-1;display:flex;align-items:center;gap:12px;border:1px solid rgba(110,162,255,.28);background:rgba(110,162,255,.08);border-radius:14px;padding:12px 14px}.v18-score strong{font-size:1.8rem}.v18-score span{color:#aeb9ca}.v18-check{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;text-decoration:none;color:#e8f1ff;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.62);border-radius:14px;padding:12px}.v18-check span{grid-row:1/3;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:#263249;font-weight:900}.v18-check.ok span{background:#123f25;color:#9bf2af}.v18-check.warn span{background:#4b2c32;color:#ffc3cc}.v18-check strong{font-size:.95rem}.v18-check small{color:#94a3b8}.appnav .brand-lockup small{line-height:1.15}.show-queue-table th.sorted{box-shadow:inset 0 -3px 0 rgba(245,197,24,.72)}.download-meter{border-radius:999px}.download-meter strong{font-weight:900;letter-spacing:.02em}.list-heading{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
+/* v18.1 SickChill queue-count polish */
+.tiny{font-size:.78rem;line-height:1.25}.download-summary{display:grid;gap:4px;min-width:160px}.downloads-cell small{display:block;margin-top:4px;color:#94a3b8;font-size:.76rem}.show-queue-table td:first-child,.show-queue-table td:nth-child(2){white-space:nowrap}.queue-row .download-summary{max-width:220px;margin-top:8px}.queue-row .download-meter{min-width:180px}.queue-row .muted.tiny{margin-top:4px;max-width:720px}
+
+/* v18.2.0 Bulk Episode Management */
+.bulk-episode-panel{border:1px solid rgba(148,163,184,.28);border-radius:16px;padding:14px;margin:12px 0;background:rgba(15,23,42,.04)}
+.toolbar.wrap{flex-wrap:wrap;gap:8px}
+.ignored-row{opacity:.72;background:rgba(148,163,184,.12)}
+.ignored-row td{color:#64748b}
+.ep-ignore,.ep-monitor{display:block;margin-top:4px;font-size:.82rem;color:#64748b}
+.pill.muted-pill{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;font-weight:700}
+.tiny{font-size:.72rem;line-height:1.2}
+.warn-text{color:#b45309;font-size:.85rem;margin-top:4px}
+
+
+/* v18.2.1 show load progress indicators */
+.show-page-loading{position:fixed;right:22px;bottom:22px;z-index:9999;width:min(440px,calc(100vw - 44px));box-shadow:0 24px 70px rgba(0,0,0,.36);border-radius:16px}.show-page-loading[hidden]{display:none}.show-page-loading .import-progress{margin:0}.show-loading-progress .progress-track.indeterminate .progress-fill{animation:tvmIndeterminate 1.05s ease-in-out infinite;min-width:24%;}.loading-row .import-progress{margin:8px 0}.loading-box .import-progress{margin:0}.show-open-link{cursor:pointer}@keyframes tvmIndeterminate{0%{transform:translateX(-115%);width:35%}50%{width:58%}100%{transform:translateX(260%);width:35%}}

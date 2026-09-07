@@ -32,6 +32,7 @@ import trakt_client
 import database_safety
 import job_center
 import sickchill_parity
+import episode_rules
 
 BASE=Path(__file__).resolve().parent
 APP_VERSION=(BASE/"VERSION").read_text(encoding="utf-8").strip() if (BASE/"VERSION").exists() else "development"
@@ -197,6 +198,7 @@ def init():
           episode INTEGER NOT NULL, name TEXT, airdate TEXT, status TEXT, location TEXT,
           file_size INTEGER, release_name TEXT, quality TEXT, legacy_data TEXT,
           overview TEXT, still_url TEXT, still_path TEXT, tmdb_episode_id INTEGER, metadata_updated_at TEXT,
+          monitored INTEGER DEFAULT 1, ignored INTEGER DEFAULT 0, ignored_reason TEXT, ignored_at TEXT, ignored_source TEXT, managed_note TEXT,
           UNIQUE(show_id,season,episode));
         CREATE TABLE IF NOT EXISTS import_runs(
           id INTEGER PRIMARY KEY AUTOINCREMENT, source_name TEXT, shows_found INTEGER DEFAULT 0,
@@ -258,6 +260,12 @@ def init():
             "still_path": "TEXT",
             "tmdb_episode_id": "INTEGER",
             "metadata_updated_at": "TEXT",
+            "monitored": "INTEGER DEFAULT 1",
+            "ignored": "INTEGER DEFAULT 0",
+            "ignored_reason": "TEXT",
+            "ignored_at": "TEXT",
+            "ignored_source": "TEXT",
+            "managed_note": "TEXT",
         })
 
         # Older v2 databases may still have tmdb_id defined NOT NULL.
@@ -702,6 +710,29 @@ def _queue_download_percent(row):
     downloaded=int(row.get("downloaded_count") or 0)
     return round((downloaded / total) * 100, 4) if total else 0
 
+def _ignore_season_zero_counts():
+    return engine.as_bool(engine.get_setting("TVManager", "ignore_season_zero_counts", "0"), False)
+
+def _queue_episode_filter(alias="e", ignore_specials=None, include_ignored=False):
+    if ignore_specials is None:
+        ignore_specials = _ignore_season_zero_counts()
+    return episode_rules.considered_sql(alias, include_ignored=include_ignored, ignore_specials=ignore_specials)
+
+def _format_episode_code(season, episode):
+    try:
+        return f"S{int(season):02d}E{int(episode):02d}"
+    except Exception:
+        return ""
+
+def _queue_missing_display(row, limit=12):
+    raw = row.get("missing_episode_numbers") or ""
+    parts = [x for x in str(raw).split(",") if x]
+    if not parts:
+        return "Complete" if int(row.get("missing_count") or 0) == 0 else ""
+    shown = parts[:limit]
+    more = len(parts) - len(shown)
+    return ", ".join(shown) + (f" +{more} more" if more > 0 else "")
+
 def _queue_status_rank(status):
     return {"Wanted": 1, "Upcoming": 2, "Continuing": 3, "Active": 3, "Paused": 4, "Ended": 5}.get(str(status or ""), 99)
 
@@ -720,12 +751,14 @@ def _sort_show_queue_rows(rows, sort, direction):
         return value or "9999-12-31"
     def key(row):
         name=str(row.get("name") or "").casefold()
-        if sort in {"downloads", "downloaded"}:
-            return (int(row.get("downloaded_count") or 0), int(row.get("episode_count") or 0), _queue_download_percent(row), name)
+        if sort in {"downloads", "downloaded", "missing_downloads"}:
+            # v18.1: SickChill-style queue priority.  Shows needing attention
+            # sort by missing episode count first, then by downloaded/total counts.
+            return (int(row.get("missing_count") or 0), int(row.get("downloaded_count") or 0), int(row.get("episode_count") or 0), _queue_download_percent(row), name)
         if sort in {"download_percent", "percent", "complete"}:
             return (_queue_download_percent(row), int(row.get("downloaded_count") or 0), int(row.get("episode_count") or 0), name)
         if sort in {"missing", "wanted_missing"}:
-            return (int(row.get("missing_count") or 0), name)
+            return (int(row.get("missing_count") or 0), int(row.get("downloaded_count") or 0), int(row.get("episode_count") or 0), name)
         if sort == "size":
             return (int(row.get("size_bytes") or 0), name)
         if sort == "next":
@@ -754,6 +787,8 @@ def api_show_queue():
     except Exception: limit=100
     try: offset=max(0,int(request.args.get("offset") or 0))
     except Exception: offset=0
+    ignore_specials = _ignore_season_zero_counts()
+    episode_filter = _queue_episode_filter("e", ignore_specials)
     where=[]; params=[]
     if q:
         like=f"%{q}%"; where.append("(s.name LIKE ? COLLATE NOCASE OR COALESCE(s.network,'') LIKE ? COLLATE NOCASE OR COALESCE(s.imdb_id,'') LIKE ? COLLATE NOCASE OR COALESCE(s.location,'') LIKE ? COLLATE NOCASE)"); params.extend([like]*4)
@@ -771,13 +806,16 @@ def api_show_queue():
     sql=f"""SELECT s.id, s.name, s.network, COALESCE(s.quality,'HD') quality, COALESCE(s.status,'Wanted') status,
               s.paused, s.search_enabled, s.monitor_new,
               (CASE WHEN COALESCE(s.paused,0)=0 AND COALESCE(s.search_enabled,1)=1 THEN 1 ELSE 0 END) active_flag,
-              (SELECT MIN(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate>=date('now')) next_ep,
-              (SELECT MAX(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate<date('now')) prev_ep,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND e.location IS NOT NULL AND TRIM(e.location)<>'') downloaded_count,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id) episode_count,
-              ((SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id) -
-               (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND e.location IS NOT NULL AND TRIM(e.location)<>'')) missing_count,
-              COALESCE((SELECT SUM(COALESCE(e.file_size,0)) FROM episodes e WHERE e.show_id=s.id),0) size_bytes
+              (SELECT MIN(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate>=date('now') {episode_filter}) next_ep,
+              (SELECT MAX(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate<date('now') {episode_filter}) prev_ep,
+              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} AND e.location IS NOT NULL AND TRIM(e.location)<>'') downloaded_count,
+              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter}) episode_count,
+              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} AND (e.location IS NULL OR TRIM(e.location)='')) missing_count,
+              COALESCE((SELECT GROUP_CONCAT('S' || printf('%02d', e.season) || 'E' || printf('%02d', e.episode), ',')
+                        FROM episodes e WHERE e.show_id=s.id {episode_filter}
+                        AND (e.location IS NULL OR TRIM(e.location)='')
+                        ORDER BY e.season,e.episode), '') missing_episode_numbers,
+              COALESCE((SELECT SUM(COALESCE(e.file_size,0)) FROM episodes e WHERE e.show_id=s.id {episode_filter}),0) size_bytes
            FROM shows s{where_sql}"""
     with cx() as c:
         rows=[dict(r) for r in c.execute(sql,params).fetchall()]
@@ -788,7 +826,8 @@ def api_show_queue():
         row["next_ep"]=_normalize_queue_airdate(row.get("next_ep"))
         row["prev_ep"]=_normalize_queue_airdate(row.get("prev_ep"))
         row["download_percent"]=_queue_download_percent(row)
-    return jsonify(results=page_rows,total=total,count=len(page_rows),limit=limit,offset=offset,next_offset=(offset+limit if offset+limit<total else None),has_more=offset+limit<total,sort=sort,direction=direction)
+        row["missing_display"]=_queue_missing_display(row)
+    return jsonify(results=page_rows,total=total,count=len(page_rows),limit=limit,offset=offset,next_offset=(offset+limit if offset+limit<total else None),has_more=offset+limit<total,sort=sort,direction=direction,ignore_season_zero_counts=ignore_specials)
 
 @app.get("/manager")
 def manager(): return render_template("manager.html")
@@ -1133,7 +1172,9 @@ def eps(sid):
         if season is None and not q and not status and not all_mode:
             rows=c.execute("""
                 SELECT season, COUNT(*) AS episode_count,
-                       SUM(CASE WHEN location IS NOT NULL AND TRIM(location)<>'' THEN 1 ELSE 0 END) AS with_files
+                       SUM(CASE WHEN location IS NOT NULL AND TRIM(location)<>'' THEN 1 ELSE 0 END) AS with_files,
+                       SUM(CASE WHEN COALESCE(ignored,0)=1 OR lower(COALESCE(status,''))='ignored' THEN 1 ELSE 0 END) AS ignored_count,
+                       SUM(CASE WHEN COALESCE(ignored,0)=0 AND lower(COALESCE(status,''))<>'ignored' THEN 1 ELSE 0 END) AS considered_count
                 FROM episodes
                 WHERE show_id=?
                 GROUP BY season
@@ -1173,7 +1214,9 @@ def show_detail(sid):
         show=c.execute("""
             SELECT s.*,
                    (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id) AS episode_count,
-                   (SELECT COUNT(DISTINCT season) FROM episodes e WHERE e.show_id=s.id) AS season_count
+                   (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored') AS considered_episode_count,
+                   (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id AND (COALESCE(e.ignored,0)=1 OR lower(COALESCE(e.status,''))='ignored')) AS ignored_episode_count,
+                   (SELECT COUNT(DISTINCT season) FROM episodes e WHERE e.show_id=s.id AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored') AS season_count
             FROM shows s WHERE s.id=?
         """,(sid,)).fetchone()
         if not show:
@@ -1522,6 +1565,60 @@ def api_manage_status_apply():
     except Exception as e:
         return jsonify(error=str(e)),400
 
+
+@app.post("/api/episodes/bulk/preview")
+def api_episode_bulk_preview():
+    try:
+        episode_rules.init(DB)
+        body=request.get_json(silent=True) or {}
+        filters=body.get("filters") or body
+        return jsonify(ok=True, **episode_rules.preview(DB, filters))
+    except Exception as e:
+        return jsonify(error=str(e)),400
+
+@app.post("/api/episodes/bulk/apply/start")
+def api_episode_bulk_apply_start():
+    try:
+        episode_rules.init(DB)
+        body=request.get_json(silent=True) or {}
+        filters=body.get("filters") or {}
+        action=body.get("action") or "bulk_episode_management"
+        status=body.get("status") if "status" in body else None
+        monitored=body.get("monitored") if "monitored" in body else None
+        ignored=body.get("ignored") if "ignored" in body else None
+        reason=body.get("reason") or body.get("ignored_reason") or "Bulk episode management"
+        note=body.get("note") or ""
+        def worker(job_id):
+            preview=episode_rules.preview(DB, filters, sample_limit=10)
+            job_center.update_job(job_id, stage="Episode Management", message=f"Applying changes to {preview.get('total',0)} episode(s).", percent=25, total=preview.get("total",0))
+            result=episode_rules.apply(DB, filters, action, status=status, monitored=monitored, ignored=ignored, reason=reason, note=note)
+            engine.log("bulk_episode_management", f"Bulk episode management affected {result.get('affected',0)} episodes", data={"filters":filters,"action":action,"status":status,"monitored":monitored,"ignored":ignored})
+            job_center.update_job(job_id, status="complete", stage="Complete", message=result.get("message") or "Episode management complete.", percent=100, result=result, processed=result.get("affected",0), succeeded=result.get("affected",0), total=preview.get("total",0))
+            return result
+        return jsonify(ok=True, job=job_center.run_background("bulk_episode_management", worker, stage="Queued", message="Episode management queued.", meta={"filters":filters,"action":action}))
+    except Exception as e:
+        return jsonify(error=str(e)),400
+
+@app.post("/api/shows/<int:sid>/specials/ignore/start")
+def api_show_ignore_specials_start(sid):
+    def worker(job_id):
+        job_center.update_job(job_id, stage="Specials", message="Ignoring Season 00 / Specials for this show.", percent=30)
+        result=episode_rules.ignore_specials(DB, sid)
+        engine.log("ignore_specials", f"Ignored Season 00 / Specials for show {sid}: {result.get('affected',0)} episode(s)", show_id=sid, data=result)
+        job_center.update_job(job_id, status="complete", stage="Complete", message=f"Ignored {result.get('affected',0)} Season 00 episode(s).", percent=100, result=result, processed=result.get("affected",0), succeeded=result.get("affected",0))
+        return result
+    return jsonify(ok=True, job=job_center.run_background("ignore_show_specials", worker, stage="Queued", message="Ignore Specials queued.", meta={"show_id":sid}))
+
+@app.post("/api/shows/<int:sid>/specials/include/start")
+def api_show_include_specials_start(sid):
+    def worker(job_id):
+        job_center.update_job(job_id, stage="Specials", message="Including Season 00 / Specials for this show.", percent=30)
+        result=episode_rules.include_specials(DB, sid)
+        engine.log("include_specials", f"Included Season 00 / Specials for show {sid}: {result.get('affected',0)} episode(s)", show_id=sid, data=result)
+        job_center.update_job(job_id, status="complete", stage="Complete", message=f"Included {result.get('affected',0)} Season 00 episode(s).", percent=100, result=result, processed=result.get("affected",0), succeeded=result.get("affected",0))
+        return result
+    return jsonify(ok=True, job=job_center.run_background("include_show_specials", worker, stage="Queued", message="Include Specials queued.", meta={"show_id":sid}))
+
 @app.get("/api/manage/failed-downloads")
 def api_manage_failed_downloads():
     try:
@@ -1814,7 +1911,7 @@ def api_scheduler_run(name):
 @app.post("/api/settings/tvmanager")
 def api_tvmanager_settings():
     body=request.get_json(silent=True) or {}
-    allowed={"auto_grab","recent_days","max_searches_per_run","refresh_media_servers_after_process","simulation_mode","api_auth_enabled","metadata_missing_limit","artwork_refresh_limit","background_worker_limit"}
+    allowed={"auto_grab","recent_days","max_searches_per_run","refresh_media_servers_after_process","simulation_mode","ignore_season_zero_counts","api_auth_enabled","metadata_missing_limit","artwork_refresh_limit","background_worker_limit"}
     for k,v in body.items():
         if k in allowed:
             engine.set_setting("TVManager",k,v)
@@ -1828,6 +1925,18 @@ def api_episode_update(eid):
         fields.append("status=?"); vals.append(str(body["status"]))
     if "monitored" in body:
         fields.append("monitored=?"); vals.append(1 if body["monitored"] else 0)
+    if "ignored" in body:
+        ignored=1 if body.get("ignored") else 0
+        fields.append("ignored=?"); vals.append(ignored)
+        fields.append("ignored_reason=?"); vals.append((body.get("ignored_reason") or "Manual episode ignore") if ignored else "")
+        fields.append("ignored_at=CURRENT_TIMESTAMP" if ignored else "ignored_at=NULL")
+        fields.append("ignored_source=?"); vals.append("episode_update" if ignored else None)
+        if ignored and "status" not in body:
+            fields.append("status='Ignored'")
+        elif not ignored and "status" not in body:
+            fields.append("status=CASE WHEN location IS NOT NULL AND TRIM(location)<>'' THEN 'Downloaded' ELSE 'Wanted' END")
+    if "managed_note" in body:
+        fields.append("managed_note=?"); vals.append(str(body.get("managed_note") or ""))
     if not fields:
         return jsonify(error="Nothing to update"),400
     vals.append(eid)
@@ -1930,6 +2039,7 @@ def api_tvmanager_config():
         metadata_missing_limit=engine.as_int(engine.get_setting("TVManager","metadata_missing_limit","200"),200),
         artwork_refresh_limit=engine.as_int(engine.get_setting("TVManager","artwork_refresh_limit","200"),200),
         background_worker_limit=engine.as_int(engine.get_setting("TVManager","background_worker_limit","4"),4),
+        ignore_season_zero_counts=engine.as_bool(engine.get_setting("TVManager","ignore_season_zero_counts","0"),False),
     )
 
 @app.patch("/api/shows/<int:sid>/seasons/<int:season>")
@@ -2660,6 +2770,32 @@ def system_page(): return render_template("system.html")
 
 @app.get("/api/system/health")
 def api_system_health(): return jsonify(results=completion.system_health())
+
+
+@app.get("/api/system/release-readiness")
+def api_system_release_readiness():
+    """Version 18 operator readiness checklist.
+
+    This is intentionally file/runtime based so the UI can show whether the
+    installed package includes the professional polish pieces we now expect in
+    every release: progress everywhere, database safety, navigation, downloader
+    monitoring, docs, and local GitHub release automation.
+    """
+    def exists(rel):
+        return (BASE / rel).exists()
+    checks = [
+        {"key": "progress_everywhere", "label": "Progress everywhere", "ok": exists("docs/PROGRESS_EVERYWHERE_AND_LOGS.md") and exists("static/jobs.js") and exists("job_center.py"), "href": "/jobs"},
+        {"key": "operations_progress", "label": "Operations scan progress", "ok": exists("docs/RELEASE_NOTES_v17.22.0.md") and exists("static/operations.js"), "href": "/operations"},
+        {"key": "show_queue_sort", "label": "Show Queue sort accuracy", "ok": exists("docs/RELEASE_NOTES_v17.23.0.md") and exists("static/show_queue.js"), "href": "/show-queue"},
+        {"key": "download_center", "label": "Downloader validation center", "ok": exists("docs/DOWNLOADER_VALIDATION_CENTER.md") and exists("static/download_center.js"), "href": "/download-center"},
+        {"key": "database_safety", "label": "Database safety guard", "ok": exists("docs/DATABASE_PROTECTION_CENTER.md") and exists("database_safety.py") and exists("db_doctor.py"), "href": "/database-safety"},
+        {"key": "media_maintenance", "label": "Media server maintenance", "ok": exists("docs/RELEASE_NOTES_v17.20.0.md") and exists("templates/settings.html"), "href": "/settings"},
+        {"key": "release_push", "label": "Local GitHub release automation", "ok": exists("release-and-push.ps1") and exists("docs/GITHUB_RELEASE_AUTOMATION.md"), "href": "/about"},
+        {"key": "v18_docs", "label": "Version 18 documentation", "ok": exists("docs/RELEASE_NOTES_v18.0.0.md") and exists("docs/VERSION_18_READINESS.md"), "href": "/about"},
+    ]
+    passed = len([c for c in checks if c.get("ok")])
+    total = len(checks)
+    return jsonify(ok=True, version=APP_VERSION, label="Version 18 readiness", score=round((passed/total)*100) if total else 0, passed=passed, total=total, checks=checks)
 
 @app.get("/api/docs")
 def api_docs(): return jsonify(completion.api_summary())

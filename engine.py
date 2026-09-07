@@ -32,6 +32,7 @@ import integrity
 import naming
 import database_safety
 import library_maintenance
+import episode_rules
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / "tvmanager.db"
@@ -286,6 +287,11 @@ def init_engine():
             "still_path": "TEXT",
             "tmdb_episode_id": "INTEGER",
             "metadata_updated_at": "TEXT",
+            "ignored": "INTEGER DEFAULT 0",
+            "ignored_reason": "TEXT",
+            "ignored_at": "TEXT",
+            "ignored_source": "TEXT",
+            "managed_note": "TEXT",
         }.items():
             if name not in ecols:
                 c.execute(f'ALTER TABLE episodes ADD COLUMN "{name}" {definition}')
@@ -339,6 +345,12 @@ def init_engine():
         set_setting("TVManager", "artwork_refresh_limit", "200")
     if get_setting("TVManager", "background_worker_limit") is None:
         set_setting("TVManager", "background_worker_limit", "4")
+    if get_setting("TVManager", "ignore_season_zero_counts") is None:
+        set_setting("TVManager", "ignore_season_zero_counts", "0")
+    try:
+        episode_rules.init(DB)
+    except Exception:
+        pass
 
 
 def list_quality_profiles():
@@ -718,8 +730,8 @@ def search_episode(episode_id, auto_grab=False):
     ctx = _episode_context(episode_id)
     if not ctx:
         raise ValueError("Episode not found")
-    if ctx["paused"] or not ctx["search_enabled"] or not ctx["monitored"]:
-        return {"episode_id": episode_id, "results": [], "message": "Show or episode is paused/unmonitored."}
+    if ctx["paused"] or not ctx["search_enabled"] or not ctx["monitored"] or ctx.get("ignored") or str(ctx.get("status") or "").lower()=="ignored":
+        return {"episode_id": episode_id, "results": [], "message": "Show or episode is paused/unmonitored or ignored."}
     show = {
         "id": ctx["show_id"], "name": ctx["show_name"],
         "preferred_words": ctx["preferred_words"], "required_words": ctx["required_words"],
@@ -1055,7 +1067,7 @@ def eligible_episodes(kind="recent", limit=25):
     today = date.today()
     params = []
     where = ["""lower(COALESCE(e.status,'')) IN ('wanted','failed')""",
-             "COALESCE(e.monitored,1)=1", "COALESCE(s.paused,0)=0", "COALESCE(s.search_enabled,1)=1"]
+             "COALESCE(e.monitored,1)=1", "COALESCE(e.ignored,0)=0", "lower(COALESCE(e.status,''))<>'ignored'", "COALESCE(s.paused,0)=0", "COALESCE(s.search_enabled,1)=1"]
     if kind == "recent":
         days = max(1, as_int(get_setting("TVManager", "recent_days", "14"), 14))
         start = (today - timedelta(days=days)).isoformat()
@@ -1152,7 +1164,7 @@ def missing(limit=500):
                             WHERE lower(COALESCE(e.status,'')) IN ('wanted','failed')
                               AND (e.location IS NULL OR trim(e.location)='')
                               AND (e.airdate IS NULL OR e.airdate<=date('now'))
-                              AND COALESCE(e.monitored,1)=1 AND COALESCE(s.paused,0)=0
+                              AND COALESCE(e.monitored,1)=1 AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored' AND COALESCE(s.paused,0)=0
                             ORDER BY COALESCE(e.airdate,'1900-01-01') DESC,s.name,e.season,e.episode
                             LIMIT ?""",(limit,)).fetchall()
     return [dict(r) | {"status_label":status_label(r["status"])} for r in rows]

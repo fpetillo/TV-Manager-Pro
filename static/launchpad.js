@@ -23,4 +23,22 @@ async function loadLaunchpad(){
     actions.innerHTML=`<div class="notice error">Launchpad failed: ${esc(e.message||e)}</div>`;
   }
 }
-document.addEventListener('DOMContentLoaded',()=>{loadLaunchpad();document.getElementById('refreshLaunchpad')?.addEventListener('click',loadLaunchpad)});
+
+function readinessItem(c){
+  const ok=!!c.ok;
+  return `<a class="v18-check ${ok?'ok':'warn'}" href="${esc(c.href||'/about')}"><span>${ok?'✓':'!'}</span><strong>${esc(c.label)}</strong><small>${ok?'Ready':'Needs attention'}</small></a>`
+}
+async function loadReleaseReadiness(){
+  const box=document.getElementById('version18Checklist');
+  if(!box)return;
+  try{
+    const r=await fetch('/api/system/release-readiness');
+    const d=await r.json();
+    if(!r.ok||d.ok===false)throw new Error(d.error||r.statusText);
+    box.innerHTML=`<div class="v18-score"><strong>${esc(d.score)}%</strong><span>${esc(d.passed)}/${esc(d.total)} checks ready · ${esc(d.version)}</span></div>`+(d.checks||[]).map(readinessItem).join('');
+  }catch(e){
+    box.innerHTML=`<div class="notice error">Version 18 readiness could not load: ${esc(e.message||e)}</div>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{loadLaunchpad();loadReleaseReadiness();document.getElementById('refreshLaunchpad')?.addEventListener('click',()=>{loadLaunchpad();loadReleaseReadiness();})});

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import dbcore
+import episode_rules
 
 
 def cx(db_path: Path | str):
@@ -43,6 +44,16 @@ def init(db_path: Path | str) -> None:
             );
             """
         )
+        ecols = {r["name"] for r in c.execute("PRAGMA table_info(episodes)").fetchall()}
+        for name, definition in {
+            "ignored": "INTEGER DEFAULT 0",
+            "ignored_reason": "TEXT",
+            "ignored_at": "TEXT",
+            "ignored_source": "TEXT",
+            "managed_note": "TEXT",
+        }.items():
+            if name not in ecols:
+                c.execute(f'ALTER TABLE episodes ADD COLUMN "{name}" {definition}')
         c.commit()
 
 
@@ -63,7 +74,7 @@ def summary(db_path: Path | str) -> dict[str, Any]:
               (SELECT COUNT(*) FROM episodes WHERE lower(COALESCE(status,'')) IN ('wanted','failed')
                  AND (location IS NULL OR trim(location)='')
                  AND (airdate IS NULL OR airdate<=date('now'))
-                 AND COALESCE(monitored,1)=1) AS wanted,
+                 AND COALESCE(monitored,1)=1 AND COALESCE(ignored,0)=0 AND lower(COALESCE(status,''))<>'ignored') AS wanted,
               (SELECT COUNT(*) FROM failed_releases) AS failed_releases,
               (SELECT COUNT(*) FROM scene_exceptions) AS scene_exceptions,
               (SELECT COUNT(*) FROM episodes WHERE location IS NOT NULL AND trim(location)<>''
@@ -104,6 +115,7 @@ def backlog_overview(db_path: Path | str, limit: int = 500) -> dict[str, Any]:
                AND (e.location IS NULL OR trim(e.location)='')
                AND (e.airdate IS NULL OR e.airdate<=date('now'))
                AND COALESCE(e.monitored,1)=1
+               AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored'
              GROUP BY s.id, s.name, s.network, s.quality, s.paused
              ORDER BY total_missing DESC, s.name COLLATE NOCASE
              LIMIT ?
@@ -123,7 +135,7 @@ def status_preview(db_path: Path | str, filters: dict[str, Any]) -> dict[str, An
         ).fetchall()]
         sample = [dict(r) for r in c.execute(
             f"""
-            SELECT e.id, s.name show_name, e.season, e.episode, e.name, e.airdate, e.status, e.monitored
+            SELECT e.id, s.name show_name, e.season, e.episode, e.name, e.airdate, e.status, e.monitored, COALESCE(e.ignored,0) ignored, e.ignored_reason
               FROM episodes e JOIN shows s ON s.id=e.show_id
              WHERE {where}
              ORDER BY s.name COLLATE NOCASE, e.season, e.episode
@@ -175,6 +187,11 @@ def _status_filter(filters: dict[str, Any]) -> tuple[str, list[Any]]:
         where.append("(e.airdate IS NULL OR e.airdate<=date('now'))")
     if filters.get("only_missing") in (True, "1", "true", "yes", 1):
         where.append("(e.location IS NULL OR trim(e.location)='')")
+    if filters.get("specials") in (True, "1", "true", "yes", 1):
+        where.append("e.season=0")
+    if filters.get("ignored") not in (None, "", "all"):
+        where.append("COALESCE(e.ignored,0)=?")
+        params.append(1 if str(filters.get("ignored")).lower() in {"1","true","yes","on"} else 0)
     if filters.get("monitored") not in (None, "", "all"):
         where.append("COALESCE(e.monitored,1)=?")
         params.append(1 if str(filters.get("monitored")).lower() in {"1", "true", "yes", "on"} else 0)
