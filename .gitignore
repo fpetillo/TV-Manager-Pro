@@ -48,4 +48,4 @@ release/
 
 # Local OS/editor
 .DS_Store
-Thumbs.db
+Thumbs.db*.pyo
