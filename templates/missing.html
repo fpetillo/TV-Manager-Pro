@@ -1,16 +1,10 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Missing & Wanted</title><link rel="stylesheet" href="/static/style.css"></head>
+<title>Missing & Wanted</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
 <body><main class="shell manager-shell">
 <header class="topbar"><div><p class="eyebrow">BACKLOG</p><h1>Missing & Wanted</h1><p class="subtitle">A focused queue of aired episodes that are still Wanted or Failed.</p></div></header>
 
-<nav class="appnav professional-nav">
-  <a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/library-health">Library Health</a><a href="/upcoming">Upcoming</a>
-  <a href="/missing">Missing</a><a href="/queue">Queue</a><a href="/upgrades">Upgrades</a>
-  <a href="/subtitles">Subtitles</a><a href="/activity">Activity</a><a href="/postprocess">Post Processing</a>
-  <a href="/quality">Quality</a><a href="/operations">Operations</a><a href="/advanced">Advanced</a>
-  <a href="/settings">Settings</a><a href="/system">System</a><a href="/import">Migration</a>
-</nav>
+{% include "_nav.html" %}
 <div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
 <div id="commandPalette" class="command-palette" hidden><div class="command-card">
   <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
@@ -18,4 +12,5 @@
 </div></div>
 
 <section class="panel"><div class="toolbar"><strong id="count">Loading…</strong><div class="spacer"></div><button id="runRecent" class="secondary">Run Recent Search</button><button id="runBacklog" class="blue">Run Backlog Search</button></div><div id="jobMsg" class="message"></div><div id="list" class="table-wrap"></div></section>
-</main><script src="/static/missing.js"></script><script src="/static/global.js"></script></body></html>
+
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/missing.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

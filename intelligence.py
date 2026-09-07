@@ -89,12 +89,27 @@ def tags():
                     FROM tags t LEFT JOIN show_tags st ON st.tag_id=t.id
                     GROUP BY t.id ORDER BY t.name COLLATE NOCASE""").fetchall()]
 
-def save_tag(name,color="slate"):
+def save_tag(name,color="slate", tag_id=None):
+    name=(name or "Tag").strip() or "Tag"
     with cx() as c:
-        c.execute("""INSERT INTO tags(name,color) VALUES(?,?)
-                     ON CONFLICT(name) DO UPDATE SET color=excluded.color""",(name,color))
+        if tag_id:
+            c.execute("UPDATE tags SET name=?,color=? WHERE id=?",(name,color,int(tag_id)))
+            tid=int(tag_id)
+        else:
+            c.execute("""INSERT INTO tags(name,color) VALUES(?,?)
+                         ON CONFLICT(name) DO UPDATE SET color=excluded.color""",(name,color))
+            tid=c.execute("SELECT id FROM tags WHERE name=?",(name,)).fetchone()["id"]
         c.commit()
-        return c.execute("SELECT id FROM tags WHERE name=?",(name,)).fetchone()["id"]
+        return tid
+
+def delete_tag(tag_id):
+    with cx() as c:
+        c.execute("DELETE FROM show_tags WHERE tag_id=?",(int(tag_id),))
+        cur=c.execute("DELETE FROM tags WHERE id=?",(int(tag_id),))
+        c.commit()
+    if cur.rowcount == 0:
+        raise ValueError("Tag not found")
+    return {"ok": True, "deleted": int(tag_id)}
 
 def set_show_tags(show_id,tag_ids):
     with cx() as c:
@@ -128,6 +143,15 @@ def save_filter(name,query):
 
 def retention_policies():
     with cx() as c:return [dict(r) for r in c.execute("SELECT * FROM retention_policies ORDER BY name").fetchall()]
+
+def delete_retention(pid):
+    with cx() as c:
+        c.execute("UPDATE shows SET retention_policy_id=NULL WHERE retention_policy_id=?",(int(pid),))
+        cur=c.execute("DELETE FROM retention_policies WHERE id=?",(int(pid),))
+        c.commit()
+    if cur.rowcount == 0:
+        raise ValueError("Retention policy not found")
+    return {"ok": True, "deleted": int(pid)}
 
 def save_retention(d):
     with cx() as c:
@@ -171,8 +195,10 @@ def command_search(q,limit=12):
         for e in eps:out.append({"type":"episode","id":e["id"],"title":f'{e["show_name"]} S{e["season"]:02d}E{e["episode"]:02d}',"subtitle":e["name"] or "Episode","href":f"/manager?show={c.execute('SELECT show_id FROM episodes WHERE id=?',(e['id'],)).fetchone()['show_id']}"})
     static=[
       ("Dashboard","/dashboard"),("Missing Episodes","/missing"),("Upcoming Episodes","/upcoming"),
+      ("SickChill Manage","/manage"),("Manage Searches","/manage"),("Episode Status Management","/manage"),
+      ("Failed Downloads","/manage"),("Scene Exceptions","/manage"),
       ("Subtitles","/subtitles"),("Post Processing","/postprocess"),("Quality Profiles","/quality"),
-      ("Operations","/operations"),("Advanced","/advanced"),("Settings","/settings")
+      ("Operations","/operations"),("Database Safety","/database-safety"),("Advanced","/advanced"),("Settings","/settings")
     ]
     for title,href in static:
         if q.lower() in title.lower() and len(out)<limit:out.append({"type":"page","title":title,"subtitle":"Navigation","href":href})

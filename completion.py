@@ -114,7 +114,7 @@ def system_health():
 
 def api_summary():
     return {
-      "version":"9.0",
+      "version":"17.2.0",
       "endpoints":[
         {"method":"GET","path":"/api/shows","purpose":"Search/list shows"},
         {"method":"GET","path":"/api/shows/{id}","purpose":"Show details"},
@@ -124,6 +124,9 @@ def api_summary():
         {"method":"GET","path":"/api/queue/triage","purpose":"Queue"},
         {"method":"GET","path":"/api/provider-health","purpose":"Provider diagnostics"},
         {"method":"GET","path":"/api/operations/summary","purpose":"System operations"},
+        {"method":"GET","path":"/api/version","purpose":"Running application version"},
+        {"method":"GET","path":"/api/routes","purpose":"Registered route diagnostics"},
+        {"method":"GET","path":"/api/library/health-report","purpose":"Library health report for migration validation"},
         {"method":"GET","path":"/api/retention/{id}/preview","purpose":"Safe retention preview"},
         {"method":"POST","path":"/api/retention/{id}/apply","purpose":"Apply retention to managed trash"}
       ]

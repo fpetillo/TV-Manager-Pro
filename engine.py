@@ -30,6 +30,8 @@ import scheduler_guard
 import metadata_service
 import integrity
 import naming
+import database_safety
+import library_maintenance
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / "tvmanager.db"
@@ -90,15 +92,33 @@ def public_setting(section, name, default=None):
 
 def log(event_type, message, level="info", show_id=None, episode_id=None, data=None, conn=None):
     owns = conn is None
-    c = conn or cx()
+    payload=(level, event_type, show_id, episode_id, message,
+             json.dumps(data, default=str) if data is not None else None)
+    if conn is not None:
+        conn.execute("""INSERT INTO activity_log(level,event_type,show_id,episode_id,message,data,created_at)
+                        VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)""", payload)
+        return
+
+    def write_db():
+        with cx() as c:
+            c.execute("""INSERT INTO activity_log(level,event_type,show_id,episode_id,message,data,created_at)
+                         VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)""", payload)
+            c.commit()
+
     try:
-        c.execute("""INSERT INTO activity_log(level,event_type,show_id,episode_id,message,data,created_at)
-                     VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)""",
-                  (level, event_type, show_id, episode_id, message,
-                   json.dumps(data, default=str) if data is not None else None))
-        if owns: c.commit()
-    finally:
-        if owns: c.close()
+        return dbcore.retry(write_db, attempts=8)
+    except Exception as exc:
+        # Logging must never take down scheduler or downloader threads. Keep a
+        # plain-text emergency trail for support if SQLite is unavailable.
+        try:
+            emergency=BASE/"logs"/"emergency.log"
+            emergency.parent.mkdir(parents=True, exist_ok=True)
+            emergency.write_text(
+                (emergency.read_text(encoding="utf-8") if emergency.exists() else "") +
+                f"{now_iso()} {level.upper()} {event_type}: {message} | log_error={exc}\n",
+                encoding="utf-8")
+        except Exception:
+            pass
 
 def init_engine():
     advanced.init()
@@ -217,6 +237,26 @@ def init_engine():
           message TEXT,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS scene_exceptions(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          show_id INTEGER NOT NULL,
+          exception_name TEXT NOT NULL,
+          source TEXT DEFAULT 'manual',
+          notes TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(show_id, exception_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_scene_exceptions_show ON scene_exceptions(show_id);
+
+        CREATE TABLE IF NOT EXISTS mass_update_history(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          action TEXT NOT NULL,
+          filter_json TEXT,
+          affected INTEGER DEFAULT 0,
+          message TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         """)
         # Future-facing per-show controls.
         cols = {r["name"] for r in c.execute("PRAGMA table_info(shows)").fetchall()}
@@ -241,6 +281,11 @@ def init_engine():
             "monitored": "INTEGER DEFAULT 1",
             "last_search": "TEXT",
             "search_count": "INTEGER DEFAULT 0",
+            "overview": "TEXT",
+            "still_url": "TEXT",
+            "still_path": "TEXT",
+            "tmdb_episode_id": "INTEGER",
+            "metadata_updated_at": "TEXT",
         }.items():
             if name not in ecols:
                 c.execute(f'ALTER TABLE episodes ADD COLUMN "{name}" {definition}')
@@ -256,6 +301,10 @@ def init_engine():
             ("subtitle_jobs", 60),
             ("watched_sync", 360),
             ("post_processing", max(10, as_int(get_setting("General", "autopostprocessor_frequency", 10), 10))),
+            ("missing_metadata", max(60, as_int(get_setting("TVManager", "missing_metadata_frequency", 720), 720))),
+            ("artwork_refresh", max(120, as_int(get_setting("TVManager", "artwork_refresh_frequency", 1440), 1440))),
+            ("library_health_scan", max(60, as_int(get_setting("TVManager", "library_health_frequency", 1440), 1440))),
+            ("database_protection", max(60, as_int(get_setting("TVManager", "database_protection_frequency", 1440), 1440))),
         ]
         for name, interval in jobs:
             c.execute("""INSERT INTO scheduler_jobs(name,enabled,interval_minutes)
@@ -284,6 +333,12 @@ def init_engine():
         set_setting("TVManager", "recent_days", "14")
     if get_setting("TVManager", "max_searches_per_run") is None:
         set_setting("TVManager", "max_searches_per_run", "25")
+    if get_setting("TVManager", "metadata_missing_limit") is None:
+        set_setting("TVManager", "metadata_missing_limit", "200")
+    if get_setting("TVManager", "artwork_refresh_limit") is None:
+        set_setting("TVManager", "artwork_refresh_limit", "200")
+    if get_setting("TVManager", "background_worker_limit") is None:
+        set_setting("TVManager", "background_worker_limit", "4")
 
 
 def list_quality_profiles():
@@ -1040,7 +1095,12 @@ def run_search_job(kind="recent", auto_grab=None):
 
 
 SUB_EXTS={".srt",".ass",".ssa",".sub",".vtt"}
-def subtitle_scan(show_id=None):
+def subtitle_scan(show_id=None, progress_callback=None):
+    """Scan downloaded episodes for subtitle sidecars.
+
+    progress_callback receives dictionaries with total/processed/current_show so
+    the web UI can show a progress bar instead of blocking silently.
+    """
     with cx() as c:
         if show_id:
             rows=c.execute("""SELECT e.*,s.name show_name FROM episodes e JOIN shows s ON s.id=e.show_id
@@ -1048,11 +1108,21 @@ def subtitle_scan(show_id=None):
         else:
             rows=c.execute("""SELECT e.*,s.name show_name FROM episodes e JOIN shows s ON s.id=e.show_id
                               WHERE e.location IS NOT NULL AND trim(e.location)<>''""").fetchall()
-    found=missing_count=0;items=[]
+    found=missing_count=0;items=[];total=len(rows)
+    if progress_callback:
+        progress_callback({"stage":"Subtitle audit","message":"Preparing subtitle scan.","percent":1,"total":total,"processed":0})
     with cx() as c:
-        for e in rows:
+        for idx,e in enumerate(rows, start=1):
             media=Path(e["location"])
-            if not media.exists():continue
+            if progress_callback and (idx == 1 or idx % 25 == 0 or idx == total):
+                progress_callback({
+                    "stage":"Subtitle audit",
+                    "message":f"Checking subtitles for {e['show_name']} S{int(e['season'] or 0):02d}E{int(e['episode'] or 0):02d}.",
+                    "percent":max(1,min(98,int(idx/max(1,total)*100))),
+                    "total":total,"processed":idx-1,"current_show":e["show_name"]
+                })
+            if not media.exists():
+                continue
             candidates=[x for x in media.parent.glob(media.stem+".*") if x.suffix.lower() in SUB_EXTS]
             status="Present" if candidates else "Missing"
             if candidates:found+=1
@@ -1060,7 +1130,10 @@ def subtitle_scan(show_id=None):
             c.execute("UPDATE episodes SET subtitle_status=? WHERE id=?",(status,e["id"]))
             if len(items)<500:items.append({"episode_id":e["id"],"show":e["show_name"],"season":e["season"],"episode":e["episode"],"status":status,"file":str(media)})
         c.commit()
-    return {"checked":found+missing_count,"present":found,"missing":missing_count,"items":items}
+    result={"checked":found+missing_count,"present":found,"missing":missing_count,"items":items}
+    if progress_callback:
+        progress_callback({"stage":"Subtitle audit complete","message":"Subtitle audit complete.","percent":100,"total":total,"processed":total,"succeeded":found,"failed":missing_count,"result":result})
+    return result
 
 def upcoming(days=14):
     start = date.today().isoformat()
@@ -1093,6 +1166,36 @@ def activity(limit=200):
                             ORDER BY a.id DESC LIMIT ?""",(limit,)).fetchall()
     return [dict(r) for r in rows]
 
+def activity_filtered(limit=200, offset=0, level=None, event_type=None, q=None, sort="created_at", direction="desc"):
+    allowed_sort={"id":"a.id","created_at":"a.created_at","level":"a.level","event_type":"a.event_type","show":"s.name","message":"a.message"}
+    sort_sql=allowed_sort.get(str(sort or "created_at"),"a.created_at")
+    direction="ASC" if str(direction).lower()=="asc" else "DESC"
+    where=[];params=[]
+    if level:
+        where.append("lower(a.level)=lower(?)");params.append(level)
+    if event_type:
+        where.append("lower(a.event_type)=lower(?)");params.append(event_type)
+    if q:
+        where.append("(lower(a.message) LIKE lower(?) OR lower(COALESCE(a.event_type,'')) LIKE lower(?) OR lower(COALESCE(s.name,'')) LIKE lower(?) OR lower(COALESCE(a.data,'')) LIKE lower(?))")
+        term=f"%{q}%";params.extend([term,term,term,term])
+    where_sql=("WHERE "+" AND ".join(where)) if where else ""
+    limit=max(1,min(2000,int(limit or 200)));offset=max(0,int(offset or 0))
+    with cx() as c:
+        total=c.execute(f"""SELECT COUNT(*) c FROM activity_log a
+                            LEFT JOIN shows s ON s.id=a.show_id
+                            LEFT JOIN episodes e ON e.id=a.episode_id
+                            {where_sql}""",params).fetchone()["c"]
+        rows=c.execute(f"""SELECT a.*,s.name show_name,e.season,e.episode
+                            FROM activity_log a
+                            LEFT JOIN shows s ON s.id=a.show_id
+                            LEFT JOIN episodes e ON e.id=a.episode_id
+                            {where_sql}
+                            ORDER BY {sort_sql} {direction}, a.id {direction}
+                            LIMIT ? OFFSET ?""",params+[limit,offset]).fetchall()
+        levels=[r["level"] for r in c.execute("SELECT DISTINCT level FROM activity_log WHERE level IS NOT NULL ORDER BY level").fetchall()]
+        events=[r["event_type"] for r in c.execute("SELECT DISTINCT event_type FROM activity_log WHERE event_type IS NOT NULL ORDER BY event_type").fetchall()]
+    return {"total":total,"limit":limit,"offset":offset,"results":[dict(r) for r in rows],"levels":levels,"event_types":events,"has_more":offset+limit<total}
+
 def downloads(limit=200):
     with cx() as c:
         rows = c.execute("""SELECT d.*,s.name show_name,e.season,e.episode
@@ -1101,6 +1204,78 @@ def downloads(limit=200):
                             LEFT JOIN shows s ON s.id=e.show_id
                             ORDER BY d.id DESC LIMIT ?""",(limit,)).fetchall()
     return [dict(r) for r in rows]
+
+
+
+def downloader_monitor(limit=200):
+    """Return an operator-safe downloader monitoring snapshot.
+
+    This does not expose API keys or passwords. It combines the configured
+    downloader summary, queued/download history, handoff candidates, and recent
+    downloader log events so the UI can confirm the search-to-client pipeline.
+    """
+    cfg = downloader_config_public()
+    limit=max(1,min(1000,int(limit or 200)))
+    with cx() as c:
+        downloads_rows=[dict(r) for r in c.execute("""SELECT d.*,s.name show_name,e.season,e.episode
+                            FROM downloads d
+                            LEFT JOIN episodes e ON e.id=d.episode_id
+                            LEFT JOIN shows s ON s.id=e.show_id
+                            ORDER BY d.id DESC LIMIT ?""",(limit,)).fetchall()]
+        active=c.execute("""SELECT COUNT(*) c FROM downloads
+                            WHERE COALESCE(status,'') NOT IN ('Completed','Failed','Superseded')""").fetchone()["c"]
+        queued=c.execute("SELECT COUNT(*) c FROM downloads WHERE status='Queued'").fetchone()["c"]
+        failed=c.execute("SELECT COUNT(*) c FROM downloads WHERE status='Failed'").fetchone()["c"]
+        completed=c.execute("SELECT COUNT(*) c FROM downloads WHERE status IN ('Completed','Downloaded')").fetchone()["c"]
+        candidates=[dict(r) for r in c.execute("""SELECT sr.id,s.name show_name,e.season,e.episode,sr.provider,sr.protocol,sr.title,sr.quality,sr.score,sr.created_at
+                            FROM search_results sr
+                            JOIN episodes e ON e.id=sr.episode_id
+                            JOIN shows s ON s.id=e.show_id
+                            WHERE COALESCE(sr.rejected_reason,'')='' AND COALESCE(sr.status,'Found') IN ('Found','Accepted')
+                            ORDER BY sr.id DESC LIMIT 50""").fetchall()]
+        errors=[dict(r) for r in c.execute("""SELECT a.*,s.name show_name,e.season,e.episode
+                            FROM activity_log a
+                            LEFT JOIN shows s ON s.id=a.show_id
+                            LEFT JOIN episodes e ON e.id=a.episode_id
+                            WHERE lower(COALESCE(a.event_type,'')) LIKE '%download%'
+                               OR lower(COALESCE(a.message,'')) LIKE '%downloader%'
+                               OR lower(COALESCE(a.message,'')) LIKE '%sabnzbd%'
+                               OR lower(COALESCE(a.message,'')) LIKE '%qbittorrent%'
+                            ORDER BY a.id DESC LIMIT 50""").fetchall()]
+    configured=[]
+    if cfg.get("use_nzbs"):
+        method=cfg.get("nzb_method") or "not selected"
+        if method=="sabnzbd": configured.append({"type":"nzb","client":"SABnzbd","configured":cfg["sabnzbd"].get("configured"),"host":cfg["sabnzbd"].get("host"),"category":cfg["sabnzbd"].get("category")})
+        elif method=="nzbget": configured.append({"type":"nzb","client":"NZBGet","configured":cfg["nzbget"].get("configured"),"host":cfg["nzbget"].get("host"),"category":cfg["nzbget"].get("category")})
+        else: configured.append({"type":"nzb","client":method,"configured":method=="blackhole","host":"","category":""})
+    if cfg.get("use_torrents"):
+        method=cfg.get("torrent_method") or "not selected"
+        if method in {"qbittorrent","transmission","deluge"}: configured.append({"type":"torrent","client":method,"configured":cfg["torrent"].get("configured"),"host":cfg["torrent"].get("host"),"category":cfg["torrent"].get("label")})
+        else: configured.append({"type":"torrent","client":method,"configured":method=="blackhole","host":"","category":""})
+    ready = any(x.get("configured") for x in configured)
+    return {
+        "ok": True,
+        "ready": bool(ready),
+        "config": cfg,
+        "configured_clients": configured,
+        "counts": {"active": active, "queued": queued, "failed": failed, "completed": completed, "handoff_candidates": len(candidates)},
+        "downloads": downloads_rows,
+        "handoff_candidates": candidates,
+        "recent_download_events": errors,
+    }
+
+
+def downloader_readiness_check():
+    """Fast configuration/readiness check without exposing secrets."""
+    mon=downloader_monitor(limit=25)
+    warnings=[]
+    cfg=mon.get("config",{})
+    if not cfg.get("use_nzbs") and not cfg.get("use_torrents"):
+        warnings.append("No NZB or torrent downloading method is enabled.")
+    for client in mon.get("configured_clients",[]):
+        if not client.get("configured"):
+            warnings.append(f"{client.get('client')} is selected but missing host/configuration.")
+    return {"ok": True, "ready": mon.get("ready"), "warnings": warnings, "counts": mon.get("counts",{}), "configured_clients": mon.get("configured_clients",[])}
 
 def jobs_public():
     with cx() as c:
@@ -1135,12 +1310,14 @@ def _job_due(r):
     return datetime.now() >= last + timedelta(minutes=r["interval_minutes"])
 
 def _finish_job(name, status, message):
-    with cx() as c:
-        r = c.execute("SELECT interval_minutes FROM scheduler_jobs WHERE name=?", (name,)).fetchone()
-        nxt = (datetime.now()+timedelta(minutes=r["interval_minutes"])).replace(microsecond=0).isoformat() if r else None
-        c.execute("""UPDATE scheduler_jobs SET last_run=?,next_run=?,last_status=?,last_message=? WHERE name=?""",
-                  (now_iso(),nxt,status,message[:1000],name))
-        c.commit()
+    def write_finish():
+        with cx() as c:
+            r = c.execute("SELECT interval_minutes FROM scheduler_jobs WHERE name=?", (name,)).fetchone()
+            nxt = (datetime.now()+timedelta(minutes=r["interval_minutes"])).replace(microsecond=0).isoformat() if r else None
+            c.execute("""UPDATE scheduler_jobs SET last_run=?,next_run=?,last_status=?,last_message=? WHERE name=?""",
+                      (now_iso(),nxt,status,str(message)[:1000],name))
+            c.commit()
+    return dbcore.retry(write_finish, attempts=8)
 
 
 def poll_sab_downloads():
@@ -1359,18 +1536,40 @@ def run_job(name):
         elif name == "metadata_refresh":
             result = metadata_service.refresh_batch()
             msg = json.dumps(result)
+        elif name == "missing_metadata":
+            result = metadata_service.refresh_missing_metadata(limit=as_int(get_setting("TVManager","metadata_missing_limit","200"),200))
+            msg = json.dumps(result)
+        elif name == "artwork_refresh":
+            result = metadata_service.refresh_artwork(limit=as_int(get_setting("TVManager","artwork_refresh_limit","200"),200), include_episodes=True)
+            msg = json.dumps(result)
+        elif name == "library_health_scan":
+            result = library_maintenance.library_health_report(DB, duplicate_limit=25, sample_limit=25)
+            msg = json.dumps(result)
+        elif name == "database_protection":
+            result = database_safety.protect_now(reason="scheduled", include_config=True, include_secrets=False)
+            msg = json.dumps(result)
         else:
             raise ValueError("Unknown job")
         _finish_job(name,"OK",msg)
         if run_id:
-            with cx() as c:
-                c.execute("UPDATE scheduler_runs SET finished_at=CURRENT_TIMESTAMP,status='OK',message=? WHERE id=?",(msg[:2000],run_id));c.commit()
+            def finish_run_ok():
+                with cx() as c:
+                    c.execute("UPDATE scheduler_runs SET finished_at=CURRENT_TIMESTAMP,status='OK',message=? WHERE id=?",(msg[:2000],run_id));c.commit()
+            dbcore.retry(finish_run_ok, attempts=8)
         return {"ok":True,"result":result}
     except Exception as e:
-        _finish_job(name,"Error",str(e))
+        try:
+            _finish_job(name,"Error",str(e))
+        except Exception as finish_error:
+            log("scheduler_finish_error", f"{name}: could not update scheduler status: {finish_error}", "error")
         if run_id:
-            with cx() as c:
-                c.execute("UPDATE scheduler_runs SET finished_at=CURRENT_TIMESTAMP,status='Error',message=? WHERE id=?",(str(e)[:2000],run_id));c.commit()
+            def finish_run_error():
+                with cx() as c:
+                    c.execute("UPDATE scheduler_runs SET finished_at=CURRENT_TIMESTAMP,status='Error',message=? WHERE id=?",(str(e)[:2000],run_id));c.commit()
+            try:
+                dbcore.retry(finish_run_error, attempts=8)
+            except Exception as run_error:
+                log("scheduler_run_finish_error", f"{name}: could not update run history: {run_error}", "error")
         log("scheduler_error", f"{name}: {e}", "error")
         return {"ok":False,"error":str(e)}
     finally:
@@ -1404,27 +1603,49 @@ def episode_pattern(path):
         return int(m.group(1)), int(m.group(2))
     return None
 
-def scan_postprocess(dry_run=True, limit=300):
-    root = ops.map_path(get_setting("General","tv_download_dir","") or "")
+def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None):
+    """Scan/process completed TV downloads.
+
+    root_override lets an operator temporarily process another completed-downloads
+    directory without changing the saved SickChill-style tv_download_dir.
+    selected_sources limits processing to paths chosen from a preview, giving the
+    UI a safe preview/apply workflow instead of blindly processing everything.
+    """
+    root = ops.map_path(root_override or get_setting("General","tv_download_dir","") or "")
+    selected_sources = set(str(x) for x in (selected_sources or []) if str(x).strip())
     result = {"root":root,"dry_run":dry_run,"files":0,"matched":0,"unmatched":0,
-              "blocked":0,"upgrades":0,"actions":[],"media_refresh":[]}
+              "blocked":0,"upgrades":0,"actions":[],"media_refresh":[],
+              "selected_sources":len(selected_sources)}
     if not root or not Path(root).exists():
         result["message"] = "Post-processing folder is not reachable from this computer."
         return result
 
+    if progress_callback:
+        progress_callback({"stage":"Post-processing scan","message":"Walking completed-download folder.","percent":1,"processed":0,"total":limit})
     files=[]
+    walked=0
     for p in Path(root).rglob("*"):
+        walked+=1
+        if progress_callback and walked % 200 == 0:
+            progress_callback({"stage":"Post-processing scan","message":f"Scanning folder entries: {walked:,} checked, {len(files):,} media files found.","percent":min(35, max(2, int(len(files)/max(1,limit)*35))),"processed":len(files),"total":limit})
         if p.is_file() and p.suffix.lower() in MEDIA_EXTS:
+            if selected_sources and str(p) not in selected_sources:
+                continue
             files.append(p)
             if len(files)>=limit: break
     result["files"]=len(files)
+    if progress_callback:
+        progress_callback({"stage":"Post-processing match","message":f"Matching {len(files):,} media files to shows and episodes.","percent":40,"processed":0,"total":len(files)})
 
     with cx() as c:
         shows=c.execute("""SELECT id,name,location,season_folders
                            FROM shows WHERE location IS NOT NULL AND trim(location)<>''""").fetchall()
 
     touched_shows=set()
-    for p in files:
+    for idx,p in enumerate(files, start=1):
+        if progress_callback and (idx == 1 or idx % 10 == 0 or idx == len(files)):
+            base = 40 + int((idx / max(1, len(files))) * (55 if dry_run else 45))
+            progress_callback({"stage":"Post-processing preview" if dry_run else "Post-processing apply", "message":f"Evaluating {p.name}", "percent":min(95,base), "processed":idx-1, "total":len(files), "current_file":str(p)})
         pairs=advanced.split_multi_episode(p.name)
         if not pairs:
             single=episode_pattern(p);pairs=[single] if single else []
@@ -1523,7 +1744,9 @@ def scan_postprocess(dry_run=True, limit=300):
                     lifecycle.transition("episode",d["id"],d["status"],"Importing",
                                          message="Post-processing media file",force=True)
 
-            method=(get_setting("General","process_method","move") or "move").lower()
+            method=(process_method_override or get_setting("General","process_method","move") or "move").lower()
+            if method not in {"move","copy","hardlink","hard link"}:
+                method="move"
             move_associated=as_bool(get_setting("General","move_associated_files","1"),True)
             sidecars=naming.associated_destinations(p,dest) if move_associated else []
             dest_dir.mkdir(parents=True,exist_ok=True)

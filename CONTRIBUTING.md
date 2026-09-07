@@ -5,3 +5,11 @@
 3. Never commit credentials, `.env`, imported SickChill secrets, runtime databases or diagnostic bundles.
 4. Run `validate-release.ps1` before submitting changes.
 5. Update `CHANGELOG.md`, `FEATURES.md` and relevant files under `docs/` for every user-visible feature.
+
+
+## v17.19.0 — Downloader Validation Center
+
+- New `/download-center` page for checking configured download clients and monitoring episode handoffs.
+- Background connection test and downloader queue poll jobs with progress.
+- Recent download records, accepted handoff candidates, and downloader event visibility.
+- Launchpad replacement-readiness text now explains what it means and displays actionable errors if the readiness API cannot load.

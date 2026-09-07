@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TV Manager Security Setup</title><link rel="stylesheet" href="/static/style.css"></head>
+<title>TV Manager Security Setup</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
 <body><main class="shell" style="max-width:640px;padding-top:8vh"><section class="panel">
 <p class="eyebrow">FIRST-RUN SECURITY</p><h1>Administrator setup</h1>
 <p class="muted">Create the browser administrator account. Passwords require at least 12 characters. Enabling this protects browser pages and write APIs with a login session and CSRF checks.</p>
@@ -8,4 +8,5 @@
 <label>Administrator username<input name="username" value="admin" autocomplete="username" required></label>
 <label>Password<input name="password" type="password" minlength="12" autocomplete="new-password" required></label>
 <button class="blue" type="submit">{{ "Change password" if configured else "Create administrator & enable security" }}</button>
-</form></section></main></body></html>
+</form></section>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main></body></html>

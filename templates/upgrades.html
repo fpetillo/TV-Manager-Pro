@@ -1,15 +1,10 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Upgrades</title><link rel="stylesheet" href="/static/style.css"></head>
-<body><main class="shell manager-shell"><header class="topbar"><div><p class="eyebrow">QUALITY LIFECYCLE</p><h1>Upgrade Planner</h1><p class="subtitle">Find downloaded episodes below their assigned quality-profile cutoff before spending bandwidth on upgrades.</p></div></header><nav class="appnav professional-nav">
-  <a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/library-health">Library Health</a><a href="/upcoming">Upcoming</a>
-  <a href="/missing">Missing</a><a href="/queue">Queue</a><a href="/upgrades">Upgrades</a>
-  <a href="/subtitles">Subtitles</a><a href="/activity">Activity</a><a href="/postprocess">Post Processing</a>
-  <a href="/quality">Quality</a><a href="/operations">Operations</a><a href="/advanced">Advanced</a>
-  <a href="/settings">Settings</a><a href="/system">System</a><a href="/import">Migration</a>
-</nav>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Upgrades</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell"><header class="topbar"><div><p class="eyebrow">QUALITY LIFECYCLE</p><h1>Upgrade Planner</h1><p class="subtitle">Find downloaded episodes below their assigned quality-profile cutoff before spending bandwidth on upgrades.</p></div></header>{% include "_nav.html" %}
 <div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
 <div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
 <section class="panel"><div class="toolbar"><div><h2>Upgrade Candidates</h2><p class="muted">Planner only: no automatic upgrades are sent until explicitly searched/grabbed.</p></div><div class="spacer"></div><button id="refreshUpgrades" class="blue">Recalculate</button></div><div id="upgradeSummary"></div><div id="upgradeList"></div></section><section class="panel"><div class="toolbar"><div><h2>Proper / Repack Review</h2><p class="muted">Downloaded releases without a Proper/Repack marker that may merit a corrective search.</p></div><div class="spacer"></div><button id="loadPropers" class="secondary">Review</button></div><div id="properList"></div></section>
 <section class="panel"><div class="toolbar"><div><h2>Replacement Safety</h2>
 <p class="muted">TV Manager stages the previous episode file in managed trash before an upgrade is installed.</p></div>
 <div class="spacer"></div><button id="loadReplacementHistory" class="secondary">Load History</button></div>
-<div id="replacementHistory"></div></section></main><script src="/static/upgrades.js"></script><script src="/static/global.js"></script></body></html>
+<div id="replacementHistory"></div></section>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/upgrades.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

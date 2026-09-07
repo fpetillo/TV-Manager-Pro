@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import dbcore
 
@@ -217,11 +217,18 @@ def ensure_v17_import_tables(target_db: str | Path) -> None:
         )
 
 
-def import_database(source_db: str | Path, target_db: str | Path, source_name: str | None = None, *, dry_run: bool = False) -> dict[str, Any]:
+def import_database(source_db: str | Path, target_db: str | Path, source_name: str | None = None, *, dry_run: bool = False, progress_callback: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
     """Import shows and episodes from a SickChill SQLite database.
 
-    The importer is idempotent: repeat runs map to existing shows by IMDb, TVDb,
-    legacy indexer ID, or normalized show name and skip duplicate episode rows.
+    v17.3.2 reliability rules:
+    - Read the SickChill source completely first, then close it before opening the
+      TV Manager database for writes. This prevents source handles from hanging
+      around while target verification runs.
+    - Repair/verify the target schema before importing.
+    - Use BEGIN IMMEDIATE for the import write phase, and always commit, rollback,
+      and close explicitly.
+    - Verify the committed row counts using a fresh read-only connection only
+      after the write connection is closed.
     """
     source_db = Path(source_db)
     target_db = Path(target_db)
@@ -230,36 +237,71 @@ def import_database(source_db: str | Path, target_db: str | Path, source_name: s
     if not schema["show_table"]:
         raise ValueError("No recognizable SickChill show table found. Tables: " + ", ".join(schema["tables"]))
 
+    # Make older target databases safe before the write transaction starts.
+    try:
+        import db_doctor
+        db_doctor.repair(target_db)
+    except Exception:
+        # db_doctor may not exist in isolated tests; the explicit import tables
+        # creation below is still enough for the importer-specific schema.
+        pass
     ensure_v17_import_tables(target_db)
+
+    # Load source rows up front and close the source DB before writing target DB.
+    with _connect_readonly(source_db) as src:
+        show_rows = src.execute(f'SELECT * FROM "{schema["show_table"]}"').fetchall()
+        episode_rows = []
+        if schema["episode_table"]:
+            episode_rows = src.execute(f'SELECT * FROM "{schema["episode_table"]}"').fetchall()
+    def _progress(stage: str, percent: int, message: str, **extra: Any) -> None:
+        if progress_callback:
+            try:
+                progress_callback({
+                    "stage": stage,
+                    "percent": max(0, min(100, int(percent))),
+                    "message": message,
+                    **extra,
+                })
+            except Exception:
+                pass
+
+    _progress("analyze", 5, "Detected SickChill schema")
+    _progress("read", 15, "Loaded SickChill rows", shows_found=len(show_rows), episodes_found=len(episode_rows))
+
     stats = {
         "source_name": source_name,
         "dry_run": dry_run,
-        "shows_found": 0,
+        "shows_found": len(show_rows),
         "shows_imported": 0,
         "shows_skipped": 0,
-        "episodes_found": 0,
+        "episodes_found": len(episode_rows),
         "episodes_imported": 0,
         "episodes_skipped": 0,
         "details": [],
         "schema": schema,
+        "target_visibility": {},
+        "committed": False,
     }
 
-    src = _connect_readonly(source_db)
-    dst = dbcore.connect(target_db)
+    dst = dbcore.connect(target_db, wal=True)
     mapping: dict[int, int] = {}
     import_run_id: int | None = None
     try:
-        show_rows = src.execute(f'SELECT * FROM "{schema["show_table"]}"').fetchall()
-        stats["shows_found"] = len(show_rows)
+        dst.execute("PRAGMA busy_timeout=60000")
+        dst.execute("BEGIN IMMEDIATE")
+        _progress("write", 20, "Started TV Manager database write transaction", shows_found=len(show_rows), episodes_found=len(episode_rows))
         if not dry_run:
             run_cur = dst.execute(
                 """INSERT INTO import_runs(source_name, shows_found, episodes_found)
                    VALUES(?,?,?)""",
-                (source_name, stats["shows_found"], 0),
+                (source_name, stats["shows_found"], stats["episodes_found"]),
             )
             import_run_id = int(run_cur.lastrowid)
 
-        for row in show_rows:
+        total_shows = max(1, len(show_rows))
+        for idx, row in enumerate(show_rows, start=1):
+            if idx == 1 or idx == len(show_rows) or idx % 25 == 0:
+                _progress("shows", 20 + int((idx / total_shows) * 35), f"Importing shows {idx}/{len(show_rows)}", shows_processed=idx, shows_found=len(show_rows), shows_imported=stats["shows_imported"], shows_skipped=stats["shows_skipped"], episodes_found=len(episode_rows))
             ident = _source_show_identity(row)
             legacy_id = ident["legacy_id"]
             tvdb_id = ident["tvdb_id"]
@@ -305,62 +347,95 @@ def import_database(source_db: str | Path, target_db: str | Path, source_name: s
                     )
             _record_detail(dst, stats, import_run_id, source_name, "show", legacy_id, show_id, action, name, dict(row), dry_run)
 
-        if schema["episode_table"]:
-            episode_rows = src.execute(f'SELECT * FROM "{schema["episode_table"]}"').fetchall()
-            stats["episodes_found"] = len(episode_rows)
-            for row in episode_rows:
-                legacy_show_id = _int_or_none(_pick(row, *EPISODE_SHOW_ID_COLUMNS))
-                show_id = mapping.get(legacy_show_id) if legacy_show_id is not None else None
-                if not show_id and legacy_show_id is not None:
-                    show_id = _existing_show(dst, tvdb_id=legacy_show_id, legacy_id=legacy_show_id)
-                season = _int_or_none(_pick(row, "season"))
-                episode = _int_or_none(_pick(row, "episode"))
-                if not show_id or season is None or episode is None:
-                    stats["episodes_skipped"] += 1
-                    _record_detail(dst, stats, import_run_id, source_name, "episode", legacy_show_id, show_id, "skipped-unmatched", "Missing show/season/episode identity", dict(row), dry_run)
-                    continue
-                exists = dst.execute("SELECT id FROM episodes WHERE show_id=? AND season=? AND episode=?", (show_id, season, episode)).fetchone()
-                if exists:
-                    stats["episodes_skipped"] += 1
-                    _record_detail(dst, stats, import_run_id, source_name, "episode", f"{legacy_show_id}:{season}x{episode}", int(exists["id"]), "skipped-existing", "Episode already exists", dict(row), dry_run)
-                    continue
-                stats["episodes_imported"] += 1
-                if dry_run:
-                    episode_id = -stats["episodes_imported"]
-                else:
-                    cur = dst.execute(
-                        """INSERT INTO episodes(show_id,season,episode,name,airdate,status,location,file_size,release_name,quality,legacy_data)
-                           VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                        (
-                            show_id,
-                            season,
-                            episode,
-                            _text_or_none(_pick(row, "name", "episode_name")),
-                            _text_or_none(_pick(row, "airdate", "firstaired")),
-                            _text_or_none(_pick(row, "status")),
-                            _text_or_none(_pick(row, "location", "file_path")),
-                            _int_or_none(_pick(row, "file_size", "filesize", "size")),
-                            _text_or_none(_pick(row, "release_name", "release", "scene_release")),
-                            _text_or_none(_pick(row, "quality")),
-                            json.dumps(dict(row), default=str),
-                        ),
-                    )
-                    episode_id = int(cur.lastrowid)
-                _record_detail(dst, stats, import_run_id, source_name, "episode", f"{legacy_show_id}:{season}x{episode}", episode_id, "imported", "Episode imported", dict(row), dry_run)
+        total_episodes = max(1, len(episode_rows))
+        for idx, row in enumerate(episode_rows, start=1):
+            if idx == 1 or idx == len(episode_rows) or idx % 100 == 0:
+                _progress("episodes", 55 + int((idx / total_episodes) * 30), f"Importing episodes {idx}/{len(episode_rows)}", shows_imported=stats["shows_imported"], shows_skipped=stats["shows_skipped"], episodes_processed=idx, episodes_found=len(episode_rows), episodes_imported=stats["episodes_imported"], episodes_skipped=stats["episodes_skipped"])
+            legacy_show_id = _int_or_none(_pick(row, *EPISODE_SHOW_ID_COLUMNS))
+            show_id = mapping.get(legacy_show_id) if legacy_show_id is not None else None
+            if not show_id and legacy_show_id is not None:
+                show_id = _existing_show(dst, tvdb_id=legacy_show_id, legacy_id=legacy_show_id)
+            season = _int_or_none(_pick(row, "season"))
+            episode = _int_or_none(_pick(row, "episode"))
+            if not show_id or season is None or episode is None:
+                stats["episodes_skipped"] += 1
+                _record_detail(dst, stats, import_run_id, source_name, "episode", legacy_show_id, show_id, "skipped-unmatched", "Missing show/season/episode identity", dict(row), dry_run)
+                continue
+            exists = dst.execute("SELECT id FROM episodes WHERE show_id=? AND season=? AND episode=?", (show_id, season, episode)).fetchone()
+            if exists:
+                stats["episodes_skipped"] += 1
+                _record_detail(dst, stats, import_run_id, source_name, "episode", f"{legacy_show_id}:{season}x{episode}", int(exists["id"]), "skipped-existing", "Episode already exists", dict(row), dry_run)
+                continue
+            stats["episodes_imported"] += 1
+            if dry_run:
+                episode_id = -stats["episodes_imported"]
+            else:
+                cur = dst.execute(
+                    """INSERT INTO episodes(show_id,season,episode,name,airdate,status,location,file_size,release_name,quality,legacy_data)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        show_id,
+                        season,
+                        episode,
+                        _text_or_none(_pick(row, "name", "episode_name")),
+                        _text_or_none(_pick(row, "airdate", "firstaired")),
+                        _text_or_none(_pick(row, "status")) or "Wanted",
+                        _text_or_none(_pick(row, "location", "file_path")),
+                        _int_or_none(_pick(row, "file_size", "filesize", "size")),
+                        _text_or_none(_pick(row, "release_name", "release", "scene_release")),
+                        _text_or_none(_pick(row, "quality")),
+                        json.dumps(dict(row), default=str),
+                    ),
+                )
+                episode_id = int(cur.lastrowid)
+            _record_detail(dst, stats, import_run_id, source_name, "episode", f"{legacy_show_id}:{season}x{episode}", episode_id, "imported", "Episode imported", dict(row), dry_run)
 
         if not dry_run and import_run_id:
             dst.execute(
                 """UPDATE import_runs SET shows_imported=?, shows_skipped=?, episodes_found=?, episodes_imported=?, episodes_skipped=? WHERE id=?""",
                 (stats["shows_imported"], stats["shows_skipped"], stats["episodes_found"], stats["episodes_imported"], stats["episodes_skipped"], import_run_id),
             )
+            _progress("commit", 90, "Committing TV Manager import", shows_imported=stats["shows_imported"], episodes_imported=stats["episodes_imported"])
             dst.commit()
+            stats["committed"] = True
+            try:
+                dst.execute("PRAGMA wal_checkpoint(PASSIVE)")
+            except sqlite3.Error:
+                pass
         elif dry_run:
             dst.rollback()
+    except Exception:
+        try:
+            dst.rollback()
+        finally:
+            stats["committed"] = False
+        raise
     finally:
-        src.close()
         dst.close()
+
+    if not dry_run:
+        _progress("verify", 95, "Verifying committed TV Manager database")
+        stats["target_visibility"] = verify_import_visibility(target_db)
+    _progress("complete", 100, "Import complete" if not dry_run else "Preview complete", shows_imported=stats["shows_imported"], episodes_imported=stats["episodes_imported"], shows_skipped=stats["shows_skipped"], episodes_skipped=stats["episodes_skipped"])
     return stats
 
+
+def verify_import_visibility(target_db: str | Path) -> dict[str, Any]:
+    """Read committed post-import counts from a brand-new connection."""
+    target_db = Path(target_db)
+    with dbcore.connect(target_db, wal=False, readonly=True) as conn:
+        def count(sql: str) -> int:
+            try:
+                return int(conn.execute(sql).fetchone()[0])
+            except sqlite3.Error:
+                return 0
+        return {
+            "shows": count("SELECT COUNT(*) FROM shows"),
+            "episodes": count("SELECT COUNT(*) FROM episodes"),
+            "import_runs": count("SELECT COUNT(*) FROM import_runs"),
+            "imported_show_audit_rows": count("SELECT COUNT(*) FROM import_run_details WHERE item_type='show'"),
+            "quick_check": conn.execute("PRAGMA quick_check").fetchone()[0],
+        }
 
 def _record_detail(conn, stats, import_run_id, source_name, item_type, source_id, tvmanager_id, action, message, details, dry_run):
     item = {

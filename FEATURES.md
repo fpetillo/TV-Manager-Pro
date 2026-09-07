@@ -1,3 +1,35 @@
+## v17.13.3 Windows EXE Builder Fix
+
+## v17.21.0 — SQLite Lock Guard + Media Server Maintenance
+
+- Added SQLite writer serialization and longer busy timeout to prevent background scheduler/database lock crashes.
+- Added retry-safe scheduler finish and logging updates.
+- Added full edit/delete maintenance for media servers and other Advanced configuration records.
+- Added background job monitoring for media server test, refresh and watched-sync operations.
+- Improved downloader handoff failure reporting.
+
+
+- Fixed the Windows EXE build script so ROBOCOPY handles paths with spaces correctly.
+- Build staging remains outside the app folder and excludes runtime data, databases, secrets, logs, imports, and old output.
+- Final EXE output remains under `release/windows/TVManager`.
+
+
+- v17.13.2 adds Show Queue drill-down: click a show to open `/show/<id>`, filter/search episodes, and search/download from the episode row.
+## v17.13.2 - Trakt Discovery + Show Queue
+
+- Added Trakt.tv discovery for trending, popular, anticipated, watched, played, and search-driven show additions.
+- Added a modern SickChill-style Show Queue at `/show-queue` with sortable columns and server-side paging.
+- Added `/api/trakt/*` endpoints, `/api/show-queue`, and Trakt credential setup documentation.
+- Added Trakt identity columns/indexes and performance indexes for all-shows browsing.
+
+## v17.10.0 Responsive fit and product polish
+
+- Sidebar-aware layout across migration and search pages.
+- Mobile/tablet navigation toggle.
+- Safer table overflow for large libraries and post-processing previews.
+- Better wrapping for long filesystem paths and API diagnostics.
+- Responsive Import Center and Post Processing controls.
+
 # TV Manager v5.0 Feature Matrix
 
 ## Implemented
@@ -124,3 +156,147 @@ failed-download, GUI and advanced sections.
 - Windows Task Scheduler startup installer/uninstaller
 - Sync-history, upgrade-history and subtitle-download audit schemas
 - Production integration layer kept additive to existing migrated database
+
+
+## Library Health hardening
+
+- Works against empty, partially migrated, and legacy-imported databases.
+- Separates missing-on-disk files from episodes without file locations.
+- Shows schema warnings and recoverable UI errors instead of a blank page.
+
+
+## Production replacement features
+
+- Server replacement runbook for SickChill cutover.
+- Linux systemd installation helper.
+- Read-only server preflight report before migration.
+- Documented Caddy/Nginx reverse proxy patterns.
+- Backup and rollback process for safe replacement.
+
+
+## v17.3 Product Experience
+
+- Cohesive professional dark UI designed for local/server operations.
+- Active page navigation across major screens.
+- Polished dashboard, migration, health and library surfaces.
+- Consistent visual treatment for safe workflows and support/version verification.
+
+
+### v17.3.4 Import Reliability
+
+- SickChill imports commit cleanly and close database handles before verification.
+- Post-import active database counts are returned with each import response.
+- Regression-tested against immediate follow-up reads/writes to avoid locked-database surprises.
+
+## v17.4 Operator Workflow
+
+- Workflow cockpit for install → import → validate → configure → cutover.
+- Action-oriented readiness snapshot and recommendations.
+- Guided Import Center ribbon.
+- Operator workflow documentation for full SickChill replacement.
+
+
+## v17.7.0 Navigation and Distribution
+
+- Categorized left navigation: Command, Library, Acquisition, Migration, Platform.
+- Responsive sidebar layout for professional operator workflows.
+- Cross-platform installation documentation.
+- Windows EXE installer build assets.
+
+
+## v17.9.1 Large Library Performance
+
+- Server-side pagination for the Shows API.
+- Operator-friendly Library loading and error states.
+- `Load next` paging workflow for very large imports.
+- Database indexes for faster library search and season browsing.
+
+
+
+## v17.9.1 Post Processing
+
+- Configured completed-TV folder.
+- One-time override folder.
+- Preview-first scan.
+- Selectable post-processing actions.
+- Safe move/copy/hardlink workflow.
+- Responsive sidebar-era layout fixes.
+
+## v17.9.1 Metadata Reliability
+
+- Shared TMDb client for search, show refresh, and metadata batch refresh.
+- Supports bearer-token and legacy API-key authentication.
+- Safe metadata status endpoint that does not expose secrets.
+- Clear operator-facing errors for missing or unauthorized TMDb credentials.
+
+## v17.12.0 - Full Metadata Refresh + Show Queue Date Fix
+
+- Added full-library metadata refresh from Library Health with preview, background progress, counts, and failed-item details.
+- Added full metadata refresh job APIs.
+- Fixed Show Queue Next Ep / Prev Ep values so dates are normalized and displayed as readable calendar dates.
+- Added full-library metadata refresh documentation.
+
+
+## v17.13.2 Windows EXE Build Safety
+
+- Fixed recursive Windows EXE build staging.
+- Build output now publishes to `release/windows/TVManager`.
+- PyInstaller is invoked through the project virtual environment.
+
+## v17.14.0 — Database Protection + Progress Polish
+
+- Added Database Safety Center at `/database-safety`.
+- Added verified SQLite backups using the SQLite backup API, with quick-check validation and SHA-256 records.
+- Added redacted configuration snapshots so `.env` and runtime settings are protected without exposing secrets.
+- Added backup manifest tracking under `backups/db-backup-manifest.json`.
+- Added shared progress job APIs and converted Library Health scanning to a progress-bar workflow.
+- Added `protect_db.py` for command-line backup and backup inventory scans.
+## v17.15 Professional automation polish
+
+- Active Jobs monitor at `/jobs`.
+- Background episode/search/post-processing/metadata jobs continue while switching screens.
+- Configurable scheduler entries for missing metadata, episode/show artwork, Library Health and database protection.
+- Episode art fields from TMDb for better media-center metadata.
+
+
+
+## SickChill Parity Manage Center
+
+- Backlog Overview grouped by show.
+- Recent/backlog searches as background jobs.
+- Episode Status Management with preview/apply safety.
+- Failed-release blacklist management.
+- Missed subtitle management.
+- Scene exceptions for alternate release names.
+- Combined mass refresh for metadata, artwork and subtitles.
+
+
+## v17.19.0 - Progress Everywhere + Professional Logs
+
+- Subtitle audit scans now run as background jobs with progress bars.
+- Post Processing folder preview scans now run as background jobs with progress bars.
+- Sending selected search results to the configured downloader now has a monitored progress job.
+- Added `/logs`, a SickChill-style sortable/filterable event log viewer.
+- Added `/api/logs` with level, event type, search, sort, direction, limit and offset filters.
+
+
+## v17.21.0 - Episode Search Return Navigation
+
+- Returns to the show episode list after sending a search result to the downloader.
+- Preserves episode list context and scroll position.
+- Adds Back to Episodes controls inside the episode search modal.
+- Adds Show Detail links to Download Center and Active Jobs.
+
+## v17.22.0 - Operations Progress Everywhere Audit
+
+- Converted Operations scan buttons to visible progress/background-job workflows.
+- Added progress-aware Root & Path Health check, Library Conflict scan, Content Duplicate fingerprint scan, and Config Snapshot creation.
+- Added progress-aware Scan Existing Files / Scan Existing Folder workflow from the show manager.
+- Added tests enforcing that Operations scan actions expose progress indicators and background job APIs.
+
+## v17.23.0 - Show Queue Polish & Sort Accuracy
+
+- Fixed Show Queue Downloads sorting to use numeric downloaded episode counts.
+- Added stable sort indicators and better default sort direction for numeric columns.
+- Normalized legacy SickChill ordinal dates in the Show Queue so numeric airdate artifacts do not appear.
+- Improved Downloads progress-bar state and numeric column alignment.

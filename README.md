@@ -1,6 +1,37 @@
+## v17.13.3 - Windows EXE Robocopy Quoting Patch
+
+## v17.21.0 — SQLite Lock Guard + Media Server Maintenance
+
+- Added SQLite writer serialization and longer busy timeout to prevent background scheduler/database lock crashes.
+- Added retry-safe scheduler finish and logging updates.
+- Added full edit/delete maintenance for media servers and other Advanced configuration records.
+- Added background job monitoring for media server test, refresh and watched-sync operations.
+- Improved downloader handoff failure reporting.
+
+
+- Fixed the Windows EXE build script so ROBOCOPY handles paths with spaces correctly.
+- Build staging remains outside the app folder and excludes runtime data, databases, secrets, logs, imports, and old output.
+- Final EXE output remains under `release/windows/TVManager`.
+
+
+- v17.13.2 adds Show Queue drill-down: click a show to open `/show/<id>`, filter/search episodes, and search/download from the episode row.
+## v17.13.2 - Trakt Discovery + Show Queue
+
+- Added Trakt.tv discovery for trending, popular, anticipated, watched, played, and search-driven show additions.
+- Added a modern SickChill-style Show Queue at `/show-queue` with sortable columns and server-side paging.
+- Added `/api/trakt/*` endpoints, `/api/show-queue`, and Trakt credential setup documentation.
+- Added Trakt identity columns/indexes and performance indexes for all-shows browsing.
+
+# TV Manager v17.10.0
+
+TV Manager is a professional SickChill replacement focused on guided migration, scalable library management, metadata refresh, post-processing, and operator-friendly deployment.
+
+This build adds the responsive fit polish needed after the left navigation redesign. Import Center, Post Processing, large-library tables, long file paths, and smaller browser windows are handled more cleanly.
+
+
 # TV Manager
 
-**Current version: 17.1**
+**Current version: 17.9.1**
 
 TV Manager is a local-first television automation platform designed as a modern successor to SickChill-class managers. It combines migration, provider search, download-client orchestration, post-processing, quality/upgrade policy, subtitles, diagnostics, explainable automation, media-server integration and recovery-focused operations.
 
@@ -280,4 +311,128 @@ Episode status values are preserved exactly instead of being guessed because old
 
 ### Library Health Dashboard
 
-TV Manager v17.1 adds `/library-health` for post-import checks, missing files, metadata gaps, duplicate candidates, and safe duplicate cleanup previews. Cleanup apply operations move files to `managed_trash` and record audit rows; files are never deleted directly.
+TV Manager v17.1 adds `/library-health` for post-import checks, missing files, metadata gaps, duplicate candidates, and safe duplicate cleanup previews. v17.1.2 hardens this page for empty, partially migrated, and legacy-imported databases and separates files missing on disk from episodes that simply have no file location yet. Cleanup apply operations move files to `managed_trash` and record audit rows; files are never deleted directly.
+
+
+## Version visibility
+
+The running version is visible in the global footer, the `/about` page, the System page, and the `/api/version` endpoint.
+
+
+## Route diagnostics
+
+TV Manager v17.1.8 adds `/routes` and `/api/routes` to verify the running Flask route map. If About or Library Health return the plain Flask Not Found page, stop the running server, confirm the installation folder contains `VERSION` = `17.1.8`, and restart from that same folder.
+
+### v17.1.8 startup repair note
+
+If startup fails with `sqlite3.OperationalError: no such column: imdb_id`, install v17.1.8 or newer and restart from the upgraded folder. This build repairs older `shows` tables by adding `imdb_id` before the IMDb index is created.
+
+
+## SickChill server replacement
+
+TV Manager now includes a full production runbook for installing on the same server currently running SickChill and replacing it safely. Start with:
+
+- `docs/SICKCHILL_REPLACEMENT_SERVER_INSTALL.md`
+- `docs/PRODUCTION_LINUX_DEPLOYMENT.md`
+- `server_preflight.py`
+- `scripts/install-linux-service.sh`
+
+The recommended approach is side-by-side installation, importing from a copy of SickChill's database, validating Library Health, then disabling SickChill only after TV Manager has been verified.
+
+
+## Product experience
+
+Version 17.3.1 introduces a cohesive professional interface refresh so TV Manager feels like a complete replacement product: unified navigation, polished cards and panels, active route highlighting, page-level product heroes, and consistent support/version visibility. See `docs/UI_DESIGN_SYSTEM.md`.
+
+
+## Version 17.7.0 - Setup Assistant and Cutover Polish
+
+Version 17.7.0 adds `/setup-assistant`, a guided operator checklist for completing SickChill replacement safely: install side-by-side, import, validate Library Health, configure automation, and cut over only when blockers are resolved.
+
+## Version 17.5.0 - Launchpad Experience
+
+Version 17.5.0 adds a premium Launchpad at `/launchpad` with readiness scoring, operator next actions, health counts, migration/cutover guidance, and a more intuitive product workflow.
+
+## Version 17.3.5 - Import job startup fix
+
+Version 17.3.5 fixes the asynchronous SickChill import job startup error where the import helper received `job_id` twice. The Import Center progress job endpoint now starts cleanly and reports progress instead of failing before the job is queued.
+
+## v17.4 Workflow Cockpit
+
+Open `/workflow` after startup for a guided replacement cockpit covering import, validation, operations, and SickChill cutover readiness.
+
+
+## Distribution Readiness
+
+TV Manager now includes a categorized left-side navigation model and expanded install documentation for Windows, Linux, macOS, server replacement, and Windows EXE installer packaging. See `docs/INSTALL_ALL_PLATFORMS.md` and `docs/WINDOWS_EXE_INSTALLER.md`.
+
+
+## Version 17.9.1 - Large Library Performance
+
+Version 17.9.1 fixes the large-library freeze seen after importing very large SickChill databases. The Library / Shows screen no longer requests every show in a single response. It now uses server-side pagination, loads the first 100 shows immediately, and lets the operator load additional pages on demand. This makes 39K+ imported records manageable and prevents the browser from appearing stuck at `Showing...`.
+
+
+
+## v17.9.1 Post Processing workflow
+
+TV Manager now includes a SickChill-style Post Processing screen with a configured completed-TV folder, one-time override folder, preview-first scan, selectable rows, and safe Process Selected / Process All Approved actions. See `docs/POST_PROCESSING_WORKFLOW.md`.
+
+### TMDb metadata credentials
+
+Metadata refresh supports either `TMDB_BEARER_TOKEN` or legacy `TMDB_API_KEY` in `.env`. Check `/api/metadata/status` after startup to confirm that TV Manager can see the credential without exposing the secret.
+
+## v17.12.0 - Full Metadata Refresh + Show Queue Date Fix
+
+- Added full-library metadata refresh from Library Health with preview, background progress, counts, and failed-item details.
+- Added full metadata refresh job APIs.
+- Fixed Show Queue Next Ep / Prev Ep values so dates are normalized and displayed as readable calendar dates.
+- Added full-library metadata refresh documentation.
+
+## v17.14.0 — Database Protection + Progress Polish
+
+- Added Database Safety Center at `/database-safety`.
+- Added verified SQLite backups using the SQLite backup API, with quick-check validation and SHA-256 records.
+- Added redacted configuration snapshots so `.env` and runtime settings are protected without exposing secrets.
+- Added backup manifest tracking under `backups/db-backup-manifest.json`.
+- Added shared progress job APIs and converted Library Health scanning to a progress-bar workflow.
+- Added `protect_db.py` for command-line backup and backup inventory scans.
+### v17.15.0 Professional background jobs and scheduler
+
+TV Manager now includes an Active Jobs screen at `/jobs`, expanded Scheduler maintenance for missing metadata, show/episode artwork, Library Health and database protection, and progress-bar workflows for long operations such as episode search, show metadata refresh and post-processing.
+
+
+
+## v17.16.0 SickChill Parity Manage Center
+
+Adds `/manage` with Backlog Overview, Manage Searches, Episode Status Management, Failed Downloads, Missed Subtitle Management, Scene Exceptions and a Mass Refresh background job.
+
+
+## v17.19.0 - Progress Everywhere + Professional Logs
+
+- Subtitle audit scans now run as background jobs with progress bars.
+- Post Processing folder preview scans now run as background jobs with progress bars.
+- Sending selected search results to the configured downloader now has a monitored progress job.
+- Added `/logs`, a SickChill-style sortable/filterable event log viewer.
+- Added `/api/logs` with level, event type, search, sort, direction, limit and offset filters.
+
+
+## v17.21.0 - Episode Search Return Navigation
+
+- Returns to the show episode list after sending a search result to the downloader.
+- Preserves episode list context and scroll position.
+- Adds Back to Episodes controls inside the episode search modal.
+- Adds Show Detail links to Download Center and Active Jobs.
+
+## v17.22.0 - Operations Progress Everywhere Audit
+
+- Converted Operations scan buttons to visible progress/background-job workflows.
+- Added progress-aware Root & Path Health check, Library Conflict scan, Content Duplicate fingerprint scan, and Config Snapshot creation.
+- Added progress-aware Scan Existing Files / Scan Existing Folder workflow from the show manager.
+- Added tests enforcing that Operations scan actions expose progress indicators and background job APIs.
+
+## v17.23.0 - Show Queue Polish & Sort Accuracy
+
+- Fixed Show Queue Downloads sorting to use numeric downloaded episode counts.
+- Added stable sort indicators and better default sort direction for numeric columns.
+- Normalized legacy SickChill ordinal dates in the Show Queue so numeric airdate artifacts do not appear.
+- Improved Downloads progress-bar state and numeric column alignment.

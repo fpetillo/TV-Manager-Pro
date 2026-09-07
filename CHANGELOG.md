@@ -1,3 +1,179 @@
+# Changelog
+
+## v17.21.0 — SQLite Lock Guard + Media Server Maintenance
+
+- Added SQLite writer serialization and longer busy timeout to prevent background scheduler/database lock crashes.
+- Added retry-safe scheduler finish and logging updates.
+- Added full edit/delete maintenance for media servers and other Advanced configuration records.
+- Added background job monitoring for media server test, refresh and watched-sync operations.
+- Improved downloader handoff failure reporting.
+
+
+## v17.19.0 — Downloader Validation Center
+
+- Added `/download-center` for downloader readiness, connection tests, queue polling, and handoff monitoring.
+- Added background job APIs for downloader connection tests and queue polling.
+- Added accepted search-result handoff candidates with Send action.
+- Clarified Launchpad "replacement readiness" loading/meaning and failure behavior.
+
+## 17.13.3 - Windows EXE Robocopy Quoting Patch
+
+- Fixed Windows EXE staging when the project path contains spaces.
+- Replaced ROBOCOPY `Start-Process -ArgumentList` call with direct PowerShell argument-array execution.
+- Prevents paths like `C:\Acuityware TV Manager` from being split into incorrect source/destination/file arguments.
+- Kept EXE staging outside the project tree and final output under `release\windows\TVManager`.
+- Updated Windows installer metadata to 17.13.3.
+
+## 17.13.2 - Windows EXE Build + Database Safety
+
+- Prevented Windows EXE packaging from opening or repairing the live `tvmanager.db` during PyInstaller analysis.
+- Added SQLite quick-check protection before startup schema repair.
+- Added clear database recovery guidance for malformed/corrupt SQLite databases.
+- Updated `run.ps1` to use the project virtual environment Python consistently and stop before app import when DB safety fails.
+
+
+
+## 17.13.1 - Windows EXE Build Script Safety
+
+- Fixed recursive Windows EXE build script staging that could create nested `dist/TVManager/dist/TVManager` paths.
+- Windows EXE builds now stage outside the app tree and publish to `release/windows/TVManager`.
+- `build-exe.ps1` now uses the project virtual environment and installs PyInstaller when missing.
+- Runtime data, secrets, imports, logs, diagnostics, backups, databases, build output, and release output are excluded from staging.
+
+- v17.13.0 adds Show Queue drill-down: click a show to open `/show/<id>`, filter/search episodes, and search/download from the episode row.
+
+## v17.13.0 - Full Metadata Refresh + Show Queue Date Fix
+
+- Added full-library metadata refresh from Library Health with preview, background progress, counts, and failed-item details.
+- Added full metadata refresh job APIs.
+- Fixed Show Queue Next Ep / Prev Ep values so dates are normalized and displayed as readable calendar dates.
+- Added full-library metadata refresh documentation.
+
+## v17.12.0 - Trakt Discovery + Show Queue
+
+- Added Trakt.tv discovery for trending, popular, anticipated, watched, played, and search-driven show additions.
+- Added a modern SickChill-style Show Queue at `/show-queue` with sortable columns and server-side paging.
+- Added `/api/trakt/*` endpoints, `/api/show-queue`, and Trakt credential setup documentation.
+- Added Trakt identity columns/indexes and performance indexes for all-shows browsing.
+
+## 17.10.0 - Responsive Fit & Distribution Polish
+
+- Fixed sidebar-era layout fit problems on Import Center and Home/Search.
+- Added small-screen Menu toggle for left navigation.
+- Added automatic table overflow wrapping for legacy screens.
+- Improved long path, command palette, workflow ribbon, form grid, and action toolbar responsiveness.
+- Added responsive layout audit documentation and release notes.
+
+# 17.9.1 - TMDb Metadata Authentication Reliability
+
+- Restored metadata refresh reliability after Post Processing workflow changes.
+- Added shared TMDb credential handling for both `TMDB_BEARER_TOKEN` and legacy `TMDB_API_KEY`.
+- Added fallback to imported/saved SickChill TMDb settings where available.
+- Converted TMDb 401/403 failures into clear operator-facing JSON errors.
+- Added `/api/metadata/status` to report whether TMDb is configured and where the credential was sourced, without exposing secrets.
+- Added regression tests for credential loading, legacy API-key support, unauthorized handling, and metadata batch invocation.
+
+
+
+## 17.9.1 - Post Processing Workflow
+
+- Added SickChill-style post-processing folder controls.
+- Added configured and override completed-download directories.
+- Added selectable preview rows and Process Selected / Process All Approved actions.
+- Added post-processing configuration API.
+- Hardened responsive layouts for left-sidebar screens.
+
+## 17.9.1 - Large Library Performance and Operator Scale
+
+- Fixed the Library view freeze after large SickChill imports by changing `/api/shows` to server-side pagination.
+- The Shows page now loads 100 records at a time and offers a Load More workflow instead of trying to render 39K+ shows at once.
+- Added `total`, `limit`, `offset`, `next_offset`, and `has_more` response fields to `/api/shows`.
+- Added defensive Library API parsing so HTML/error responses are shown as operator-friendly messages instead of leaving the page stuck at `Showing...`.
+- Added performance indexes for show names, status filters, and episode season browsing.
+- Added large-library regression tests.
+
+# Changelog
+
+## 17.7.0 - Setup Assistant and Cutover Polish
+
+- Added `/setup-assistant` guided replacement checklist.
+- Added `/api/setup/summary` cutover readiness endpoint.
+- Added SickChill cutover checklist documentation.
+- Added setup/cutover UI polish and navigation link.
+
+## 17.5.0 - Launchpad Experience
+
+- Added a premium `/launchpad` operator home screen.
+- Added `/api/launchpad/summary` for readiness, counts and next actions.
+- Added replacement readiness score and action-oriented migration/health/cutover cards.
+- Added product experience documentation and release notes.
+- Continued cohesive professional styling across the app.
+
+# v17.3.1
+
+## 17.3.5 - Import Progress Job Startup Fix
+
+- Fixed asynchronous SickChill import job startup error: `_set_import_job() got multiple values for argument 'job_id'`.
+- Corrected the queued-job initialization call so the helper receives the job identifier only once.
+- Added regression coverage to prevent the duplicate `job_id` call pattern from returning.
+
+
+- Added active database verification after SickChill import.
+- Added `/api/import/verify` and conservative import-audit recovery for empty Shows results after import.
+- Import Center now shows the actual active DB counts after import.
+
+
+## 17.4.0
+
+- Added Workflow cockpit for end-to-end SickChill replacement operations.
+- Added `/api/workflow/summary` readiness endpoint.
+- Added operator workflow guidance, polished workflow cards, and migration ribbon.
+
+
+## 17.2.0
+
+- Added complete SickChill replacement server installation runbook.
+- Added production Linux deployment guide with systemd service setup.
+- Added `scripts/install-linux-service.sh` for `/opt/tvmanager` deployments.
+- Added `server_preflight.py` to validate SickChill database copies, media roots, Python/Git availability, and port conflicts before cutover.
+- Added v17.2 release notes and packaging tests.
+
+## v17.1.9
+
+- Added early support route registration module for About, Library Health, Routes, and version APIs.
+- Added PowerShell startup route verification so the app will not launch without those URLs.
+
+## 17.1.8
+
+- Added startup database doctor for safe upgrades over older tvmanager.db files.
+- run.ps1 now verifies/repairs the DB schema before launching the app.
+
+## v17.1.7
+- Fixed startup repair for older databases missing `episodes.status` and `episodes.location`.
+- Hardened schema repair so engine startup work runs only after core show/episode columns exist.
+- Added regression coverage for very old episode schemas.
+
+## v17.1.4
+- Fixed Library Health and About routing with trailing-slash and alternate-path aliases.
+- Added server-rendered Library Health fallback page so the route shows a support page even if the template/static JavaScript fails.
+- Added alternate health-report API path `/api/library-health/report`.
+- Preserved visible version footer and About/version support endpoints.
+
+
+## v17.1.3
+
+- Fixed About page reliability with server-rendered version/build details.
+- Added `/api/about` endpoint.
+- Publicly exposed `/about`, `/api/version`, and `/api/about` for local support verification.
+- Added tests for About page route, visible version and API payload.
+
+## v17.1.1
+
+- Added visible app version footer across TV Manager pages.
+- Added About page for build/support verification.
+- Added `/api/version` endpoint.
+- Updated System page to show the runtime version from the VERSION file.
+
 # TV Manager v17.0
 
 ## Added
@@ -14,6 +190,20 @@
 - Repository version advanced to `17.0`.
 
 # Changelog
+
+## 17.7.0 - Setup Assistant and Cutover Polish
+
+- Added `/setup-assistant` guided replacement checklist.
+- Added `/api/setup/summary` cutover readiness endpoint.
+- Added SickChill cutover checklist documentation.
+- Added setup/cutover UI polish and navigation link.
+
+## v17.1.6
+
+- Fixed startup crash on older databases missing `shows.imdb_id`.
+- Startup schema repair now adds `imdb_id` before creating `idx_shows_imdb`.
+- Added regression coverage for the `no such column: imdb_id` failure path.
+
 
 ## 17.1
 - Added Import Center analyze → preview → import browser workflow.
@@ -118,3 +308,84 @@
 
 ## 1–2
 - TMDb/IMDb search and initial SQLite TV library.
+
+
+## 17.3.4 - SickChill Import Database Reliability
+
+- Fixed database lock failures after SickChill import by restructuring the importer transaction lifecycle.
+- The importer now reads the SickChill source completely, closes it, repairs/verifies the target TV Manager schema, then performs a bounded target write transaction.
+- Added explicit commit/rollback/finally handling and immediate post-import visibility verification from a brand-new read-only connection.
+- Added WAL/busy-timeout hardening and passive checkpoint handling after successful import.
+- Import Center responses now include target visibility counts so operators can confirm shows and episodes landed in the active `tvmanager.db`.
+- Added regression tests for post-import write access and immediate show visibility.
+
+## 17.3.1 - Product experience refresh
+
+- Refreshed the application look and feel with a cohesive professional operations-console design.
+- Added active navigation highlighting and more consistent page hierarchy.
+- Added product hero sections to key workflows: Dashboard, Shows, Import Center, Library Health and About.
+- Improved visual consistency for panels, cards, tables, forms, buttons, empty states and version footer.
+- Added UI design system documentation.
+
+
+## 17.7.0 - Left Navigation + Distribution Readiness
+
+- Replaced crowded top navigation with a categorized left sidebar.
+- Added cross-platform installation guide.
+- Added Windows EXE installer build documentation and starter scripts.
+- Added navigation design documentation.
+
+## v17.14.0 — Database Protection + Progress Polish
+
+- Added Database Safety Center at `/database-safety`.
+- Added verified SQLite backups using the SQLite backup API, with quick-check validation and SHA-256 records.
+- Added redacted configuration snapshots so `.env` and runtime settings are protected without exposing secrets.
+- Added backup manifest tracking under `backups/db-backup-manifest.json`.
+- Added shared progress job APIs and converted Library Health scanning to a progress-bar workflow.
+- Added `protect_db.py` for command-line backup and backup inventory scans.
+## 17.15.0 - Background Jobs, Scheduler, Metadata Art Polish
+
+- Added Active Jobs screen for background/multithreaded work.
+- Added scheduled missing metadata, artwork, Library Health and database protection jobs.
+- Added progress-bar job mode for show metadata refresh, episode search and post-processing.
+- Added episode artwork metadata fields and missing metadata refresh APIs.
+
+
+
+## 17.16.0 - SickChill Parity Manage Center
+
+- Added `/manage` as a modern replacement for SickChill Manage workflows.
+- Added backlog overview, episode status management, failed downloads, missed subtitles, scene exceptions and mass refresh.
+- Added background-job progress for long-running manage actions.
+- Updated navigation, command palette, docs and tests.
+
+
+## v17.18.0 - Progress Everywhere + Professional Logs
+
+- Subtitle audit scans now run as background jobs with progress bars.
+- Post Processing folder preview scans now run as background jobs with progress bars.
+- Sending selected search results to the configured downloader now has a monitored progress job.
+- Added `/logs`, a SickChill-style sortable/filterable event log viewer.
+- Added `/api/logs` with level, event type, search, sort, direction, limit and offset filters.
+
+
+## v17.21.0 - Episode Search Return Navigation
+
+- Returns to the show episode list after sending a search result to the downloader.
+- Preserves episode list context and scroll position.
+- Adds Back to Episodes controls inside the episode search modal.
+- Adds Show Detail links to Download Center and Active Jobs.
+
+## v17.22.0 - Operations Progress Everywhere Audit
+
+- Converted Operations scan buttons to visible progress/background-job workflows.
+- Added progress-aware Root & Path Health check, Library Conflict scan, Content Duplicate fingerprint scan, and Config Snapshot creation.
+- Added progress-aware Scan Existing Files / Scan Existing Folder workflow from the show manager.
+- Added tests enforcing that Operations scan actions expose progress indicators and background job APIs.
+
+## v17.23.0 - Show Queue Polish & Sort Accuracy
+
+- Fixed Show Queue Downloads sorting to use numeric downloaded episode counts.
+- Added stable sort indicators and better default sort direction for numeric columns.
+- Normalized legacy SickChill ordinal dates in the Show Queue so numeric airdate artifacts do not appear.
+- Improved Downloads progress-bar state and numeric column alignment.

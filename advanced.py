@@ -166,10 +166,17 @@ def groups():
         rows=c.execute("""SELECT g.*,COUNT(m.show_id) show_count FROM show_groups g LEFT JOIN show_group_members m ON m.group_id=g.id GROUP BY g.id ORDER BY sort_order,name""").fetchall()
     return [dict(r) for r in rows]
 
-def save_group(name,show_ids=None):
+def save_group(name,show_ids=None, group_id=None, sort_order=None):
+    name=(name or "New Group").strip() or "New Group"
     with cx() as c:
-        c.execute("INSERT OR IGNORE INTO show_groups(name) VALUES(?)",(name,))
-        gid=c.execute("SELECT id FROM show_groups WHERE name=?",(name,)).fetchone()["id"]
+        if group_id:
+            c.execute("UPDATE show_groups SET name=?,sort_order=COALESCE(?,sort_order) WHERE id=?",(name,sort_order,int(group_id)))
+            gid=int(group_id)
+        else:
+            c.execute("INSERT OR IGNORE INTO show_groups(name) VALUES(?)",(name,))
+            gid=c.execute("SELECT id FROM show_groups WHERE name=?",(name,)).fetchone()["id"]
+            if sort_order is not None:
+                c.execute("UPDATE show_groups SET sort_order=? WHERE id=?",(int(sort_order),gid))
         if show_ids is not None:
             c.execute("DELETE FROM show_group_members WHERE group_id=?",(gid,))
             c.executemany("INSERT OR IGNORE INTO show_group_members(group_id,show_id) VALUES(?,?)",[(gid,int(x)) for x in show_ids])
@@ -196,6 +203,23 @@ def save_webhook(d):
             wid=cur.lastrowid
         c.commit();return wid
 
+def delete_webhook(wid):
+    with cx() as c:
+        cur=c.execute("DELETE FROM webhooks WHERE id=?",(int(wid),))
+        c.commit()
+    if cur.rowcount == 0:
+        raise ValueError("Webhook not found")
+    return {"ok": True, "deleted": int(wid)}
+
+def delete_group(gid):
+    with cx() as c:
+        c.execute("DELETE FROM show_group_members WHERE group_id=?",(int(gid),))
+        cur=c.execute("DELETE FROM show_groups WHERE id=?",(int(gid),))
+        c.commit()
+    if cur.rowcount == 0:
+        raise ValueError("Show group not found")
+    return {"ok": True, "deleted": int(gid)}
+
 def fire_webhooks(event_type,payload):
     with cx() as c:rows=c.execute("SELECT * FROM webhooks WHERE enabled=1").fetchall()
     out=[]
@@ -211,7 +235,27 @@ def fire_webhooks(event_type,payload):
     return out
 
 def media_servers():
-    with cx() as c:return [dict(r)|{"token":"••••••••" if r["token"] else "","password":"••••••••" if r["password"] else ""} for r in c.execute("SELECT * FROM media_servers ORDER BY name").fetchall()]
+    with cx() as c:
+        return [dict(r)|{"token":"••••••••" if r["token"] else "","password":"••••••••" if r["password"] else ""} for r in c.execute("SELECT * FROM media_servers ORDER BY name").fetchall()]
+
+def media_server(sid, *, masked=True):
+    with cx() as c:
+        r=c.execute("SELECT * FROM media_servers WHERE id=?",(int(sid),)).fetchone()
+    if not r:
+        raise ValueError("Media server not found")
+    d=dict(r)
+    if masked:
+        d["token"]="••••••••" if d.get("token") else ""
+        d["password"]="••••••••" if d.get("password") else ""
+    return d
+
+def delete_media_server(sid):
+    with cx() as c:
+        cur=c.execute("DELETE FROM media_servers WHERE id=?",(int(sid),))
+        c.commit()
+    if cur.rowcount == 0:
+        raise ValueError("Media server not found")
+    return {"ok": True, "deleted": int(sid)}
 
 def save_media_server(d):
     with cx() as c:

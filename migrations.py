@@ -4,11 +4,14 @@ from pathlib import Path
 import json
 import dbcore
 
-VERSION=171
-VERSION_NAME="17.1"
+VERSION=1717
+VERSION_NAME="17.1.7"
 
 def _has_column(c,table,column):
     return column in {r["name"] for r in c.execute(f'PRAGMA table_info("{table}")').fetchall()}
+
+def _has_table(c, table):
+    return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone() is not None
 
 def migrate(db_path):
     db_path=Path(db_path)
@@ -140,6 +143,47 @@ def migrate(db_path):
           created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         """)
+
+        # v17.1.7 startup hardening: early user databases may lack core episode/show
+        # columns that app.py and engine.py expect before later feature-specific migrations run.
+        if _has_table(c, "shows"):
+            for name, definition in {
+                "imdb_id": "TEXT",
+            "tvdb_id": "INTEGER",
+            "legacy_indexer_id": "INTEGER",
+            "original_name": "TEXT",
+            "first_air_date": "TEXT",
+            "overview": "TEXT",
+            "poster": "TEXT",
+            "vote_average": "REAL",
+            "location": "TEXT",
+            "network": "TEXT",
+            "genre": "TEXT",
+            "quality": "TEXT",
+            "paused": "INTEGER DEFAULT 0",
+            "anime": "INTEGER DEFAULT 0",
+            "status": "TEXT DEFAULT 'Wanted'",
+            "legacy_data": "TEXT",
+                "added_at": "TEXT",
+            }.items():
+                if not _has_column(c, "shows", name):
+                    c.execute(f'ALTER TABLE shows ADD COLUMN "{name}" {definition}')
+        if _has_table(c, "episodes"):
+            for name, definition in {
+                "name": "TEXT",
+            "airdate": "TEXT",
+            "status": "TEXT DEFAULT 'Wanted'",
+            "location": "TEXT",
+            "file_size": "INTEGER",
+            "release_name": "TEXT",
+            "quality": "TEXT",
+            "legacy_data": "TEXT",
+            "monitored": "INTEGER DEFAULT 1",
+            "last_search": "TEXT",
+                "search_count": "INTEGER DEFAULT 0",
+            }.items():
+                if not _has_column(c, "episodes", name):
+                    c.execute(f'ALTER TABLE episodes ADD COLUMN "{name}" {definition}')
 
         c.executescript("""
         CREATE TABLE IF NOT EXISTS duplicate_cleanup_actions(

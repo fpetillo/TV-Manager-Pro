@@ -4,10 +4,18 @@ const summary=document.getElementById("summary");
 const detail=document.getElementById("detailPanel");
 const search=document.getElementById("showSearch");
 const statusFilter=document.getElementById("statusFilter");
+const groupFilter=document.getElementById("groupFilter");
 let currentShowId=null;
 let searchTimer=null;
+let showOffset=0;
+let showLimit=100;
+let lastQueryKey="";
+let loadingShows=false;
 
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+
+function progressHtml(job,label="Working"){const pct=Math.max(0,Math.min(100,Number(job?.percent||0)));return `<div class="import-progress"><div class="progress-head"><strong>${esc(job?.stage||label)}</strong><span>${pct}%</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div><p class="muted">${esc(job?.message||"Working in the background…")}</p><div class="result-meta">${Number(job?.processed||0).toLocaleString()} / ${Number(job?.total||0).toLocaleString()} processed • ${Number(job?.succeeded||0).toLocaleString()} matched • ${Number(job?.failed||0).toLocaleString()} unmatched</div><p><a class="btn secondary" href="/jobs">Open Active Jobs</a> <a class="btn secondary" href="/logs">Open Logs</a></p></div>`}
+async function pollJob(jobId,target){for(;;){const r=await fetch(`/api/jobs/${encodeURIComponent(jobId)}`,{cache:"no-store"});let d={};try{d=await r.json()}catch{};if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);const j=d.job||{};target.innerHTML=progressHtml(j);if(["complete","error","cancelled"].includes(String(j.status||"")))return j;await new Promise(x=>setTimeout(x,850));}}
 
 async function loadDashboard(){
   const r=await fetch("/api/dashboard"),d=await r.json();
@@ -15,36 +23,88 @@ async function loadDashboard(){
   dashDownloaded.textContent=d.downloaded; dashWanted.textContent=d.wanted;
 }
 
-async function loadShows(){
+function currentShowQueryKey(){
+  return JSON.stringify({q:search.value.trim(),status:statusFilter.value,group:groupFilter.value});
+}
+
+function renderShowItem(s){
+  const item=document.createElement("button");
+  item.className="show-list-item"+(s.id===currentShowId?" active":"");
+  item.innerHTML=`
+    <div class="show-list-poster">${s.poster?`<img src="${esc(s.poster)}" alt="">`:`<div class="poster-fallback">TV</div>`}</div>
+    <div class="show-list-copy">
+      <strong>${esc(s.name)}</strong>
+      <span>${s.season_count||0} season${s.season_count===1?"":"s"} • ${s.episode_count||0} episode${s.episode_count===1?"":"s"}</span>
+      <span>${esc(s.status||"Unknown")}${s.network?" • "+esc(s.network):""}</span>
+    </div>`;
+  item.onclick=()=>openShow(s.id);
+  return item;
+}
+
+async function loadShows(opts={}){
+  if(loadingShows)return;
+  const append=opts.append===true;
+  const queryKey=currentShowQueryKey();
+  if(!append || queryKey!==lastQueryKey){
+    showOffset=0;
+    lastQueryKey=queryKey;
+    showList.innerHTML='<div class="loading-box">Loading library page…</div>';
+    summary.textContent="Loading…";
+  }
+  loadingShows=true;
   const p=new URLSearchParams();
   if(search.value.trim())p.set("q",search.value.trim());
   if(statusFilter.value)p.set("status",statusFilter.value);
   if(groupFilter.value)p.set("group_id",groupFilter.value);
-  const r=await fetch("/api/shows?"+p),d=await r.json();
-  summary.textContent=`${d.results.length} show${d.results.length===1?"":"s"}`;
-  showList.innerHTML="";
-  if(!d.results.length){
-    showList.innerHTML='<div class="empty-list">No matching shows.</div>';
-    return;
-  }
-  for(const s of d.results){
-    const item=document.createElement("button");
-    item.className="show-list-item"+(s.id===currentShowId?" active":"");
-    item.innerHTML=`
-      <div class="show-list-poster">${s.poster?`<img src="${esc(s.poster)}" alt="">`:`<div class="poster-fallback">TV</div>`}</div>
-      <div class="show-list-copy">
-        <strong>${esc(s.name)}</strong>
-        <span>${s.season_count||0} season${s.season_count===1?"":"s"} • ${s.episode_count||0} episode${s.episode_count===1?"":"s"}</span>
-        <span>${esc(s.status||"Unknown")}${s.network?" • "+esc(s.network):""}</span>
-      </div>`;
-    item.onclick=()=>openShow(s.id);
-    showList.appendChild(item);
+  p.set("limit",showLimit);
+  p.set("offset",showOffset);
+  try{
+    const r=await fetch("/api/shows?"+p);
+    const text=await r.text();
+    let d;
+    try{d=JSON.parse(text)}catch(e){throw new Error(`Library API returned ${r.status}: ${text.slice(0,220)}`)}
+    if(!r.ok)throw new Error(d.error||`Library API failed with HTTP ${r.status}`);
+    if(!append)showList.innerHTML="";
+    const total=d.total ?? d.count ?? d.results.length;
+    const shown=(d.offset||0)+d.results.length;
+    summary.textContent= total ? `Showing ${shown.toLocaleString()} of ${Number(total).toLocaleString()} shows` : "0 shows";
+    if(!d.results.length && !append){
+      let diagnostic='';
+      try{
+        const v=await fetch('/api/import/verify?recover=1').then(r=>r.json());
+        if(v.import_runs){
+          diagnostic=`<p class="muted">Import history exists but no shows are visible. Active DB: ${esc(v.database)} • import runs: ${esc(v.import_runs)} • audit show rows: ${esc(v.imported_show_audit_rows)} • recovered: ${esc(v.recovery?.created||0)}</p><p><a class="btn secondary" href="/import">Open Import Center</a> <a class="btn secondary" href="/library-health">Library Health</a></p>`;
+        }
+      }catch(e){}
+      showList.innerHTML='<div class="empty-list">No matching shows.'+diagnostic+'</div>';
+      if(diagnostic){setTimeout(()=>loadShows(),800)}
+      return;
+    }
+    const oldMore=document.getElementById("loadMoreShows");
+    if(oldMore)oldMore.remove();
+    const frag=document.createDocumentFragment();
+    for(const s of d.results)frag.appendChild(renderShowItem(s));
+    showList.appendChild(frag);
+    showOffset=d.next_offset ?? shown;
+    if(d.has_more){
+      const more=document.createElement("button");
+      more.id="loadMoreShows";
+      more.className="secondary load-more-shows";
+      more.textContent=`Load next ${showLimit} shows`;
+      more.onclick=()=>loadShows({append:true});
+      showList.appendChild(more);
+    }
+  }catch(e){
+    summary.textContent="Library load error";
+    showList.innerHTML=`<div class="message error"><strong>Could not load library.</strong><br>${esc(e.message||e)}</div>`;
+  }finally{
+    loadingShows=false;
   }
 }
 
 async function openShow(id){
   currentShowId=id;
-  await loadShows();
+  document.querySelectorAll(".show-list-item").forEach(x=>x.classList.remove("active"));
   detail.innerHTML='<div class="loading-box">Loading show…</div>';
   const [sr,er]=await Promise.all([fetch(`/api/shows/${id}`),fetch(`/api/shows/${id}/episodes`)]);
   const sd=await sr.json(),ed=await er.json(),s=sd.show;
@@ -126,12 +186,27 @@ async function openShow(id){
   };
 
   document.getElementById("scanLibrary").onclick=async()=>{
-    scanLibrary.disabled=true;showOptionMsg.className="message";showOptionMsg.textContent="Scanning the configured show folder…";
-    const r=await fetch(`/api/shows/${id}/scan-library`,{method:"POST"}),d=await r.json();
-    showOptionMsg.className=r.ok?"message success":"message error";
-    showOptionMsg.textContent=r.ok?`Scanned ${d.files} files and matched ${d.matched} episodes.`:(d.error||"Library scan failed");
-    scanLibrary.disabled=false;
-    if(r.ok){await loadDashboard();setTimeout(()=>openShow(id),500)}
+    scanLibrary.disabled=true;showOptionMsg.className="message";showOptionMsg.innerHTML=progressHtml({stage:"Queued",percent:0,message:"Scan Existing Files queued. You can switch screens and monitor it from Active Jobs."},"Queued");
+    try{
+      const r=await fetch(`/api/shows/${id}/scan-library/start`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+      let d={};try{d=await r.json()}catch{}
+      if(!r.ok)throw new Error(d.error||"Library scan failed");
+      const job=await pollJob(d.job.job_id,showOptionMsg);
+      if(job.status==="complete"){
+        const res=job.result||{};
+        showOptionMsg.className="message success";
+        showOptionMsg.innerHTML=`<div class="notice good">Scanned ${Number(res.files||0).toLocaleString()} files and matched ${Number(res.matched||0).toLocaleString()} episodes.</div>`;
+        await loadDashboard();setTimeout(()=>openShow(id),700);
+      }else{
+        showOptionMsg.className="message error";
+        showOptionMsg.textContent=job.message||"Library scan failed";
+      }
+    }catch(e){
+      showOptionMsg.className="message error";
+      showOptionMsg.textContent=e.message||"Library scan failed";
+    }finally{
+      scanLibrary.disabled=false;
+    }
   };
 
   document.getElementById("refreshMetadata").onclick=async()=>{
@@ -205,9 +280,9 @@ async function openShow(id){
   }
 }
 
-search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(loadShows,180)});
-statusFilter.addEventListener("change",loadShows);
-groupFilter.addEventListener("change",loadShows);
+search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadShows(),220)});
+statusFilter.addEventListener("change",()=>loadShows());
+groupFilter.addEventListener("change",()=>loadShows());
 fetch("/api/groups").then(r=>r.json()).then(d=>{groupFilter.innerHTML='<option value="">All groups</option>'+d.results.map(g=>`<option value="${g.id}">${esc(g.name)} (${g.show_count})</option>`).join("")});
 document.getElementById("clearSearch").onclick=()=>{search.value="";statusFilter.value="";groupFilter.value="";loadShows()};
 
