@@ -1,23 +1,24 @@
 {
   "product": "TV Manager",
-  "version": "18.5.2",
-  "release_name": "Episode Search Regression",
-  "generated_at": "2026-09-07T23:35:57.769526+00:00",
+  "version": "18.5.3",
+  "release_name": "Show Detail Initial Load",
+  "generated_at": "2026-09-07T23:53:46.409021+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "SQLite-backed episode search and retrieve regression",
-    "Live 18.3.3 requires restart to load existing row conversion fix"
+    "Fix page initialization so shows load on first navigation",
+    "Execute startup regression against actual JavaScript"
   ],
   "validation": {
     "pytest": {
-      "passed": 293,
+      "passed": 294,
       "failed": 0
     },
-    "browser": "No UI changes; live version and job APIs inspected",
-    "external_integrations": "Mocked provider results and downloader handoff",
+    "javascript_syntax": "passed",
+    "browser": "Live queue to Friends loaded header and 50 episodes without Refresh",
+    "regression": "Old code fails; corrected code passes",
     "fully_green": true
   },
-  "activation": "Restart required; no automatic database or media relocation",
+  "activation": "Static fix verified on running app; reopen Show Detail. Restart required for updated runtime version label.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

@@ -1,3 +1,7 @@
+## 18.5.3 - 2026-09-07
+
+Fix Show Detail initial load: separate page initializer from downloader handler so show/episode requests start automatically. Browser verified opening from queue without Refresh; 294 tests pass, including old-code failure regression.
+
 ## 18.5.2 - 2026-09-07
 
 Regression coverage for manual episode search and retrieve using real SQLite rows. Reported error traced to live 18.3.3; dictionary conversion already exists in published code. Restart required after active processing. 293 tests pass.
