@@ -129,7 +129,7 @@ def refresh_show(show_id):
     with cx() as c:
         c.execute("""UPDATE shows SET
           tmdb_id=?,imdb_id=COALESCE(NULLIF(?,''),imdb_id),tvdb_id=COALESCE(?,tvdb_id),
-          name=?,original_name=?,first_air_date=?,overview=?,poster=?,vote_average=?,
+          name=COALESCE(NULLIF(name_override,''),?),original_name=?,first_air_date=?,overview=?,poster=?,vote_average=?,
           network=?,genre=? WHERE id=?""",
           (tmdb_id,ext.get("imdb_id"),ext.get("tvdb_id"),info.get("name") or show["name"],
            info.get("original_name"),info.get("first_air_date"),info.get("overview") or "",

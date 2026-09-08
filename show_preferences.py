@@ -1,7 +1,7 @@
 """Validated per-show behavior shared by search, metadata and subtitles."""
 import re
 
-COLUMNS={'metadata_provider':"TEXT DEFAULT 'tmdb'",'episode_order':"TEXT DEFAULT 'official'",'metadata_language':"TEXT DEFAULT 'en-US'",'past_episode_status':"TEXT DEFAULT 'Wanted'",'future_episode_status':"TEXT DEFAULT 'Wanted'",'subtitles_enabled':'INTEGER DEFAULT 1'}
+COLUMNS={'name_override':'TEXT','metadata_provider':"TEXT DEFAULT 'tmdb'",'episode_order':"TEXT DEFAULT 'official'",'metadata_language':"TEXT DEFAULT 'en-US'",'past_episode_status':"TEXT DEFAULT 'Wanted'",'future_episode_status':"TEXT DEFAULT 'Wanted'",'subtitles_enabled':'INTEGER DEFAULT 1'}
 BOOLS={'paused','monitor_new','search_enabled','season_folders','scene_numbering','air_by_date','sports','metadata_enabled','favorite','anime','subtitles_enabled'}
 IDS={'quality_profile_id','retention_policy_id'}
 TEXT={'preferred_words','required_words','ignored_words','metadata_language','past_episode_status','future_episode_status'}
@@ -13,10 +13,15 @@ def init(c):
         if name not in existing:c.execute(f'ALTER TABLE shows ADD COLUMN {name} {definition}')
 
 
-def options(body):
+def options(body,allow_name=False):
     result={}
     for key,value in body.items():
-        if key in BOOLS:
+        if key=='name' and allow_name:
+            if not isinstance(value,str):raise ValueError('Show name must be text')
+            value=value.strip()
+            if not value or len(value)>250 or any(ord(ch)<32 for ch in value):raise ValueError('Enter a show name between 1 and 250 characters without control characters')
+            result['name']=value;result['name_override']=value
+        elif key in BOOLS:
             if value not in (True,False,0,1,'0','1','true','false'):raise ValueError(f'Invalid switch: {key}')
             result[key]=int(value in (True,1,'1','true'))
         elif key in IDS:

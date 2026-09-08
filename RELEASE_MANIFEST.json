@@ -1,22 +1,25 @@
 {
   "product": "TV Manager",
-  "version": "18.5.8",
-  "release_name": "Season Download Progress",
-  "generated_at": "2026-09-08T01:40:00.292884+00:00",
+  "version": "18.5.9",
+  "release_name": "Editable Show Names",
+  "generated_at": "2026-09-08T11:30:03.756136+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Downloaded and total episodes on collapsed season headings"
+    "Show name field in Show Settings",
+    "Keep custom titles during metadata refresh",
+    "Title excluded from new-show defaults"
   ],
   "validation": {
     "pytest": {
-      "passed": 300,
+      "passed": 301,
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Friends: 15 of 25 and 22 of 23 downloaded verified",
+    "python_compile": "passed",
+    "browser": "Isolated title edit and updated heading verified",
     "fully_green": true
   },
-  "activation": "Static change verified on running app; reopen Show Detail. Normal restart updates runtime version label.",
+  "activation": "Restart required for schema and backend name editing support.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

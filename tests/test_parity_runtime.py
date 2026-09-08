@@ -98,3 +98,11 @@ def test_episode_search_and_retrieve_with_real_sqlite_rows(tmp_path,monkeypatch)
     with dbcore.connect(database,readonly=True) as c:
         assert c.execute('SELECT search_count FROM episodes WHERE id=1').fetchone()[0]==2
         assert c.execute("SELECT COUNT(*) FROM search_results WHERE status='Found'").fetchone()[0]==1
+
+
+def test_custom_show_name_validation_and_defaults_exclusion():
+    import pytest
+    assert show_preferences.options({'name':' Correct Title '},allow_name=True)=={'name':'Correct Title','name_override':'Correct Title'}
+    assert show_preferences.options({'name':'Not a default','name_override':'Not a default'})=={}
+    for name in ['', '   ', None, 'x'*251, 'bad\nname']:
+        with pytest.raises(ValueError):show_preferences.options({'name':name},allow_name=True)

@@ -1,6 +1,6 @@
 
 async function ensureFolderEditor(){
-  for(const [globalName,url] of [['previewLibraryRename','/static/library_rename.js?v=18.4.1'],['editShowPreferences','/static/show_preferences.js?v=18.4.1'],['loadLibraryStorage','/static/library_storage.js?v=folder-editor4'],['chooseShowDestination','/static/show_destination.js?v=folder-editor4']]){
+  for(const [globalName,url] of [['previewLibraryRename','/static/library_rename.js?v=18.4.1'],['editShowPreferences','/static/show_preferences.js?v=18.5.9'],['loadLibraryStorage','/static/library_storage.js?v=folder-editor4'],['chooseShowDestination','/static/show_destination.js?v=folder-editor4']]){
     if(typeof window[globalName]==='function')continue;
     await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(new Error('Could not load folder editor. Refresh and retry.'));document.head.append(script);});
   }

@@ -1,3 +1,7 @@
+## 18.5.9 - 2026-09-08
+
+Edit show names in Show Settings, with validated custom titles retained across metadata refresh. Folders/files unchanged. 301 tests pass; isolated browser save verified. Restart required.
+
 ## 18.5.8 - 2026-09-07
 
 Collapsed season headings show downloaded/total episode counts using recorded file paths. Browser verified; 300 tests pass.

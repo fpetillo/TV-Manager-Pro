@@ -27,8 +27,8 @@ def test_repeated_pages_are_rejected(monkeypatch):
 
 def test_refresh_preserves_downloaded_paths_and_checks_identity(tmp_path,monkeypatch):
     db=tmp_path/'db';c=sqlite3.connect(db)
-    c.executescript('''CREATE TABLE shows(id,tvdb_id,metadata_provider,name,overview,poster,first_air_date,network,genre);
-    INSERT INTO shows VALUES(1,123,'tvdb','Test','','','','','');
+    c.executescript('''CREATE TABLE shows(id,tvdb_id,metadata_provider,name,name_override,overview,poster,first_air_date,network,genre);
+    INSERT INTO shows VALUES(1,123,'tvdb','Test','Custom title','','','','','');
     CREATE TABLE episodes(id INTEGER PRIMARY KEY,show_id,season,episode,name,overview,airdate,still_url,tvdb_episode_id,status,metadata_updated_at,location);
     INSERT INTO episodes VALUES(1,1,1,1,'Old','','',NULL,42,'Downloaded',NULL,'/library/keep.mkv');
     CREATE TABLE metadata_refresh_state(show_id INTEGER PRIMARY KEY,last_refresh,last_status,last_error,updated_at);''');c.commit();c.close()
@@ -38,6 +38,7 @@ def test_refresh_preserves_downloaded_paths_and_checks_identity(tmp_path,monkeyp
     show={'id':1,'tvdb_id':123,'future_episode_status':'Skipped'}
     assert tvdb.refresh_show(show,db)['inserted']==1
     c=sqlite3.connect(db);assert c.execute('SELECT status,location FROM episodes WHERE id=1').fetchone()==('Downloaded','/library/keep.mkv');assert c.execute('SELECT status FROM episodes WHERE id=2').fetchone()[0]=='Skipped';c.close()
+    c=sqlite3.connect(db);assert c.execute('SELECT name FROM shows').fetchone()[0]=='Custom title';c.close()
     episodes[0][1]['episodes'][0]['id']=999
     with pytest.raises(ValueError,match='identity'):tvdb.refresh_show(show,db)
 

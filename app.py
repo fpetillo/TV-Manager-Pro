@@ -1415,7 +1415,7 @@ def refresh_show_metadata(sid):
         with cx() as c:
             c.execute("""UPDATE shows SET
                 tmdb_id=?, imdb_id=COALESCE(NULLIF(?,''),imdb_id),
-                tvdb_id=COALESCE(?,tvdb_id), name=?, original_name=?,
+                tvdb_id=COALESCE(?,tvdb_id), name=COALESCE(NULLIF(name_override,''),?), original_name=?,
                 first_air_date=?, overview=?, poster=?, vote_average=?,
                 network=?, genre=?
                 WHERE id=?""",
@@ -2339,7 +2339,7 @@ def api_save_show_defaults():
 def api_show_options(sid):
     body=request.get_json(silent=True) or {}
     import show_preferences
-    try: values=show_preferences.options(body)
+    try: values=show_preferences.options(body,allow_name=True)
     except ValueError as exc: return jsonify(error=str(exc)),400
     if not values:return jsonify(error="Nothing to update"),400
     with cx() as c:
