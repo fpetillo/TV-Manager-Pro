@@ -1,3 +1,8 @@
+## 18.5.10 — TV Manager Pro branding
+
+- Added the supplied original logo to shared navigation, Launchpad, and Dashboard.
+- Kept page actions on their own row and scaled branding for smaller screens.
+
 ## 18.5.9 - 2026-09-08
 
 Edit show names in Show Settings, with validated custom titles retained across metadata refresh. Folders/files unchanged. 301 tests pass; isolated browser save verified. Restart required.

@@ -213,3 +213,28 @@ let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{cons
     setInterval(()=>refreshBadges(nav), 30000);
   });
 })();
+
+;(()=>{
+  function logo(className){
+    const img=document.createElement('img');img.src='/static/branding/tv-manager-pro.png';
+    img.alt='TV Manager Pro — Better Chill';img.width=551;img.height=335;img.className=className;
+    return img;
+  }
+  function applyBranding(){
+    const brand=document.querySelector('.brand-lockup');
+    if(brand&&!brand.querySelector('.nav-product-logo')){
+      const version=brand.querySelector('small')?.textContent;
+      brand.replaceChildren(logo('nav-product-logo'));
+      if(version){const small=document.createElement('small');small.textContent=version;brand.append(small);}
+      brand.classList.add('brand-with-logo');
+    }
+    if(['/', '/launchpad','/dashboard'].includes(location.pathname.replace(/\/$/,'')||'/')){
+      const header=document.querySelector('header.topbar');
+      if(header&&!header.querySelector('.hero-product-logo')){
+        const link=document.createElement('a');link.href='/launchpad';link.className='hero-logo-link';link.setAttribute('aria-label','TV Manager Pro Launchpad');
+        link.append(logo('hero-product-logo'));header.prepend(link);header.classList.add('product-branded-header');
+      }
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyBranding,{once:true});else applyBranding();
+})();

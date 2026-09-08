@@ -1,13 +1,13 @@
 {
   "product": "TV Manager",
-  "version": "18.5.9",
-  "release_name": "Editable Show Names",
-  "generated_at": "2026-09-08T11:30:03.756136+00:00",
+  "version": "18.5.10",
+  "release_name": "TV Manager Pro Branding",
+  "generated_at": "2026-09-08T17:21:55.821323+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Show name field in Show Settings",
-    "Keep custom titles during metadata refresh",
-    "Title excluded from new-show defaults"
+    "Original TV Manager Pro logo in shared navigation",
+    "Prominent logo on Launchpad and Dashboard",
+    "Responsive header layout with accessible logo text"
   ],
   "validation": {
     "pytest": {
@@ -15,11 +15,10 @@
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "python_compile": "passed",
-    "browser": "Isolated title edit and updated heading verified",
+    "browser": "Launchpad and Dashboard visual verification",
     "fully_green": true
   },
-  "activation": "Restart required for schema and backend name editing support.",
+  "activation": "Refresh the browser to load updated static assets. Restart to display the new application version.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
