@@ -16,9 +16,9 @@ def test_show_detail_js_real_no_wait_first_paint_and_fast_watchdog():
     assert 'real no-wait first paint' in js
     assert "Show screen ready" in js
     assert "Ready to load episodes" in js
-    assert "},1200);" in js
+    assert "const generation=++seasonGeneration" in js
     assert "episodeLimit.value='50'" in js
-    assert 'timeout:750' in js
+    assert 'timeout:10000' in js
 
 def test_show_detail_has_snapshot_and_lite_endpoints():
     app = read('app.py')

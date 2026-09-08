@@ -1,3 +1,7 @@
+## 18.5.4 - 2026-09-07
+
+Collapsible season sections with Specials last, lazy full-season loading, filters and selection scoped to expanded seasons. No global episode paging. Browser verified expand/collapse and selection; 295 tests pass.
+
 ## 18.5.3 - 2026-09-07
 
 Fix Show Detail initial load: separate page initializer from downloader handler so show/episode requests start automatically. Browser verified opening from queue without Refresh; 294 tests pass, including old-code failure regression.

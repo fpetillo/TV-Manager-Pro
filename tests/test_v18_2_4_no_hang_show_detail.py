@@ -7,7 +7,7 @@ def test_show_detail_uses_fast_seasons_endpoint_and_short_timeouts():
     js = (ROOT / "static" / "show_detail.js").read_text(encoding="utf-8")
     assert "/seasons-fast" in js
     assert ("timeout:900" in js or "timeout:1800" in js)
-    assert ("timeout:750" in js or "timeout:2500" in js)
+    assert "timeout:10000" in js
     assert "Retry episodes" in js
     assert "Detailed counts are optional" in js
 

@@ -46,7 +46,8 @@ function progressBox(job){const hasPct=job&&job.percent!==undefined&&job.percent
 function showPageLoading(stage,message){let box=document.getElementById('showPageLoading');if(!box){box=document.createElement('div');box.id='showPageLoading';box.className='show-page-loading';document.body.appendChild(box)}box.hidden=false;box.innerHTML=progressBox({stage:stage||'Loading show',message:message||'Loading show details and episode counts…'});}
 function hidePageLoading(){const box=document.getElementById('showPageLoading');if(box)box.hidden=true;}
 function episodeLoadingRow(message){return `<tr class="loading-row"><td colspan="8">${progressBox({stage:'Loading episodes',message:message||'Loading episode list, filters, and ignored rules…'})}</td></tr>`}
-function selectedEpisodeIds(){return Array.from(document.querySelectorAll('.episode-check:checked')).map(x=>Number(x.value)).filter(Boolean)}
+function visibleEpisodeChecks(){return Array.from(document.querySelectorAll('.episode-check')).filter(x=>x.closest('.season-folder')?.open)}
+function selectedEpisodeIds(){return visibleEpisodeChecks().filter(x=>x.checked).map(x=>Number(x.value)).filter(Boolean)}
 function currentFilters(extra={}){const f={show_id:Number(showId)};if(seasonFilter.value)f.season=Number(seasonFilter.value);if(episodeStatus.value)f.status=episodeStatus.value;if(episodeSearch.value.trim())f.q=episodeSearch.value.trim();return Object.assign(f,extra)}
 function setBulkMessage(html,cls=''){bulkMessage.className='message '+cls;bulkMessage.innerHTML=html;}
 async function startBulk(payload,confirmText){if(confirmText&&!confirm(confirmText))return;setBulkMessage(progressBox({stage:'Queued',percent:0,message:'Episode management queued.'}));try{const r=await jsonFetch('/api/episodes/bulk/apply/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const job=await pollJob(r.job.job_id,j=>setBulkMessage(progressBox(j)));if(job.status==='complete'){setBulkMessage(`Episode management complete. ${esc(job.result?.affected??0)} episode(s) updated. <a href="/jobs">View Jobs</a>`,'success');await loadShow();await loadEpisodes();}else{setBulkMessage(esc(job.message||'Bulk episode management failed.'),'error')}}catch(e){setBulkMessage(esc(e.message),'error')}}
@@ -116,12 +117,77 @@ async function loadShowCountsFast(){
     if(c)c.textContent='retry'; if(i)i.textContent='retry'; if(a)a.textContent='retry';
   }
 }
-async function loadEpisodes(){episodeSummary.textContent='Loading first page…';episodeMessage.textContent='';episodeBody.innerHTML='<tr><td colspan="8"><div class="notice"><strong>Opening first 25 episodes…</strong><p>This is a fast first page. Use the page-size dropdown after it appears.</p></div></td></tr>';const firstLimit=(episodeLimit.value==='100'||episodeLimit.value==='250'||episodeLimit.value==='500')?'25':episodeLimit.value;const p=new URLSearchParams({all:'1',quick:'1',limit:firstLimit,offset:String(offset),sort,direction});if(episodeSearch.value.trim())p.set('q',episodeSearch.value.trim());if(seasonFilter.value)p.set('season',seasonFilter.value);if(episodeStatus.value)p.set('status',episodeStatus.value);try{const d=await jsonFetch(`/api/shows/${showId}/episodes-lite?`+p,{timeout:750});total=d.total;const rows=d.episodes||[];if(d.degraded){episodeSummary.textContent='Episode read is blocked';episodeBody.innerHTML='<tr><td colspan="8"><div class="notice warn"><strong>Episode list is blocked by the database.</strong><p>'+esc(d.error||'Database busy')+'</p><button class="secondary" onclick="episodeLimit.value=25;offset=0;loadEpisodes()">Retry 25 episodes</button> <a class="btn secondary" href="/jobs">Jobs</a> <a class="btn secondary" href="/logs?q=episode">Logs</a></div></td></tr>';return;}episodeSummary.textContent=rows.length?`Showing ${offset+1}-${offset+rows.length}${d.has_more?' — more available':''}`:'0 episodes';episodeBody.innerHTML=rows.length?rows.map(e=>`<tr class="${Number(e.ignored||0)?'ignored-row':''}"><td><input class="episode-check" type="checkbox" value="${e.id}"></td><td><strong>${epCode(e)}</strong>${Number(e.ignored||0)?'<span class="pill muted-pill">Ignored</span>':''}</td><td>${esc(e.name||'')}</td><td>${esc(fmtDate(e.airdate))}</td><td>${statusSelect(e)}${ignoreToggle(e)}</td><td>${esc(e.quality||'—')}</td><td class="file-cell">${e.location?esc(e.location):'<span class="missing-file">Missing</span>'}</td><td><button class="action-btn secondary" ${Number(e.ignored||0)?'disabled title="Ignored episodes are not searched"':''} onclick="searchEpisode(${e.id}, '${esc(currentShow?.name||'').replace(/'/g,'&#039;')}', ${e.season}, ${e.episode})">Search</button></td></tr>`).join(''):'<tr><td colspan="8">No episodes match this filter.</td></tr>';episodePrev.disabled=offset<=0;episodeNext.disabled=!d.has_more;}catch(e){episodeSummary.textContent='Episode load error';episodeBody.innerHTML='<tr><td colspan="8"><div class="notice warn"><strong>Episode list is slow or blocked.</strong><p>'+esc(e.message)+'</p><button class="secondary" onclick="loadEpisodes()">Retry episodes</button> <a class="btn secondary" href="/jobs">Jobs</a> <a class="btn secondary" href="/logs?q=episode">Logs</a></div></td></tr>';episodeMessage.className='message error';episodeMessage.textContent=e.message;}}
+let seasonGeneration=0;
+const expandedSeasons=new Set();
+function episodeRow(e){return `<tr class="${Number(e.ignored||0)?'ignored-row':''}"><td><input class="episode-check" type="checkbox" value="${e.id}"></td><td><strong>${epCode(e)}</strong>${Number(e.ignored||0)?'<span class="pill muted-pill">Ignored</span>':''}</td><td>${esc(e.name||'')}</td><td>${esc(fmtDate(e.airdate))}</td><td>${statusSelect(e)}${ignoreToggle(e)}</td><td>${esc(e.quality||'—')}</td><td class="file-cell">${e.location?esc(e.location):'<span class="missing-file">Missing</span>'}</td><td><button class="action-btn secondary" ${Number(e.ignored||0)?'disabled title="Ignored episodes are not searched"':''} onclick="searchEpisode(${e.id}, '${esc(currentShow?.name||'').replace(/'/g,'&#039;')}', ${e.season}, ${e.episode})">Search</button></td></tr>`;}
+async function fillSeason(folder,season,generation){
+  if(folder.dataset.loaded==='yes'||folder.dataset.loading==='yes')return;
+  folder.dataset.loading='yes';
+  const body=folder.querySelector('tbody');
+  const message=folder.querySelector('.season-message');
+  message.textContent='Loading episodes…';
+  try{
+    let next=0,rows=[];
+    do{
+      const p=new URLSearchParams({all:'1',quick:'1',season:String(season),limit:'100',offset:String(next),sort,direction});
+      if(episodeSearch.value.trim())p.set('q',episodeSearch.value.trim());
+      if(episodeStatus.value)p.set('status',episodeStatus.value);
+      const d=await jsonFetch(`/api/shows/${showId}/episodes-lite?`+p,{timeout:10000});
+      if(generation!==seasonGeneration)return;
+      if(d.degraded)throw new Error(d.error||'Database busy. Please retry this season.');
+      rows.push(...(d.episodes||[]));
+      if(!d.has_more)break;
+      if(!Number.isInteger(d.next_offset)||d.next_offset<=next)throw new Error('Episode paging did not advance. Please retry this season.');
+      next=d.next_offset;
+    }while(true);
+    body.innerHTML=rows.map(episodeRow).join('');
+    message.textContent=rows.length?`${rows.length} episode${rows.length===1?'':'s'}`:'No episodes match these filters.';
+    folder.dataset.loaded='yes';
+  }catch(e){
+    if(generation!==seasonGeneration)return;
+    message.textContent=e.message+' ';
+    const retry=document.createElement('button');retry.className='secondary';retry.textContent='Retry episodes';
+    retry.onclick=()=>fillSeason(folder,season,generation);message.append(retry);
+  }finally{folder.dataset.loading='no';}
+}
+async function loadEpisodes(){
+  const generation=++seasonGeneration;
+  episodeSummary.textContent='Loading seasons…';episodeMessage.textContent='';
+  episodePrev.style.display='none';episodeNext.style.display='none';episodeLimit.style.display='none';
+  episodeBody.closest('table').classList.add('season-browser');
+  selectPageEpisodes.textContent='Select Expanded';
+  episodeBody.innerHTML='<tr><td colspan="8">Loading seasons…</td></tr>';
+  try{
+    const d=await jsonFetch(`/api/shows/${showId}/seasons-fast`,{timeout:10000});
+    if(generation!==seasonGeneration)return;
+    if(d.error||d.degraded)throw new Error(d.error||'Season list is temporarily unavailable.');
+    let seasons=(d.seasons||[]).map(s=>Number(s.season)).filter(Number.isFinite);
+    if(seasonFilter.value!=='')seasons=seasons.filter(s=>s===Number(seasonFilter.value));
+    // Specials remain available at the bottom without covering regular seasons.
+    seasons.sort((a,b)=>(a===0)-(b===0)||a-b);
+    episodeBody.innerHTML=seasons.map(season=>`<tr class="season-folder-row"><td colspan="8"><details class="season-folder" data-season="${season}"><summary><span class="season-folder-icon" aria-hidden="true">▸</span> ${season===0?'Specials (S00)':'Season '+String(season).padStart(2,'0')} <span class="muted">Click to expand or collapse</span></summary><div class="season-message" role="status"></div><div class="table-wrap"><table class="compact-table episode-drill-table"><thead><tr><th>Select</th><th>Ep</th><th>Title</th><th>Air date</th><th>Status / Rules</th><th>Quality</th><th>File / Path</th><th>Action</th></tr></thead><tbody></tbody></table></div></details></td></tr>`).join('')||'<tr><td colspan="8">No seasons available.</td></tr>';
+    episodeSummary.textContent=`${seasons.length} season section${seasons.length===1?'':'s'} — click a season to view its episodes`;
+    episodeBody.querySelectorAll('.season-folder').forEach(folder=>{
+      const season=Number(folder.dataset.season);
+      folder.addEventListener('toggle',()=>{
+        if(folder.open){expandedSeasons.add(season);fillSeason(folder,season,generation);}
+        else{expandedSeasons.delete(season);folder.querySelectorAll('.episode-check').forEach(x=>x.checked=false);}
+      });
+      folder.open=expandedSeasons.has(season)||seasonFilter.value!=='';
+      if(folder.open)fillSeason(folder,season,generation);
+    });
+  }catch(e){
+    if(generation!==seasonGeneration)return;
+    episodeSummary.textContent='Could not load seasons';
+    episodeBody.innerHTML='<tr><td colspan="8">'+esc(e.message)+' <button class="secondary" onclick="loadEpisodes()">Retry seasons</button></td></tr>';
+  }
+}
+
 function resetLoad(){offset=0;loadEpisodes()}
 document.querySelectorAll('.episode-drill-table th[data-sort]').forEach(th=>{th.onclick=()=>{const ns=th.dataset.sort;if(sort===ns)direction=direction==='asc'?'desc':'asc';else{sort=ns;direction='asc'}resetLoad();}});
 episodeSearch.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(resetLoad,220)});seasonFilter.addEventListener('change',resetLoad);episodeStatus.addEventListener('change',resetLoad);episodeLimit.addEventListener('change',resetLoad);episodeRefresh.onclick=resetLoad;episodePrev.onclick=()=>{offset=Math.max(0,offset-Number(episodeLimit.value||100));loadEpisodes()};episodeNext.onclick=()=>{offset+=Number(episodeLimit.value||100);loadEpisodes()};
-selectPageEpisodes.onclick=()=>document.querySelectorAll('.episode-check').forEach(x=>x.checked=true);clearEpisodeSelection.onclick=()=>document.querySelectorAll('.episode-check').forEach(x=>x.checked=false);bulkIgnoreSelected.onclick=()=>bulkSelected('ignore');bulkIncludeSelected.onclick=()=>bulkSelected('include');bulkWantedSelected.onclick=()=>bulkSelected('wanted');bulkDownloadedSelected.onclick=()=>bulkSelected('downloaded');bulkUnmonitorSelected.onclick=()=>bulkSelected('unmonitor');bulkIgnoreSpecials.onclick=()=>bulkFilter('ignoreSpecials');bulkIncludeSpecials.onclick=()=>bulkFilter('includeSpecials');bulkIgnoreMissing.onclick=()=>bulkFilter('ignoreMissing');
-window.updateEpisode=async function(eid,body){try{await jsonFetch(`/api/episodes/${eid}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});episodeMessage.className='message success';episodeMessage.textContent='Episode updated.';loadShow();}catch(e){episodeMessage.className='message error';episodeMessage.textContent=e.message;}}
+selectPageEpisodes.onclick=()=>visibleEpisodeChecks().forEach(x=>x.checked=true);clearEpisodeSelection.onclick=()=>document.querySelectorAll('.episode-check').forEach(x=>x.checked=false);bulkIgnoreSelected.onclick=()=>bulkSelected('ignore');bulkIncludeSelected.onclick=()=>bulkSelected('include');bulkWantedSelected.onclick=()=>bulkSelected('wanted');bulkDownloadedSelected.onclick=()=>bulkSelected('downloaded');bulkUnmonitorSelected.onclick=()=>bulkSelected('unmonitor');bulkIgnoreSpecials.onclick=()=>bulkFilter('ignoreSpecials');bulkIncludeSpecials.onclick=()=>bulkFilter('includeSpecials');bulkIgnoreMissing.onclick=()=>bulkFilter('ignoreMissing');
+window.updateEpisode=async function(eid,body){try{await jsonFetch(`/api/episodes/${eid}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});episodeMessage.className='message success';episodeMessage.textContent='Episode updated.';loadShow();loadEpisodes();}catch(e){episodeMessage.className='message error';episodeMessage.textContent=e.message;}}
 window.searchEpisode=async function(eid,showName,season,episode){rememberEpisodePosition(eid);let modal=document.getElementById('searchModal');if(!modal){modal=document.createElement('div');modal.id='searchModal';modal.className='search-modal';modal.innerHTML=`<div class="modal-card"><div class="modal-head"><div><p class="eyebrow">EPISODE SEARCH</p><h2 id="modalTitle">Episode Search</h2></div><button class="btn secondary" onclick="returnToEpisodes('Returned to episode list.')">Back to Episodes</button><button class="close-x" onclick="searchModal.hidden=true">Close</button></div><div id="modalBody"></div></div>`;document.body.appendChild(modal)}modal.hidden=false;modalTitle.textContent=`${showName} S${String(season).padStart(2,'0')}E${String(episode).padStart(2,'0')}`;modalBody.innerHTML=progressBox({stage:'Queued',percent:0,message:'Episode search queued. You can switch pages and monitor it from Active Jobs.'});try{const start=await jsonFetch(`/api/episodes/${eid}/search/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const job=await pollJob(start.job.job_id,j=>{modalBody.innerHTML=progressBox(j)});if(job.status!=='complete'){modalBody.innerHTML=`<div class="message error">${esc(job.message||'Episode search failed')}</div>`;return}const d=job.result||{};if(!d.results||!d.results.length){modalBody.innerHTML=`<div class="notice">No results. ${esc((d.errors||[]).join(' • ')||d.message||'')}</div>`;return}modalBody.innerHTML='<div class="modal-toolbar"><button class="btn secondary" onclick="returnToEpisodes(\'Returned to episode list.\')">Back to Episodes</button><span class="muted">Choose a release to send to the downloader.</span></div><div class="search-results-list">'+d.results.map(r=>`<div class="result-card ${r.rejected_reason?'rejected':''}"><div><strong>${esc(r.title)}</strong><div class="meta">${esc(r.provider)} • ${esc(r.quality)} • ${fmtSize(r.size)} • Score ${esc(r.score)}</div>${r.rejected_reason?`<div class="warn-text">${esc(r.rejected_reason)}</div>`:''}</div><button class="blue" ${r.rejected_reason?'disabled':''} onclick="grabResult(${r.db_id||r.id})">Send to Downloader</button></div>`).join('')+'</div>';}catch(e){modalBody.innerHTML=`<div class="message error">${esc(e.message)}</div>`}}
 window.grabResult=async function(rid){modalBody.innerHTML=progressBox({stage:'Downloader handoff',percent:0,message:'Sending selected release to downloader…'});try{const r=await jsonFetch(`/api/search-results/${rid}/grab/start`,{method:'POST'});const job=await pollJob(r.job.job_id,j=>{modalBody.innerHTML=progressBox(j)});if(job.status==='complete')returnToEpisodes(job.message||'Sent to downloader and returned to episode list.');else modalBody.innerHTML=`<div class="message error">${esc(job.message||'Downloader handoff failed')}</div>`;}catch(e){modalBody.innerHTML=`<div class="message error">${esc(e.message)}</div>`}}
 ;(function(){
@@ -129,14 +195,8 @@ window.grabResult=async function(rid){modalBody.innerHTML=progressBox({stage:'Do
   if(episodeLimit && ['100','250','500'].includes(String(episodeLimit.value))) episodeLimit.value='50';
   if(showHeader)showHeader.innerHTML='<div class="notice"><strong>Show screen ready.</strong><p>Loading show header and the first episode page in separate short requests.</p></div>';
   if(episodeBody)episodeBody.innerHTML='<tr><td colspan="8"><div class="notice"><strong>Ready to load episodes.</strong><p>The first page loads separately and will not block this screen.</p></div></td></tr>';
-  const watchdog=setTimeout(()=>{
-    if(episodeBody && /Opening first|Ready to load|Loading/i.test(episodeBody.textContent||'')){
-      episodeSummary.textContent='Episode load is taking too long';
-      episodeBody.innerHTML='<tr><td colspan="8"><div class="notice warn"><strong>Still waiting on the database.</strong><p>This usually means another scan/job is holding SQLite. The page is no longer blocked.</p><button class="secondary" onclick="episodeLimit.value=25;offset=0;loadEpisodes()">Retry 25 episodes</button> <a class="btn secondary" href="/jobs">Jobs</a> <a class="btn secondary" href="/logs?q=episode">Logs</a></div></td></tr>';
-    }
-  },1200);
   setTimeout(()=>loadShow().catch(()=>{}),0);
-  setTimeout(()=>loadEpisodes().catch(()=>{}).finally(()=>clearTimeout(watchdog)),50);
+  setTimeout(()=>loadEpisodes().catch(()=>{}),50);
   setTimeout(()=>loadShowCountsFast().catch(()=>{}),900);
 })();
 

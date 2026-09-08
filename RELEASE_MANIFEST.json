@@ -1,21 +1,23 @@
 {
   "product": "TV Manager",
-  "version": "18.5.3",
-  "release_name": "Show Detail Initial Load",
-  "generated_at": "2026-09-07T23:53:46.409021+00:00",
+  "version": "18.5.4",
+  "release_name": "Collapsible Season Folders",
+  "generated_at": "2026-09-08T00:23:49.996985+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Fix page initialization so shows load on first navigation",
-    "Execute startup regression against actual JavaScript"
+    "Expand/collapse season folders",
+    "Specials collapsed at bottom",
+    "Full-season lazy loading without global pagination",
+    "Selection scoped to expanded seasons"
   ],
   "validation": {
     "pytest": {
-      "passed": 294,
+      "passed": 295,
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Live queue to Friends loaded header and 50 episodes without Refresh",
-    "regression": "Old code fails; corrected code passes",
+    "browser": "Friends: 11 collapsed sections, Season 1 shows 24 episodes, collapse clears selection",
+    "regression": "Lazy paged loading, filters and stale responses verified",
     "fully_green": true
   },
   "activation": "Static fix verified on running app; reopen Show Detail. Restart required for updated runtime version label.",
