@@ -1,26 +1,24 @@
 {
   "product": "TV Manager",
-  "version": "18.5.5",
-  "release_name": "Job Status Filters",
-  "generated_at": "2026-09-08T00:26:06.839868+00:00",
+  "version": "18.5.6",
+  "release_name": "Plex Post-processing Scan Fix",
+  "generated_at": "2026-09-08T00:33:51.401822+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Job status buttons with live counts",
-    "Active groups queued and running",
-    "Keep selected filter during polling",
-    "Includes collapsible season folders"
+    "Plex TV scan fallback for different server paths",
+    "Deduplicate multi-root libraries",
+    "Log unsuccessful post-processing scan requests"
   ],
   "validation": {
     "pytest": {
-      "passed": 296,
+      "passed": 300,
       "failed": 0
     },
-    "javascript_syntax": "passed",
-    "browser": "Live Failed filter: 2 of 25 recent jobs",
-    "regression": "Status grouping, counts and selection persistence",
+    "python_compile": "passed",
+    "live_plex": "Both configured servers accepted TV scan requests; indexing completion not certified",
     "fully_green": true
   },
-  "activation": "Static changes verified on running app; reopen Show Detail and Jobs. Restart required for updated runtime version label.",
+  "activation": "Backend restart required; running app reported 18.5.2. One-time Plex scan requests verified separately.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

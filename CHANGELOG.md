@@ -1,3 +1,7 @@
+## 18.5.6 - 2026-09-07
+
+Fix Plex refresh for UNC/mapped-drive mismatches and TV libraries with multiple roots. Scan deduplication and failure logging. 300 tests pass; both configured Plex servers accepted live scan requests. Restart required.
+
 ## 18.5.5 - 2026-09-07
 
 Job status filter buttons with counts, active grouping, exact status choices and selection preserved across refresh. 296 tests pass; live Failed filter verified.

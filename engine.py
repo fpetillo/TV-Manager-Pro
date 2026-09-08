@@ -1855,6 +1855,25 @@ def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sourc
     with media_operations.exclusive(BASE):return _scan_postprocess(*args)
 
 
+def _refresh_processed_shows(show_ids):
+    results=[]
+    for server in advanced.media_servers():
+        if not server.get('enabled'):continue
+        for show_id in sorted(show_ids):
+            try:
+                rr=advanced.refresh_media_server_target(server['id'],show_id=show_id)
+                results.append({'show_id':show_id,'server':server['name'],**rr})
+                log('media_refresh' if rr.get('ok') else 'media_refresh_error',
+                    server['name']+': '+str(rr.get('message') or 'Media scan requested'),
+                    'info' if rr.get('ok') else 'warning',show_id=show_id)
+                if rr.get('ok') and rr.get('fallback') in {'tv_libraries','whole_library'}:break
+            except Exception:
+                message='Media server update failed; check connection and credentials'
+                results.append({'show_id':show_id,'server':server['name'],'ok':False,'error':message})
+                log('media_refresh_error',server['name']+': '+message,'warning',show_id=show_id)
+    return results
+
+
 def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None):
     """Scan/process completed TV downloads.
 
@@ -2108,13 +2127,5 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
             continue
 
     if not dry_run and touched_shows and as_bool(get_setting("TVManager","refresh_media_servers_after_process","1")):
-        for show_id in sorted(touched_shows):
-            for server in advanced.media_servers():
-                if not server.get("enabled"):continue
-                try:
-                    rr=advanced.refresh_media_server_target(server["id"],show_id=show_id)
-                    result["media_refresh"].append({"show_id":show_id,"server":server["name"],**rr})
-                except Exception as ex:
-                    result["media_refresh"].append({"show_id":show_id,"server":server.get("name"),"error":str(ex)})
-                    log("media_refresh_error",str(ex),"warning",show_id=show_id)
+        result["media_refresh"].extend(_refresh_processed_shows(touched_shows))
     return result

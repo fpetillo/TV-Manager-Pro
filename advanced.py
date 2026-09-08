@@ -296,6 +296,50 @@ def test_media_server(sid):
         return {"ok":True,"kind":"Kodi","status":r.status_code}
     raise ValueError("Unsupported media server kind")
 
+def _refresh_plex(server,target_path=None,tv_only=True):
+    """Request scans using Plex's own paths; a foreign path needs a full TV scan."""
+    import xml.etree.ElementTree as ET
+    base=server['url'].rstrip('/')
+    headers={'X-Plex-Token':server['token'],'Accept':'application/xml'}
+    try:
+        response=requests.get(base+'/library/sections',headers=headers,timeout=10)
+        response.raise_for_status()
+        root=ET.fromstring(response.content)
+    except (requests.RequestException,ET.ParseError) as exc:
+        raise ValueError('Plex library discovery failed; check connection and credentials') from None
+    sections={}
+    for directory in root.findall('.//Directory'):
+        key=directory.get('key')
+        if key and key.isdigit() and (not tv_only or directory.get('type')=='show'):
+            sections.setdefault(key,[]).extend(loc.get('path') for loc in directory.findall('Location') if loc.get('path'))
+    def normalized(path):
+        path=str(path).replace('\\','/').rstrip('/')
+        return path.casefold() if path.startswith('//') or re.match(r'^[A-Za-z]:',path) else path
+    matches=[]
+    if target_path:
+        target=normalized(target_path)
+        for key,locations in sections.items():
+            for location in locations:
+                rootpath=normalized(location)
+                if target==rootpath or target.startswith(rootpath+'/'):
+                    matches.append((len(rootpath),key))
+    keys=sorted({key for length,key in matches if length==max(x[0] for x in matches)}) if matches else list(sections)
+    if not keys:return {'ok':False,'kind':'plex','refreshed':0,'message':'No Plex TV libraries available' if tv_only else 'No Plex libraries available'}
+    outcomes=[]
+    for key in keys:
+        params={'path':str(target_path)} if matches else {}
+        try:
+            response=requests.get(f'{base}/library/sections/{key}/refresh',headers=headers,params=params,timeout=10)
+            response.raise_for_status()
+            outcomes.append({'section':key,'ok':True})
+        except requests.RequestException:
+            outcomes.append({'section':key,'ok':False,'error':'Plex scan request failed; check connection and credentials'})
+    ok=all(item['ok'] for item in outcomes)
+    return {'ok':ok,'kind':'plex','targeted':bool(matches),'fallback':None if matches else ('tv_libraries' if tv_only else 'whole_library'),
+            'path':str(target_path) if matches else None,'sections':outcomes,'refreshed':sum(item['ok'] for item in outcomes),
+            'message':'Plex scan requested; indexing continues on Plex' if ok else 'One or more Plex scan requests failed'}
+
+
 def refresh_media_server_target(sid,path=None,show_id=None):
     with cx() as c:
         server=c.execute("SELECT * FROM media_servers WHERE id=?",(sid,)).fetchone()
@@ -304,35 +348,7 @@ def refresh_media_server_target(sid,path=None,show_id=None):
     target_path=path or (show["location"] if show else None)
     kind=(server["kind"] or "").lower();base=server["url"].rstrip("/")
     if kind=="plex":
-        token=server["token"]
-        r=requests.get(base+"/library/sections",params={"X-Plex-Token":token},timeout=10)
-        r.raise_for_status()
-        import xml.etree.ElementTree as ET
-        root=ET.fromstring(r.content)
-        candidates=[]
-        for directory in root.findall(".//Directory"):
-            key=directory.attrib.get("key")
-            dtype=directory.attrib.get("type")
-            for loc in directory.findall("Location"):
-                locpath=loc.attrib.get("path") or ""
-                if dtype=="show":
-                    candidates.append((key,locpath))
-        chosen=None
-        if target_path:
-            norm=str(target_path).replace("\\","/").lower()
-            matches=[x for x in candidates if x[1] and (
-                norm==x[1].replace("\\","/").lower().rstrip("/") or
-                norm.startswith(x[1].replace("\\","/").lower().rstrip("/")+"/")
-            )]
-            if matches:chosen=max(matches,key=lambda x:len(x[1]))
-        if not chosen and len(candidates)==1:chosen=candidates[0]
-        if not chosen:
-            return {"ok":False,"targeted":False,"message":"Could not determine the Plex TV library for this path"}
-        params={"X-Plex-Token":token}
-        if target_path:params["path"]=str(target_path)
-        rr=requests.get(f"{base}/library/sections/{chosen[0]}/refresh",params=params,timeout=10)
-        rr.raise_for_status()
-        return {"ok":True,"targeted":True,"kind":"plex","section":chosen[0],"path":target_path}
+        return _refresh_plex(server,target_path)
     # Jellyfin/Emby currently use their supported whole-library refresh as a safe fallback.
     result=refresh_media_server(sid)
     result["targeted"]=False
@@ -346,15 +362,7 @@ def refresh_media_server(sid):
     if not s:raise ValueError("Media server not found")
     kind=s["kind"].lower();base=s["url"].rstrip("/")
     if kind=="plex":
-        # Refresh all library sections; future smart targeting can select only matching libraries.
-        sections=requests.get(base+"/library/sections",params={"X-Plex-Token":s["token"]},timeout=10)
-        sections.raise_for_status()
-        ids=re.findall(r'key="(\d+)"',sections.text)
-        done=0
-        for key in ids:
-            r=requests.get(f"{base}/library/sections/{key}/refresh",params={"X-Plex-Token":s["token"]},timeout=10)
-            if r.ok:done+=1
-        return {"ok":True,"refreshed":done}
+        return _refresh_plex(s,tv_only=False)
     if kind in {"jellyfin","emby"}:
         headers={"X-Emby-Token":s["token"]} if s["token"] else {}
         r=requests.post(base+"/Library/Refresh",headers=headers,timeout=10);r.raise_for_status()
