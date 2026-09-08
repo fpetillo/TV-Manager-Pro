@@ -1,3 +1,7 @@
+## 18.5.7 - 2026-09-07
+
+Episode-count badges remain visible on collapsed season headings, including Specials. Uses grouped totals without loading episode rows. Browser verified; 300 tests pass.
+
 ## 18.5.6 - 2026-09-07
 
 Fix Plex refresh for UNC/mapped-drive mismatches and TV libraries with multiple roots. Scan deduplication and failure logging. 300 tests pass; both configured Plex servers accepted live scan requests. Restart required.

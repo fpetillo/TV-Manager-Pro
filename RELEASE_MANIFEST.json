@@ -1,24 +1,23 @@
 {
   "product": "TV Manager",
-  "version": "18.5.6",
-  "release_name": "Plex Post-processing Scan Fix",
-  "generated_at": "2026-09-08T00:33:51.401822+00:00",
+  "version": "18.5.7",
+  "release_name": "Collapsed Season Counts",
+  "generated_at": "2026-09-08T01:37:58.140908+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Plex TV scan fallback for different server paths",
-    "Deduplicate multi-root libraries",
-    "Log unsuccessful post-processing scan requests"
+    "Episode totals on collapsed season headings",
+    "Includes Specials and ignored episodes"
   ],
   "validation": {
     "pytest": {
       "passed": 300,
       "failed": 0
     },
-    "python_compile": "passed",
-    "live_plex": "Both configured servers accepted TV scan requests; indexing completion not certified",
+    "javascript_syntax": "passed",
+    "browser": "Friends collapsed season counts verified",
     "fully_green": true
   },
-  "activation": "Backend restart required; running app reported 18.5.2. One-time Plex scan requests verified separately.",
+  "activation": "Static change verified on running app; reopen Show Detail. Normal restart updates runtime version label.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
