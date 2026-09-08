@@ -52,14 +52,14 @@ const ctx={document:{querySelector:()=>node('page'),getElementById:node,querySel
 vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','utf8'),ctx);
 (async()=>{
  const calls=[];
- ctx.jsonFetch=async url=>{calls.push(url);return {seasons:[{season:0,episode_count:7},{season:2,episode_count:1},{season:1,episode_count:24}]};};
+ ctx.jsonFetch=async url=>{calls.push(url);return {seasons:[{season:0,episode_count:7,with_files:0},{season:2,episode_count:1,with_files:1},{season:1,episode_count:24,with_files:18}]};};
  await ctx.loadEpisodes();
  assert.equal(calls.length,1,'collapsed seasons must not fetch episodes');
  const html=node('episodeBody').innerHTML;
  assert.ok(html.indexOf('Season 01')<html.indexOf('Season 02'));
  assert.ok(html.indexOf('Season 02')<html.indexOf('Specials (S00)'));
  assert.ok(!html.includes(' open'), 'all seasons start collapsed');
- assert.match(html,/24 episodes/);assert.match(html,/1 episode<\/span>/);assert.match(html,/7 episodes/);
+ assert.match(html,/18 of 24 episodes downloaded/);assert.match(html,/1 of 1 episode downloaded/);assert.match(html,/0 of 7 episodes downloaded/);
  assert.ok(calls[0].endsWith('/episodes'),'load season totals without fetching episode pages');
  const body={innerHTML:''},message={textContent:'',append(){}};
  const folder={dataset:{},querySelector:s=>s==='tbody'?body:message};

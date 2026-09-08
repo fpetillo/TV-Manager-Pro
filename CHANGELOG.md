@@ -1,3 +1,7 @@
+## 18.5.8 - 2026-09-07
+
+Collapsed season headings show downloaded/total episode counts using recorded file paths. Browser verified; 300 tests pass.
+
 ## 18.5.7 - 2026-09-07
 
 Episode-count badges remain visible on collapsed season headings, including Specials. Uses grouped totals without loading episode rows. Browser verified; 300 tests pass.

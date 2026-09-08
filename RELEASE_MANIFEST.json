@@ -1,12 +1,11 @@
 {
   "product": "TV Manager",
-  "version": "18.5.7",
-  "release_name": "Collapsed Season Counts",
-  "generated_at": "2026-09-08T01:37:58.140908+00:00",
+  "version": "18.5.8",
+  "release_name": "Season Download Progress",
+  "generated_at": "2026-09-08T01:40:00.292884+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Episode totals on collapsed season headings",
-    "Includes Specials and ignored episodes"
+    "Downloaded and total episodes on collapsed season headings"
   ],
   "validation": {
     "pytest": {
@@ -14,7 +13,7 @@
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Friends collapsed season counts verified",
+    "browser": "Friends: 15 of 25 and 22 of 23 downloaded verified",
     "fully_green": true
   },
   "activation": "Static change verified on running app; reopen Show Detail. Normal restart updates runtime version label.",
