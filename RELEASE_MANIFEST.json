@@ -1,26 +1,26 @@
 {
   "product": "TV Manager",
-  "version": "18.5.4",
-  "release_name": "Collapsible Season Folders",
-  "generated_at": "2026-09-08T00:23:49.996985+00:00",
+  "version": "18.5.5",
+  "release_name": "Job Status Filters",
+  "generated_at": "2026-09-08T00:26:06.839868+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Expand/collapse season folders",
-    "Specials collapsed at bottom",
-    "Full-season lazy loading without global pagination",
-    "Selection scoped to expanded seasons"
+    "Job status buttons with live counts",
+    "Active groups queued and running",
+    "Keep selected filter during polling",
+    "Includes collapsible season folders"
   ],
   "validation": {
     "pytest": {
-      "passed": 295,
+      "passed": 296,
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Friends: 11 collapsed sections, Season 1 shows 24 episodes, collapse clears selection",
-    "regression": "Lazy paged loading, filters and stale responses verified",
+    "browser": "Live Failed filter: 2 of 25 recent jobs",
+    "regression": "Status grouping, counts and selection persistence",
     "fully_green": true
   },
-  "activation": "Static fix verified on running app; reopen Show Detail. Restart required for updated runtime version label.",
+  "activation": "Static changes verified on running app; reopen Show Detail and Jobs. Restart required for updated runtime version label.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

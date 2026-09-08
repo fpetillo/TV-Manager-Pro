@@ -1,3 +1,7 @@
+## 18.5.5 - 2026-09-07
+
+Job status filter buttons with counts, active grouping, exact status choices and selection preserved across refresh. 296 tests pass; live Failed filter verified.
+
 ## 18.5.4 - 2026-09-07
 
 Collapsible season sections with Specials last, lazy full-season loading, filters and selection scoped to expanded seasons. No global episode paging. Browser verified expand/collapse and selection; 295 tests pass.
