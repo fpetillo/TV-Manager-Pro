@@ -7,7 +7,7 @@ document.querySelectorAll(".settings-tab").forEach(x=>x.classList.remove("active
 async function loadScheduler(){const [r,c]=await Promise.all([fetch("/api/scheduler"),fetch("/api/tvmanager/config")]),d=await r.json(),cfg=await c.json();automation.checked=d.automation_enabled;autoGrab.checked=cfg.auto_grab;recentDays.value=cfg.recent_days;maxSearches.value=cfg.max_searches_per_run;if(window.ignoreSeasonZeroCounts)ignoreSeasonZeroCounts.checked=!!cfg.ignore_season_zero_counts;if(window.metadataMissingLimit)metadataMissingLimit.value=cfg.metadata_missing_limit||200;if(window.artworkRefreshLimit)artworkRefreshLimit.value=cfg.artwork_refresh_limit||200;automationNotice.className=d.automation_enabled?"notice good":"notice warn";automationNotice.textContent=d.automation_enabled?"Automation is armed. Scheduled jobs may search and process automatically.":"Automation is paused. Manual actions remain available.";jobs.innerHTML=d.jobs.map(j=>`<div class="scheduler-row"><div><strong>${esc(j.name.replaceAll("_"," "))}</strong><div class="muted">${esc(j.last_status||"Never run")}${j.last_run?" • "+esc(j.last_run):""}</div></div><label class="switchline"><input class="checkbox jobtoggle" data-name="${esc(j.name)}" type="checkbox" ${j.enabled?"checked":""}> Enabled</label><input class="jobinterval" data-name="${esc(j.name)}" type="number" min="1" value="${j.interval_minutes}"><button class="secondary runjob" data-name="${esc(j.name)}">Run now</button></div>`).join("");document.querySelectorAll(".jobtoggle").forEach(x=>x.onchange=()=>saveJob(x.dataset.name,{enabled:x.checked}));document.querySelectorAll(".jobinterval").forEach(x=>x.onchange=()=>saveJob(x.dataset.name,{interval:+x.value}));document.querySelectorAll(".runjob").forEach(x=>x.onclick=async()=>{x.disabled=true;x.textContent="Running…";const r=await fetch(`/api/scheduler/jobs/${x.dataset.name}/run`,{method:"POST"});let d={};try{d=await r.json()}catch{};if(d.job?.job_id)await pollSchedulerJob(d.job.job_id);x.disabled=false;x.textContent="Run now";loadScheduler()})}
 async function saveJob(name,body){await fetch(`/api/scheduler/jobs/${name}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}
 automation.onchange=async()=>{await fetch("/api/scheduler/automation",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:automation.checked})});loadScheduler()}
-saveDefaults.onclick=async()=>{await fetch("/api/settings/tvmanager",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recent_days:+recentDays.value,max_searches_per_run:+maxSearches.value,auto_grab:autoGrab.checked?"1":"0",refresh_media_servers_after_process:refreshMedia.checked?"1":"0",simulation_mode:simulationMode.checked?"1":"0",metadata_missing_limit:window.metadataMissingLimit?metadataMissingLimit.value:"200",artwork_refresh_limit:window.artworkRefreshLimit?artworkRefreshLimit.value:"200",ignore_season_zero_counts:window.ignoreSeasonZeroCounts?(ignoreSeasonZeroCounts.checked?"1":"0"):"0"})});saveDefaults.textContent="Saved";setTimeout(()=>saveDefaults.textContent="Save defaults",900)}
+saveDefaults.onclick=async()=>{const response=await fetch("/api/settings/tvmanager",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recent_days:+recentDays.value,max_searches_per_run:+maxSearches.value,auto_grab:autoGrab.checked?"1":"0",refresh_media_servers_after_process:refreshMedia.checked?"1":"0",simulation_mode:simulationMode.checked?"1":"0",metadata_missing_limit:window.metadataMissingLimit?metadataMissingLimit.value:"200",artwork_refresh_limit:window.artworkRefreshLimit?artworkRefreshLimit.value:"200",ignore_season_zero_counts:window.ignoreSeasonZeroCounts?(ignoreSeasonZeroCounts.checked?"1":"0"):"0"})});if(!response.ok){const result=await response.json();alert(result.error||"Could not save defaults");return;}saveDefaults.textContent="Saved";setTimeout(()=>saveDefaults.textContent="Save defaults",900)}
 async function loadClients(){const r=await fetch("/api/downloaders"),d=await r.json(),c=d.config;clients.innerHTML=`<div class="client-grid"><div class="service-card"><h3>SABnzbd</h3><span class="status-pill ${c.sabnzbd.configured?"Downloaded":""}">${c.sabnzbd.configured?"Configured":"Not configured"}</span><p>${esc(c.sabnzbd.host||"")}</p><small>Category: ${esc(c.sabnzbd.category||"")}</small></div><div class="service-card"><h3>${esc(c.torrent_method||"Torrent Client")}</h3><span class="status-pill ${c.torrent.configured?"Downloaded":""}">${c.torrent.configured?"Configured":"Not configured"}</span><p>${esc(c.torrent.host||"")}</p><small>Label: ${esc(c.torrent.label||"")}</small></div></div>`}
 
 pollClients.onclick=async()=>{pollClients.disabled=true;clientTest.innerHTML='<p class="muted">Polling downloader status…</p>';const r=await fetch("/api/downloaders/poll",{method:"POST"}),d=await r.json();clientTest.innerHTML=r.ok?d.results.map(x=>`<div class="notice ${x.error?"warn":"good"}">${esc(x.client)}: ${x.error?esc(x.error):`${x.checked||0} checked • ${x.updated||0} updated${x.active!=null?` • ${x.active} active • ${x.complete} complete`:""}`}</div>`).join(""):`<div class="notice warn">${esc(d.error||"Polling failed")}</div>`;pollClients.disabled=false}
@@ -19,7 +19,31 @@ testEmail.onclick=async()=>{testEmail.disabled=true;const r=await fetch("/api/no
 let sectionData=[];async function loadSections(){const r=await fetch("/api/settings/sections"),d=await r.json();sectionData=d.results;renderSections()}
 function renderSections(){const q=sectionSearch.value.toLowerCase();sections.innerHTML=sectionData.filter(x=>x.section.toLowerCase().includes(q)).map(s=>`<button onclick="openSection('${esc(s.section).replace(/'/g,"&#039;")}')"><strong>${esc(s.section)}</strong><span>${s.setting_count} settings${s.secret_count?" • "+s.secret_count+" protected":""}</span></button>`).join("")}
 sectionSearch.oninput=renderSections;
-window.openSection=async sec=>{const r=await fetch("/api/settings/section/"+encodeURIComponent(sec)),d=await r.json();sectionEditor.innerHTML=`<div class="toolbar"><h3>${esc(sec)}</h3><div class="spacer"></div><span class="status-pill">${d.results.length} settings</span></div><div class="setting-rows">${d.results.map(x=>`<label class="setting-row"><span><strong>${esc(x.name)}</strong><small>${esc(x.source)}</small></span><input data-sec="${esc(sec)}" data-name="${esc(x.name)}" value="${esc(x.value||"")}"></label>`).join("")}</div><button id="saveSection" class="blue">Save Changes</button><div id="sectionMsg" class="message"></div>`;saveSection.onclick=async()=>{const inputs=sectionEditor.querySelectorAll("input[data-name]");for(const i of inputs){await fetch(`/api/settings/section/${encodeURIComponent(i.dataset.sec)}/${encodeURIComponent(i.dataset.name)}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:i.value})})}sectionMsg.className="message success";sectionMsg.textContent="Settings saved."}}
+window.openSection=async sec=>{
+  document.querySelector('[data-view="legacy"]').click();
+  try{
+    const r=await fetch('/api/settings/section/'+encodeURIComponent(sec)),d=await r.json();
+    if(!r.ok)throw new Error(d.error||'Could not load settings');
+    sectionEditor.innerHTML=`<h3>${esc(sec)}</h3><input id="settingNameFilter" placeholder="Find a setting in this section"><p class="muted">Change values and save. Protected values stay unchanged unless replaced. Application defaults are shown even before they are saved.</p><div class="setting-rows">${d.results.map(x=>{
+      const path=sec.toLowerCase()==='general'&&x.name.toLowerCase()==='root_dirs';
+      return `<label class="setting-row"><span><strong>${esc(x.name)}</strong><small>${esc(x.source)}</small></span>${path?'<a href="/library-storage">Edit Library Locations</a>':`<input autocomplete="off" type="${x.is_secret?'password':'text'}" data-name="${esc(x.name)}" value="${esc(x.value??'')}">`}</label>`;
+    }).join('')}</div><button id="saveSection" class="blue">Save Changes</button><div id="sectionMsg" class="message" role="status"></div>`;
+    const inputs=Array.from(sectionEditor.querySelectorAll('input[data-name]'));
+    inputs.forEach(i=>i.dataset.original=i.value);
+    document.getElementById('settingNameFilter').oninput=function(){sectionEditor.querySelectorAll('.setting-row').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(this.value.toLowerCase()));};
+    document.getElementById('saveSection').onclick=async function(){
+      this.disabled=true;const msg=document.getElementById('sectionMsg');let saved=0;
+      try{
+        for(const i of inputs.filter(i=>i.value!==i.dataset.original)){
+          const response=await fetch(`/api/settings/section/${encodeURIComponent(sec)}/${encodeURIComponent(i.dataset.name)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:i.value})});
+          const result=await response.json();if(!response.ok)throw new Error(`${i.dataset.name}: ${result.error||'Save failed'}`);
+          i.dataset.original=i.value;saved++;
+        }
+        msg.textContent=saved?`${saved} setting(s) saved. Restart TV Manager if the setting controls startup behavior.`:'No changes to save.';
+      }catch(e){msg.textContent=`${saved} setting(s) saved. ${e.message}`;}finally{this.disabled=false;}
+    };
+  }catch(e){sectionEditor.textContent=e.message;}
+};
 loadScheduler();loadClients();loadProviders();loadNotifications();loadSections();
 
 fetch("/api/settings/section/TVManager").then(r=>r.json()).then(d=>{const x=d.results.find(i=>i.name==="refresh_media_servers_after_process");refreshMedia.checked=!x||["1","true","yes","on"].includes(String(x.value).toLowerCase())});
@@ -78,3 +102,13 @@ loadSecurityEvents.onclick=async()=>{
 loadNaming();loadSecurity();
 
 fetch("/api/settings/section/TVManager").then(r=>r.json()).then(d=>{const x=d.results.find(i=>i.name==="ignore_season_zero_counts");if(window.ignoreSeasonZeroCounts)ignoreSeasonZeroCounts.checked=!!x&&["1","true","yes","on"].includes(String(x.value).toLowerCase())});
+
+;(()=>{
+  const sidebar=document.querySelector('.settings-sidebar');
+  const links=[['Library Locations','/library-storage'],['Quality Profiles','/quality'],['Metadata Sources','/metadata-sources'],['Native Notifications','/notifications'],['Providers, Media Servers & Webhooks','/advanced'],['Post-Processing','/postprocess'],['New Show Defaults','/'],['Database Protection','/database-safety']];
+  for(const [label,url] of links){const a=document.createElement('a');a.className='btn secondary';a.href=url;a.textContent=label;sidebar.append(a);}
+  for(const [view,sections] of [['downloaders',['General','SABnzbd','NZBGet','TORRENT','Blackhole']],['providers',['Newznab']],['notifications',['Email']]]){
+    const box=document.getElementById('view-'+view);const actions=document.createElement('div');actions.className='actions';
+    for(const sec of sections){const b=document.createElement('button');b.className='secondary';b.textContent='Edit '+sec;b.onclick=()=>openSection(sec);actions.append(b);}box.prepend(actions);
+  }
+})();

@@ -400,12 +400,22 @@ def delete_quality_profile(pid):
         c.execute("DELETE FROM quality_profiles WHERE id=?",(pid,))
         c.commit()
 
+def configurable_defaults():
+    path = Path(__file__).with_name("settings_defaults.json")
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
 def setting_sections_public():
     with cx() as c:
         rows=c.execute("""SELECT section,COUNT(*) setting_count,
                           SUM(CASE WHEN is_secret=1 THEN 1 ELSE 0 END) secret_count
                           FROM settings GROUP BY section ORDER BY section COLLATE NOCASE""").fetchall()
-    return [dict(r) for r in rows]
+    names = {r["section"].lower(): r["section"] for r in rows}
+    for section in configurable_defaults():
+        names.setdefault(section.lower(), section)
+    return [{"section": name, "setting_count": len(settings_for_section(name)),
+             "secret_count": sum(bool(r["is_secret"]) for r in settings_for_section(name))}
+            for name in sorted(names.values(), key=str.lower)]
 
 def settings_for_section(section):
     with cx() as c:
@@ -421,7 +431,16 @@ def settings_for_section(section):
         else:
             d["has_value"]=bool(d["value"])
         out.append(d)
-    return out
+    present = {r["name"].lower() for r in out}
+    for sec, defaults in configurable_defaults().items():
+        if sec.lower() != section.lower():
+            continue
+        for name, value in defaults.items():
+            if name.lower() not in present:
+                secret = int(is_secret_like(name))
+                out.append(dict(section=section, name=name, value="" if secret else value,
+                    is_secret=secret, has_value=False, source="Application default", updated_at=None))
+    return sorted(out, key=lambda row: row["name"].lower())
 
 def update_setting_safe(section,name,value):
     with cx() as c:

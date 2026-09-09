@@ -1,0 +1,82 @@
+{
+  "General": {
+    "naming_pattern": "Season %0S/%SN - S%0SE%0E - %EN",
+    "root_dirs": "",
+    "rename_episodes": "1",
+    "move_associated_files": "1",
+    "tv_download_dir": "",
+    "process_method": "move",
+    "process_automatically": "0",
+    "randomize_providers": "0",
+    "ignore_words": "",
+    "require_words": "",
+    "prefer_words": "",
+    "use_nzbs": "0",
+    "use_torrents": "0",
+    "dailysearch_frequency": "120",
+    "backlog_frequency": "2880",
+    "provider_order": "",
+    "nzb_method": "",
+    "torrent_method": "",
+    "update_frequency": "168",
+    "autopostprocessor_frequency": "10"
+  },
+  "TVManager": {
+    "ignore_season_zero_counts": "1",
+    "automation_enabled": "0",
+    "auto_grab": "1",
+    "simulation_mode": "0",
+    "recent_days": "14",
+    "max_searches_per_run": "25",
+    "metadata_missing_limit": "200",
+    "artwork_refresh_limit": "200",
+    "background_worker_limit": "4",
+    "subtitle_scan_network_paths": "0",
+    "refresh_media_servers_after_process": "1",
+    "subtitle_scan_max_seconds": "30",
+    "subtitle_scan_max_candidates": "200",
+    "missing_metadata_frequency": "720",
+    "artwork_refresh_frequency": "1440",
+    "library_health_frequency": "1440",
+    "database_protection_frequency": "1440"
+  },
+  "SABnzbd": {
+    "sab_apikey": "",
+    "sab_category": "tv",
+    "sab_forced": "0",
+    "sab_host": ""
+  },
+  "Email": {
+    "email_host": "",
+    "host": "",
+    "email_port": "25",
+    "email_user": "",
+    "username": "",
+    "email_password": "",
+    "password": "",
+    "email_tls": "0",
+    "email_from": "",
+    "email_list": "",
+    "email_to": ""
+  },
+  "Newznab": {
+    "newznab_data": ""
+  },
+  "TORRENT": {
+    "torrent_username": "",
+    "torrent_password": "",
+    "torrent_label": "",
+    "torrent_paused": "0",
+    "torrent_host": ""
+  },
+  "NZBGet": {
+    "nzbget_username": "",
+    "nzbget_password": "",
+    "nzbget_category": "tv",
+    "nzbget_host": ""
+  },
+  "Blackhole": {
+    "nzb_dir": "",
+    "torrent_dir": ""
+  }
+}

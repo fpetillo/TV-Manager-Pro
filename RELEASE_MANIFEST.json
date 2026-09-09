@@ -1,24 +1,24 @@
 {
   "product": "TV Manager",
-  "version": "18.5.12",
-  "release_name": "Visible Library Settings and Global Specials",
-  "generated_at": "2026-09-09T19:16:14.616159+00:00",
+  "version": "18.5.13",
+  "release_name": "Editable Configuration Center",
+  "generated_at": "2026-09-09T19:21:34.754925+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Settings shortcut above Shows and Show Queue",
-    "Ignore S00 / Specials for All Shows button",
-    "Whole-library confirmation and completion feedback"
+    "All Configurable Settings editor with saved values and 64 application defaults",
+    "Configuration editor shortcuts in Settings menu",
+    "Changed-only saves and error reporting with protected values masked"
   ],
   "validation": {
     "pytest": {
-      "passed": 305,
+      "passed": 306,
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Isolated Shows confirmation and successful global ignore; Show Queue controls verified",
+    "browser": "Isolated settings value edited, saved and reopened with persistence verified",
     "fully_green": true
   },
-  "activation": "Refresh Shows or Show Queue for new controls. Restart to display the new version.",
+  "activation": "Restart TV Manager to load default settings catalog and updated template, then refresh Settings.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
