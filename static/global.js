@@ -238,3 +238,41 @@ let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{cons
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyBranding,{once:true});else applyBranding();
 })();
+
+;(()=>{
+  async function api(url,method='GET'){
+    const r=await fetch(url,{method,cache:'no-store'});
+    let d;try{d=await r.json();}catch{throw new Error('Could not read the response. Refresh TV Manager and try again.');}
+    if(!r.ok)throw new Error(d.error||`Request failed (${r.status})`);
+    return d;
+  }
+  function mount(){
+    if(!['/manager','/show-queue'].includes(location.pathname.replace(/\/$/,'')))return;
+    const header=document.querySelector('header.topbar');if(!header||document.getElementById('librarySettingsActions'))return;
+    const panel=document.createElement('section');panel.id='librarySettingsActions';panel.className='panel';panel.style.marginBottom='18px';
+    panel.innerHTML='<h2>Library settings</h2><div class="actions"><a class="btn secondary" href="/settings">Settings</a><button class="blue" id="ignoreAllShowSpecials">Ignore S00 / Specials for All Shows</button><a class="btn secondary" href="/manage">Manage or Include Specials Again</a></div><p class="muted">To edit one show, open it and choose Edit Show Settings. The Specials button applies to every show, including shows outside the current filter. It keeps your files and excludes Specials from Missing/Wanted and searches.</p><div id="librarySettingsMessage" class="message" role="status" aria-live="polite"></div>';
+    header.after(panel);
+    const button=panel.querySelector('button'),message=panel.querySelector('#librarySettingsMessage');
+    button.onclick=async()=>{
+      button.disabled=true;
+      try{
+        message.textContent='Checking Specials across all shows…';
+        const preview=await api('/api/episodes/specials/global-preview','POST');
+        if(!confirm(`Ignore all ${preview.total} S00 / Specials episodes across ALL shows? They will be marked ignored and unmonitored, and the global rule will exclude future Specials from Missing/Wanted and searches. Files will be kept.`)){message.textContent='No changes made.';return;}
+        const started=await api('/api/episodes/specials/global-ignore/start','POST');
+        for(;;){
+          const {job}=await api(`/api/jobs/${encodeURIComponent(started.job.job_id)}`);
+          message.textContent=job.message||'Updating Specials…';
+          if(['complete','error','cancelled'].includes(job.status)){
+            if(job.status==='complete'){
+              const refresh=document.createElement('button');refresh.className='secondary';refresh.textContent='Refresh Shows';refresh.onclick=()=>location.reload();message.append(' ',refresh);
+            }
+            break;
+          }
+          await new Promise(resolve=>setTimeout(resolve,850));
+        }
+      }catch(e){message.textContent=e.message;}finally{button.disabled=false;}
+    };
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();

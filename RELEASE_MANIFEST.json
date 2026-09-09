@@ -1,13 +1,13 @@
 {
   "product": "TV Manager",
-  "version": "18.5.11",
-  "release_name": "Find and Download Missing Episodes",
-  "generated_at": "2026-09-09T13:51:42.845052+00:00",
+  "version": "18.5.12",
+  "release_name": "Visible Library Settings and Global Specials",
+  "generated_at": "2026-09-09T19:16:14.616159+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Show-level search and automatic download handoff across all seasons",
-    "Uncapped eligible episode selection with repeat-job protection",
-    "Progress and per-episode errors in Active Jobs"
+    "Settings shortcut above Shows and Show Queue",
+    "Ignore S00 / Specials for All Shows button",
+    "Whole-library confirmation and completion feedback"
   ],
   "validation": {
     "pytest": {
@@ -15,10 +15,10 @@
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Isolated library confirmation and completed job verified with mocked provider search",
+    "browser": "Isolated Shows confirmation and successful global ignore; Show Queue controls verified",
     "fully_green": true
   },
-  "activation": "Restart TV Manager for new backend endpoints, then refresh Show Detail.",
+  "activation": "Refresh Shows or Show Queue for new controls. Restart to display the new version.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
