@@ -1,24 +1,24 @@
 {
   "product": "TV Manager",
-  "version": "18.5.10",
-  "release_name": "TV Manager Pro Branding",
-  "generated_at": "2026-09-08T17:21:55.821323+00:00",
+  "version": "18.5.11",
+  "release_name": "Find and Download Missing Episodes",
+  "generated_at": "2026-09-09T13:51:42.845052+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Original TV Manager Pro logo in shared navigation",
-    "Prominent logo on Launchpad and Dashboard",
-    "Responsive header layout with accessible logo text"
+    "Show-level search and automatic download handoff across all seasons",
+    "Uncapped eligible episode selection with repeat-job protection",
+    "Progress and per-episode errors in Active Jobs"
   ],
   "validation": {
     "pytest": {
-      "passed": 301,
+      "passed": 305,
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Launchpad and Dashboard visual verification",
+    "browser": "Isolated library confirmation and completed job verified with mocked provider search",
     "fully_green": true
   },
-  "activation": "Refresh the browser to load updated static assets. Restart to display the new application version.",
+  "activation": "Restart TV Manager for new backend endpoints, then refresh Show Detail.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

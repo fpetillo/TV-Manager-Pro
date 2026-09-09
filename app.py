@@ -2118,6 +2118,23 @@ def api_episode_search(eid):
         return jsonify(error=str(e)),400
 
 
+@app.get("/api/shows/<int:sid>/missing-search/preview")
+def api_show_missing_preview(sid):
+    import show_missing_search
+    try:
+        return jsonify(total=len(show_missing_search.candidates(sid)), simulation=engine.as_bool(engine.get_setting("TVManager","simulation_mode","0")))
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
+
+@app.post("/api/shows/<int:sid>/missing-search/start")
+def api_show_missing_start(sid):
+    import show_missing_search
+    try:
+        return jsonify(ok=True, job=show_missing_search.start(sid))
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
+
+
 @app.post("/api/episodes/<int:eid>/search/start")
 def api_episode_search_start(eid):
     body=request.get_json(silent=True) or {}
