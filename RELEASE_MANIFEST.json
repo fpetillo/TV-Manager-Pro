@@ -1,24 +1,24 @@
 {
   "product": "TV Manager",
-  "version": "18.5.13",
-  "release_name": "Editable Configuration Center",
-  "generated_at": "2026-09-09T19:21:34.754925+00:00",
+  "version": "18.5.14",
+  "release_name": "Aired Episode Queue Progress",
+  "generated_at": "2026-09-10T00:27:49.714110+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "All Configurable Settings editor with saved values and 64 application defaults",
-    "Configuration editor shortcuts in Settings menu",
-    "Changed-only saves and error reporting with protected values masked"
+    "Aired-only downloaded and missing totals",
+    "Missing-versus-aired season summaries",
+    "Default missing-share priority before pagination"
   ],
   "validation": {
     "pytest": {
-      "passed": 306,
+      "passed": 307,
       "failed": 0
     },
     "javascript_syntax": "passed",
-    "browser": "Isolated settings value edited, saved and reopened with persistence verified",
+    "browser": "Isolated queue excludes future Season 2 from totals and season summary",
     "fully_green": true
   },
-  "activation": "Restart TV Manager to load default settings catalog and updated template, then refresh Settings.",
+  "activation": "Restart TV Manager and refresh Show Queue for aired-only totals.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

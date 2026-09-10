@@ -764,6 +764,10 @@ def _sort_show_queue_rows(rows, sort, direction):
         return value or "9999-12-31"
     def key(row):
         name=str(row.get("name") or "").casefold()
+        if sort == "aired_missing":
+            total = int(row.get("episode_count") or 0)
+            missing = int(row.get("missing_count") or 0)
+            return (missing / total if total else -1, missing, name)
         if sort in {"downloads", "downloaded", "missing_downloads"}:
             # v18.1: SickChill-style queue priority.  Shows needing attention
             # sort by missing episode count first, then by downloaded/total counts.
@@ -802,6 +806,7 @@ def api_show_queue():
     except Exception: offset=0
     ignore_specials = _ignore_season_zero_counts()
     episode_filter = _queue_episode_filter("e", ignore_specials)
+    aired_filter = " AND date(queue_airdate(e.airdate))<=date('now','localtime')"
     where=[]; params=[]
     if q:
         like=f"%{q}%"; where.append("(s.name LIKE ? COLLATE NOCASE OR COALESCE(s.network,'') LIKE ? COLLATE NOCASE OR COALESCE(s.imdb_id,'') LIKE ? COLLATE NOCASE OR COALESCE(s.location,'') LIKE ? COLLATE NOCASE)"); params.extend([like]*4)
@@ -821,25 +826,37 @@ def api_show_queue():
               (CASE WHEN COALESCE(s.paused,0)=0 AND COALESCE(s.search_enabled,1)=1 THEN 1 ELSE 0 END) active_flag,
               (SELECT MIN(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate>=date('now') {episode_filter}) next_ep,
               (SELECT MAX(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate<date('now') {episode_filter}) prev_ep,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} AND e.location IS NOT NULL AND TRIM(e.location)<>'') downloaded_count,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter}) episode_count,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} AND (e.location IS NULL OR TRIM(e.location)='')) missing_count,
+              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter} AND e.location IS NOT NULL AND TRIM(e.location)<>'') downloaded_count,
+              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter}) episode_count,
+              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter} AND (e.location IS NULL OR TRIM(e.location)='')) missing_count,
               COALESCE((SELECT GROUP_CONCAT('S' || printf('%02d', e.season) || 'E' || printf('%02d', e.episode), ',')
-                        FROM episodes e WHERE e.show_id=s.id {episode_filter}
+                        FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter}
                         AND (e.location IS NULL OR TRIM(e.location)='')
                         ORDER BY e.season,e.episode), '') missing_episode_numbers,
               COALESCE((SELECT SUM(COALESCE(e.file_size,0)) FROM episodes e WHERE e.show_id=s.id {episode_filter}),0) size_bytes
            FROM shows s{where_sql}"""
     with cx() as c:
+        c.create_function("queue_airdate", 1, _normalize_queue_airdate)
         rows=[dict(r) for r in c.execute(sql,params).fetchall()]
     total=len(rows)
     rows=_sort_show_queue_rows(rows, sort, direction)
     page_rows=rows[offset:offset+limit]
+    season_rows = []
+    if page_rows:
+        ids = [r['id'] for r in page_rows]
+        with cx() as c:
+            c.create_function("queue_airdate", 1, _normalize_queue_airdate)
+            season_rows = c.execute(f"""SELECT e.show_id,e.season,COUNT(*) aired_count,
+                SUM(CASE WHEN TRIM(COALESCE(e.location,''))<>'' THEN 1 ELSE 0 END) downloaded_count
+                FROM episodes e WHERE e.show_id IN ({','.join('?' for _ in ids)})
+                {episode_filter} {aired_filter} GROUP BY e.show_id,e.season ORDER BY e.season""", ids).fetchall()
     for row in page_rows:
+        row['season_progress'] = [dict(r) for r in season_rows if r['show_id']==row['id']]
+
         row["next_ep"]=_normalize_queue_airdate(row.get("next_ep"))
         row["prev_ep"]=_normalize_queue_airdate(row.get("prev_ep"))
         row["download_percent"]=_queue_download_percent(row)
-        row["missing_display"]=_queue_missing_display(row)
+        row["missing_display"]=_queue_missing_display(row) if row["episode_count"] else "No aired episodes"
     return jsonify(results=page_rows,total=total,count=len(page_rows),limit=limit,offset=offset,next_offset=(offset+limit if offset+limit<total else None),has_more=offset+limit<total,sort=sort,direction=direction,ignore_season_zero_counts=ignore_specials)
 
 @app.get("/manager")
