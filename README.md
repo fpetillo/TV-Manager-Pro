@@ -1,4 +1,4 @@
-# TV Manager
+# TV Manager Pro
 
 **Current version: 18.5.14**
 
