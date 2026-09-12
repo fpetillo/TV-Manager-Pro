@@ -11,3 +11,4 @@
 
 ### Validation
 - `PYTHONPATH=. python3 -m unittest discover -s tests -v` passed: 130/130.
+- CI workflow was updated to install `requirements-test.txt`; a remote GitHub Actions rerun was not executed from this sandbox session.
