@@ -1,31 +1,31 @@
 {
   "product": "TV Manager",
-  "version": "18.5.14",
-  "release_name": "Aired Episode Queue Progress",
-  "generated_at": "2026-09-10T00:27:49.714110+00:00",
+  "version": "18.5.15",
+  "release_name": "CI pytest dependency alignment",
+  "generated_at": "2026-09-12T09:54:25.722094+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Aired-only downloaded and missing totals",
-    "Missing-versus-aired season summaries",
-    "Default missing-share priority before pagination"
+    "Installed pytest in base requirements for CI test imports",
+    "Resolved unittest discovery import errors in GitHub Actions",
+    "Kept existing test entrypoint and behavior unchanged"
   ],
   "validation": {
-    "pytest": {
-      "passed": 307,
+    "unittest_discover": {
+      "passed": 130,
       "failed": 0
     },
-    "javascript_syntax": "passed",
-    "browser": "Isolated queue excludes future Season 2 from totals and season summary",
-    "fully_green": true
+    "ci_failure_reproduced": "ModuleNotFoundError: No module named pytest",
+    "ci_failure_resolved": true
   },
-  "activation": "Restart TV Manager and refresh Show Queue for aired-only totals.",
+  "activation": "No runtime activation required.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
     "server_preflight.py",
     "library_locations.py",
     "library_destinations.py",
-    "library_storage.py"
+    "library_storage.py",
+    "requirements.txt"
   ],
   "sickchill_full_parity": false
 }

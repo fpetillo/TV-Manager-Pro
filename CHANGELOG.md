@@ -1,3 +1,9 @@
+## 18.5.15 — CI pytest dependency alignment
+
+GitHub Actions `python -m unittest discover -s tests -v` was failing during test-module import because `pytest` was not installed from `requirements.txt`. Added `pytest==8.4.2` to the base requirements so modules importing `pytest` load correctly under CI while preserving the existing unittest discovery flow.
+
+Validation: `PYTHONPATH=. python3 -m unittest discover -s tests -v` passed (130/130).
+
 ## 18.5.14 — Aired episode queue progress
 
 Show Queue now counts only episodes with a valid airdate on or before today (server local date). Future and unknown dates no longer inflate downloaded/total, missing counts or missing episode numbers. Season summaries show missing / aired totals; fully unaired seasons are omitted. Ignored and globally excluded Specials remain excluded. Recorded file paths remain the downloaded criterion; no disk scan is performed. Future shows remain listed with No aired episodes, and Next Ep retains upcoming information.
