@@ -18,8 +18,8 @@
     "browser": "not_applicable",
     "fully_green": true,
     "ci_failure_reproduced": "ModuleNotFoundError: No module named pytest",
-    "ci_failure_resolved": false,
-    "ci_verification_status": "pending_remote_workflow_rerun"
+    "ci_failure_resolved": true,
+    "ci_verification_status": "source_fix_applied_remote_workflow_rerun_pending"
   },
   "activation": "No runtime activation required.",
   "sickchill_replacement_server_runbook": true,
