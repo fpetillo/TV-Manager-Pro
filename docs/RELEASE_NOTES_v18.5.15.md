@@ -10,5 +10,5 @@
 - Several test modules import `pytest` at module scope (for fixtures/context managers), so missing pytest caused import-time failures before tests executed.
 
 ### Validation
-- `PYTHONPATH=. python3 -m unittest discover -s tests -v` passed: 130/130.
-- CI workflow was updated to install `requirements-test.txt`; a remote GitHub Actions rerun was not executed from this sandbox session.
+- Local validation: `PYTHONPATH=. python3 -m unittest discover -s tests -v` passed: 130/130.
+- CI workflow update prepared (`requirements-test.txt` install), but remote GitHub Actions rerun is still pending.
