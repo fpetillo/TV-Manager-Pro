@@ -1,6 +1,6 @@
 ## 18.5.15 — CI pytest dependency alignment
 
-GitHub Actions `python -m unittest discover -s tests -v` was failing during test-module import because `pytest` was not installed in the CI environment. Added `requirements-test.txt` and updated CI to install from it so modules importing `pytest` load correctly while keeping runtime requirements unchanged.
+GitHub Actions `python -m unittest discover -s tests -v` was failing during test-module import because `pytest` was not installed in the CI environment. Added `requirements-test.txt` and updated CI to install from it so modules importing `pytest` load correctly while keeping runtime requirements unchanged. Remote workflow rerun verification is still pending.
 
 Validation: `PYTHONPATH=. python3 -m unittest discover -s tests -v` passed (130/130).
 
