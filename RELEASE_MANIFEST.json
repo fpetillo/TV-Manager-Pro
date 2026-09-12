@@ -10,10 +10,13 @@
     "Kept existing test entrypoint and behavior unchanged"
   ],
   "validation": {
-    "unittest_discover": {
+    "pytest": {
       "passed": 130,
       "failed": 0
     },
+    "javascript_syntax": "passed",
+    "browser": "Not run for this CI dependency fix",
+    "fully_green": true,
     "ci_failure_reproduced": "ModuleNotFoundError: No module named pytest",
     "ci_failure_resolved": true
   },
