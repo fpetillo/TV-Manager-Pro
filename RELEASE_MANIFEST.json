@@ -5,18 +5,18 @@
   "generated_at": "2026-09-12T09:54:25.722094+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Installed pytest in base requirements for CI test imports",
+    "Added dedicated test dependency manifest for CI",
     "Resolved unittest discovery import errors in GitHub Actions",
     "Kept existing test entrypoint and behavior unchanged"
   ],
   "validation": {
-    "pytest": {
+    "unittest_discover": {
       "passed": 130,
       "failed": 0
     },
     "javascript_syntax": "passed",
     "browser": "Not run for this CI dependency fix",
-    "fully_green": true,
+    "fully_green": false,
     "ci_failure_reproduced": "ModuleNotFoundError: No module named pytest",
     "ci_failure_resolved": true
   },
@@ -25,10 +25,13 @@
   "linux_systemd_installer": true,
   "files": [
     "server_preflight.py",
-    "library_locations.py",
-    "library_destinations.py",
-    "library_storage.py",
-    "requirements.txt"
+    ".github/workflows/ci.yml",
+    "requirements-test.txt",
+    "requirements.txt",
+    "VERSION",
+    "CHANGELOG.md",
+    "RELEASE_MANIFEST.json",
+    "docs/RELEASE_NOTES_v18.5.15.md"
   ],
   "sickchill_full_parity": false
 }

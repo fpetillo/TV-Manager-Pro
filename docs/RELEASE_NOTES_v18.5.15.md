@@ -1,7 +1,8 @@
 ## 18.5.15 — CI pytest dependency alignment
 
 ### Fix
-- Added `pytest==8.4.2` to `requirements.txt`.
+- Added `requirements-test.txt` with `pytest==8.4.2`.
+- Updated CI workflow to install from `requirements-test.txt`.
 - Resolves GitHub Actions failures where unittest discovery imports test modules that reference `pytest`.
 
 ### Why this was failing
