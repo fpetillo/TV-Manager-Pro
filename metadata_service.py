@@ -120,14 +120,15 @@ def refresh_show(show_id):
     for season in info.get("seasons",[]):
         sn=season.get("season_number")
         if sn is None:continue
-        try:
-            sd=_tmdb(f"/tv/{tmdb_id}/season/{sn}",{"language":language})
-            season_payloads.append((sn,sd))
-        except Exception:
-            continue
+        sd=_tmdb(f"/tv/{tmdb_id}/season/{sn}",{"language":language})
+        season_payloads.append((sn,sd))
         time.sleep(0.10)
 
     with cx() as c:
+        c.execute('BEGIN IMMEDIATE')
+        current=c.execute('SELECT * FROM shows WHERE id=?',(show_id,)).fetchone()
+        if not current or any(dict(current).get(k)!=dict(show).get(k) for k in ('metadata_provider','episode_order','tmdb_id','tvdb_id')):
+            raise ValueError('Show metadata source changed during refresh; previous episode data was preserved')
         c.execute("""UPDATE shows SET
           tmdb_id=?,imdb_id=COALESCE(NULLIF(?,''),imdb_id),tvdb_id=COALESCE(?,tvdb_id),
           name=COALESCE(NULLIF(name_override,''),?),original_name=?,first_air_date=?,overview=?,poster=?,vote_average=?,

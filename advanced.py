@@ -85,6 +85,9 @@ def init():
             "subtitle_status":"TEXT",
         }.items():
             if name not in cols:c.execute(f'ALTER TABLE episodes ADD COLUMN "{name}" {definition}')
+        provider_cols={r['name'] for r in c.execute('PRAGMA table_info(provider_definitions)')}
+        for name in ('enable_daily','enable_backlog'):
+            if name not in provider_cols:c.execute(f'ALTER TABLE provider_definitions ADD COLUMN {name} INTEGER DEFAULT 1')
         c.commit()
 
 def split_multi_episode(title):
@@ -138,7 +141,10 @@ def provider_defs():
     with cx() as c:return [dict(r)|{"api_key":"••••••••" if r["api_key"] else ""} for r in c.execute("SELECT * FROM provider_definitions ORDER BY priority,name").fetchall()]
 
 def save_provider(d):
+    import provider_manager
+    d=provider_manager.validate(d, validate_url=d.get('enabled') not in (False,0,'0'))
     with cx() as c:
+        provider_manager.unique_name(c,d['name'],f"custom-{d['id']}" if d.get('id') else None)
         if d.get("id"):
             old=c.execute("SELECT api_key FROM provider_definitions WHERE id=?",(d["id"],)).fetchone()
             key=old["api_key"] if d.get("api_key")=="••••••••" and old else d.get("api_key","")
@@ -152,19 +158,16 @@ def save_provider(d):
                           (d["name"],d.get("protocol","newznab"),d["url"],d.get("api_key",""),d.get("categories",""),
                            1 if d.get("enabled",True) else 0,int(d.get("priority",100)),int(d.get("minimum_seeders",0))))
             pid=cur.lastrowid
+        c.execute('UPDATE provider_definitions SET enable_daily=?,enable_backlog=? WHERE id=?',
+                  (int(d['enable_daily']),int(d['enable_backlog']),pid))
         c.commit();return pid
 
 def delete_provider(pid):
     with cx() as c:c.execute("DELETE FROM provider_definitions WHERE id=?",(pid,));c.commit()
 
 def test_provider(pid):
-    with cx() as c:p=c.execute("SELECT * FROM provider_definitions WHERE id=?",(pid,)).fetchone()
-    if not p:raise ValueError("Provider not found")
-    params={"t":"caps"}
-    if p["api_key"]:params["apikey"]=p["api_key"]
-    r=requests.get(p["url"].rstrip("/")+"/api",params=params,timeout=15,headers={"User-Agent":"TVManager/6.0"})
-    r.raise_for_status()
-    return {"ok":True,"status":r.status_code,"bytes":len(r.content)}
+    import provider_manager
+    return provider_manager.test(f'custom-{pid}')
 
 def groups():
     with cx() as c:

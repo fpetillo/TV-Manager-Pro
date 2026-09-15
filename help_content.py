@@ -15,6 +15,17 @@ from parity_catalog import FEATURES
 PARITY_ITEMS = [ParityItem(*row) for row in FEATURES]
 
 HELP_SECTIONS = {
+    "provider-connections": {
+        "title": "Edit and test search providers",
+        "summary": "Use Settings → Search Providers for imported and custom Newznab/Torznab connections.",
+        "steps": ["Edit Provider changes its address, key, categories and enabled/daily/backlog choices.", "A masked key is preserved unless replaced. The provider order list never turns a disabled provider on.", "Test Connection checks capabilities and an authenticated search without downloading a release.", "Usenet news servers belong in the downloader. Indexers supply searchable release information.", "Failed connections show the last safe error and the next automatic retry time."],
+    },
+    "change-metadata": {
+        "title": "Change metadata source or episode order",
+        "summary": "Open a show's Edit Show Settings and choose Change Metadata Source or Episode Order.",
+        "steps": ["Choose TMDb or TVDB and enter that source's show ID. DVD order requires TVDB.", "Preview and verify the show identity and each existing episode match.", "Resolve unmatched episodes. Two existing episodes cannot map to one new episode.", "Type CHANGE and confirm. Episode IDs, file paths, download status and history are preserved.", "Active downloads and stale previews block changes. Scene numbering is cleared for review; use Preview Rename separately if file names should change."],
+    },
+
     "getting-started": {
         "title": "Getting started",
         "summary": "Use Launchpad first, then configure metadata, downloaders, providers, post-processing, and media servers.",

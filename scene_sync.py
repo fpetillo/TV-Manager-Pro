@@ -56,17 +56,24 @@ def refresh(show_id,force=False):
     return {'cached':False,'mappings':len(rows),'message':message}
 
 def for_search(show_id,episode):
+    return search_variants(show_id,episode)[0]
+
+
+def search_variants(show_id,episode):
+    """Search every mapped scene episode; explicit episode overrides take precedence."""
     result=dict(episode)
     # Existing per-episode values are explicit/imported overrides.
-    if result.get('scene_season') is not None and result.get('scene_episode') is not None:return result
+    if result.get('scene_season') is not None and result.get('scene_episode') is not None:return [result]
     with dbcore.connect(DB,readonly=True) as c:
         show=c.execute('SELECT episode_order FROM shows WHERE id=?',(show_id,)).fetchone()
-        if not show or (show['episode_order'] or 'official')!='official':return result
-        row=c.execute('SELECT * FROM xem_mappings WHERE show_id=? AND season=? AND episode=? ORDER BY scene_season,scene_episode LIMIT 1',(show_id,result['season'],result['episode'])).fetchone()
-    if row:
-        result['scene_season']=row['scene_season'];result['scene_episode']=row['scene_episode']
-        result['absolute_number']=row['scene_absolute_number'] or row['absolute_number'] or result.get('absolute_number')
-    return result
+        if not show or (show['episode_order'] or 'official')!='official':return [result]
+        rows=c.execute('SELECT * FROM xem_mappings WHERE show_id=? AND season=? AND episode=? ORDER BY scene_season,scene_episode',(show_id,result['season'],result['episode'])).fetchall()
+    variants=[]
+    for row in rows:
+        variant=dict(result,scene_season=row['scene_season'],scene_episode=row['scene_episode'])
+        variant['absolute_number']=row['scene_absolute_number'] or row['absolute_number'] or result.get('absolute_number')
+        variants.append(variant)
+    return variants or [result]
 
 def episode_rows(c,show_id,season,episode):
     manual=c.execute('SELECT * FROM episodes WHERE show_id=? AND scene_season=? AND scene_episode=?',(show_id,season,episode)).fetchall()

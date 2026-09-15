@@ -131,11 +131,13 @@ def provider_result(name, ok, latency_ms=None, error=None):
                       (successes,avg,latency_ms,now(),name))
         else:
             fails+=1;consecutive+=1
-            cooldown=min(360, 5*(2**max(0,consecutive-1)))
+            cooldown=min(360, 5*(2**min(7,max(0,consecutive-1))))
             suspended=(datetime.now()+timedelta(minutes=cooldown)).replace(microsecond=0).isoformat() if consecutive>=3 else None
+            if getattr(error,'retry_after',None):
+                suspended=(datetime.now()+timedelta(seconds=error.retry_after)).replace(microsecond=0).isoformat()
             c.execute("""UPDATE provider_health SET failure_count=?,consecutive_failures=?,last_failure=?,
                          last_error=?,suspended_until=COALESCE(?,suspended_until) WHERE provider=?""",
-                      (fails,consecutive,now(),str(error or "")[:1000],suspended,name))
+                      (fails,consecutive,now(),__import__('indexer_client').safe_error(error)[:1000],suspended,name))
         c.commit()
 
 def provider_health():
@@ -144,6 +146,7 @@ def provider_health():
     out=[]
     for r in rows:
         d=dict(r);total=d["success_count"]+d["failure_count"]
+        d['last_error']=__import__('indexer_client').redact_error(d.get('last_error'))
         d["success_rate"]=round((d["success_count"]/total*100),1) if total else None
         d["available"]=provider_is_available(d["provider"])
         out.append(d)

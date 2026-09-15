@@ -44,6 +44,14 @@ def test_double_mapping_and_bad_payload():
     with pytest.raises(ValueError):scene_sync.parse(data)
 
 
+def test_all_scene_destinations_are_searchable(store):
+    c=sqlite3.connect(store)
+    c.execute('INSERT INTO xem_mappings VALUES(1,1,1,2,3,1,13)')
+    c.execute('INSERT INTO xem_mappings VALUES(1,1,1,2,4,1,14)');c.commit();c.close()
+    variants=scene_sync.search_variants(1,{'season':1,'episode':1})
+    assert [(v['scene_episode'],v['absolute_number']) for v in variants]==[(3,13),(4,14)]
+
+
 def test_dvd_order_ignores_aired_cache_but_keeps_manual_overrides(store,monkeypatch):
     c=sqlite3.connect(store)
     c.execute("UPDATE shows SET episode_order='dvd'")

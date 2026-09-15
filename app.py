@@ -834,6 +834,38 @@ def manager(): return render_template("manager.html")
 def show_detail_page(sid):
     return render_template("show_detail.html", show_id=sid)
 
+@app.get('/shows/<int:sid>/metadata-change')
+def metadata_change_page(sid):
+    return render_template('metadata_change.html', show_id=sid)
+
+@app.post('/api/shows/<int:sid>/metadata-change/preview')
+def metadata_change_preview(sid):
+    import metadata_migration
+    from itsdangerous import URLSafeTimedSerializer
+    try:
+        plan=metadata_migration.preview(DB,sid,request.get_json(silent=True) or {})
+        token=URLSafeTimedSerializer(app.secret_key,salt='metadata-change').dumps(plan)
+        return jsonify(plan=plan,token=token)
+    except ValueError as error:
+        return jsonify(error=str(error)),400
+
+@app.post('/api/shows/<int:sid>/metadata-change/apply')
+def metadata_change_apply(sid):
+    import metadata_migration,media_operations
+    from itsdangerous import URLSafeTimedSerializer,BadData
+    body=request.get_json(silent=True) or {}
+    try:
+        if body.get('confirmation')!='CHANGE':raise ValueError('Type CHANGE after reviewing the episode matches.')
+        plan=URLSafeTimedSerializer(app.secret_key,salt='metadata-change').loads(body.get('token',''),max_age=1800)
+        if plan['show_id']!=sid:raise ValueError('The preview belongs to another show.')
+        with media_operations.exclusive(BASE):
+            result=metadata_migration.apply(DB,plan,body.get('choices',{}))
+        return jsonify(result)
+    except BadData:
+        return jsonify(error='The preview expired or is invalid. Preview again.'),400
+    except ValueError as error:
+        return jsonify(error=str(error)),400
+
 
 @app.get("/workflow")
 def workflow_page(): return render_template("workflow.html")
@@ -1377,77 +1409,16 @@ def refresh_show_metadata_start(sid):
 
 @app.post("/api/shows/<int:sid>/refresh")
 def refresh_show_metadata(sid):
-    with cx() as c:
-        show=c.execute("SELECT * FROM shows WHERE id=?",(sid,)).fetchone()
-    if not show:
-        return jsonify(error="Show not found"),404
-    if dict(show).get('metadata_provider')=='tvdb':
-        try:return jsonify(ok=True,**metadata_service.refresh_show(sid))
-        except ValueError as exc:return jsonify(error=str(exc)),400
+    with cx(readonly=True) as c:
+        if not c.execute('SELECT id FROM shows WHERE id=?',(sid,)).fetchone():return jsonify(error='Show not found'),404
     try:
-        tmdb_id=resolve_tmdb_show(show)
-        if not tmdb_id:
-            return jsonify(error="Could not match this imported show to TMDb using its current IMDb/TVDb IDs."),404
+        result=metadata_service.refresh_show(sid)
+        inserted,updated=result.get('inserted',0),result.get('updated',0)
+        return jsonify(ok=True,**result,episodes_inserted=inserted,episodes_updated=updated,
+                       message=f'Metadata refreshed. {inserted} episodes added and {updated} existing episodes updated.')
+    except Exception as error:
+        return metadata_error_response(error,500)
 
-        info=tmdb(f"/tv/{tmdb_id}",{"language":dict(show).get("metadata_language") or "en-US","append_to_response":"external_ids"})
-        ext=info.get("external_ids") or {}
-        poster_path=info.get("poster_path")
-        genres=", ".join(x.get("name","") for x in info.get("genres",[]) if x.get("name"))
-        networks=", ".join(x.get("name","") for x in info.get("networks",[]) if x.get("name"))
-
-        inserted=0
-        updated=0
-        with cx() as c:
-            c.execute("""UPDATE shows SET
-                tmdb_id=?, imdb_id=COALESCE(NULLIF(?,''),imdb_id),
-                tvdb_id=COALESCE(?,tvdb_id), name=COALESCE(NULLIF(name_override,''),?), original_name=?,
-                first_air_date=?, overview=?, poster=?, vote_average=?,
-                network=?, genre=?
-                WHERE id=?""",
-                (tmdb_id,ext.get("imdb_id"),ext.get("tvdb_id"),
-                 info.get("name") or show["name"],info.get("original_name"),
-                 info.get("first_air_date"),info.get("overview") or "",
-                 ("https://image.tmdb.org/t/p/w500"+poster_path if poster_path else show["poster"]),
-                 info.get("vote_average"),networks or show["network"],genres or show["genre"],sid))
-
-            today=date.today().isoformat()
-            for season in info.get("seasons",[]):
-                sn=season.get("season_number")
-                if sn is None:
-                    continue
-                try:
-                    sd=tmdb(f"/tv/{tmdb_id}/season/{sn}",{"language":dict(show).get("metadata_language") or "en-US"})
-                except Exception:
-                    continue
-                for ep in sd.get("episodes",[]):
-                    en=ep.get("episode_number")
-                    if en is None:
-                        continue
-                    existing=c.execute("SELECT id,location,status FROM episodes WHERE show_id=? AND season=? AND episode=?",
-                                       (sid,sn,en)).fetchone()
-                    air=ep.get("air_date")
-                    still_path=ep.get("still_path")
-                    still_url=("https://image.tmdb.org/t/p/w500"+still_path) if still_path else None
-                    default_status=__import__("show_preferences").initial_episode_status(show,air,today)
-                    if existing:
-                        c.execute("""UPDATE episodes SET
-                            name=COALESCE(NULLIF(?,''),name),
-                            airdate=COALESCE(NULLIF(?,''),airdate),
-                            overview=COALESCE(NULLIF(?,''),overview),
-                            still_url=COALESCE(NULLIF(?,''),still_url),
-                            tmdb_episode_id=COALESCE(?,tmdb_episode_id),
-                            metadata_updated_at=CURRENT_TIMESTAMP
-                            WHERE id=?""",(ep.get("name"),air,ep.get("overview") or "",still_url,ep.get("id"),existing["id"]))
-                        updated+=1
-                    else:
-                        c.execute("""INSERT INTO episodes(show_id,season,episode,name,airdate,status,overview,still_url,tmdb_episode_id,metadata_updated_at)
-                                     VALUES(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)""",(sid,sn,en,ep.get("name"),air,default_status,ep.get("overview") or "",still_url,ep.get("id")))
-                        inserted+=1
-            c.commit()
-        return jsonify(ok=True,tmdb_id=tmdb_id,episodes_inserted=inserted,episodes_updated=updated,
-                       message=f"Metadata refreshed. {inserted} episodes added and {updated} existing episodes updated.")
-    except Exception as e:
-        return metadata_error_response(e,500)
 
 @app.get("/api/dashboard")
 def dashboard():
@@ -2062,6 +2033,37 @@ def api_downloads():
 @app.get("/api/providers")
 def api_providers():
     return jsonify(results=engine.provider_public())
+
+@app.get('/api/providers/manage')
+def api_provider_manage():
+    import provider_manager
+    return jsonify(results=provider_manager.listing())
+
+@app.patch('/api/providers/manage/<identity>')
+def api_provider_manage_save(identity):
+    import provider_manager
+    try:
+        provider_manager.save(identity, request.get_json(silent=True) or {})
+        return jsonify(ok=True)
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+
+@app.post('/api/providers/manage/<identity>/test')
+def api_provider_manage_test(identity):
+    import provider_manager
+    try:
+        return jsonify(provider_manager.test(identity))
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+
+@app.delete('/api/providers/manage/<identity>')
+def api_provider_manage_remove(identity):
+    import provider_manager
+    try:
+        provider_manager.remove(identity, (request.get_json(silent=True) or {}).get('revision',''))
+        return jsonify(ok=True)
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
 
 @app.get("/api/downloaders")
 def api_downloaders():

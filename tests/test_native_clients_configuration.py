@@ -30,6 +30,55 @@ def getter(section,name,default=''):
     return {'torrent_host':'https://client.test','torrent_username':'user','torrent_password':'secret','torrent_label':'tv','torrent_paused':'1'}.get(name,default)
 
 
+def test_all_native_clients_reach_main_connection_and_polling_workflows(monkeypatch):
+    import engine,downloader_polling
+    calls=[]
+    monkeypatch.setattr(clients,'run',lambda method,get,action,result=None:calls.append((method,action)) or ({} if action=='snapshot' else {'ok':True,'client':clients.NAMES[method]}))
+    monkeypatch.setattr(downloader_polling,'update',lambda db,name,states:{'client':name,'updated':0,'failures':[]})
+    for method,name in clients.NAMES.items():
+        monkeypatch.setattr(engine,'downloader_config_public',lambda method=method:{'use_nzbs':False,'use_torrents':True,'torrent_method':method,'nzb_method':''})
+        assert engine.test_downloaders()==[{'ok':True,'client':name}]
+        assert engine.poll_downloaders()['results'][0]['client']==name
+        assert calls[-2:]==[(method,'test'),(method,'snapshot')]
+
+
+def test_deluge_daemon_upload_label_pause_and_no_automatic_replay(monkeypatch):
+    import deluge_client
+    calls=[];options={}
+    class RPC:
+        connected=False
+        def __init__(self,*a,**kw):options.update(kw)
+        def connect(self):self.connected=True
+        def disconnect(self):calls.append(('disconnect',))
+        def call(self,method,*args):
+            calls.append((method,*args))
+            return {'core.get_torrents_status':{},'core.get_enabled_plugins':['Label'],'label.get_labels':['tv'],'core.add_torrent_file':HASH}.get(method,'2.2')
+    monkeypatch.setattr(deluge_client,'DelugeRPCClient',RPC)
+    monkeypatch.setattr(torrent_metadata,'describe',lambda u:(HASH,TORRENT))
+    assert clients.run('deluged',getter,'send',{'url':'https://provider.test/file'})==HASH
+    upload=next(r for r in calls if r[0]=='core.add_torrent_file')
+    assert upload[-1]['add_paused'] is True and options['automatic_reconnect'] is False and options['timeout']==20
+    assert ('label.set_torrent',HASH,'tv') in calls and calls[-1]==('disconnect',)
+
+
+def test_putio_uses_vendor_token_header_and_uploads_descriptor_bytes(monkeypatch):
+    def get(section,name,default=''):
+        return {'torrent_password':'secret','torrent_path':'15','torrent_paused':'0'}.get(name,default)
+    def handler(method,url,kw):
+        assert kw['headers']['Authorization']=='Bearer secret'
+        assert 'secret' not in url
+        if url.endswith('/files/upload'):
+            assert kw['files']['file'][1]==TORRENT and kw['data']['parent_id']==15
+            return Response({'status':'OK','transfer':{'id':55}})
+        if url.endswith('/transfers/list'):
+            return Response({'status':'OK','transfers':[{'id':55,'percent_done':100,'status':'COMPLETED'}]})
+        return Response({'status':'OK','info':{}})
+    session=Session(handler);monkeypatch.setattr(clients.requests,'Session',lambda:session)
+    monkeypatch.setattr(torrent_metadata,'describe',lambda u:(HASH,TORRENT))
+    assert clients.run('putio',get,'send',{'url':'https://provider.test/file'})=='55'
+    assert clients.run('putio',get,'snapshot')['55']['status']=='Downloaded'
+
+
 def test_exact_torrent_hash_and_magnet_identity(monkeypatch):
     monkeypatch.setattr(torrent_metadata.blackhole,'fetch_payload',lambda *a:TORRENT)
     tid,data=torrent_metadata.describe('https://provider.test/file')

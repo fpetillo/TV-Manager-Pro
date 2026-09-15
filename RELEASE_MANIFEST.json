@@ -1,30 +1,30 @@
 {
   "product": "TV Manager",
-  "version": "18.7.0",
-  "release_name": "Recovery, Processing and Downloader Coverage",
-  "generated_at": "2026-09-15T11:30:46.220010+00:00",
+  "version": "18.8.0",
+  "release_name": "Provider Reliability and Reviewed Metadata Changes",
+  "generated_at": "2026-09-15T12:03:34.025048+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Native reviewed database/configuration restore at restart",
-    "ZIP/RAR processing, scripts and explicit transfer methods",
-    "Persistent jobs and uncertain handoff reconciliation",
-    "uTorrent, rTorrent and Download Station adapters",
-    "Calendar subscriptions, typed settings and stable Windows executable paths"
+    "Imported provider on/off and schedule flags honored, with direct editing and connection checks",
+    "Capability-aware Newznab/Torznab search, bounded paging and protected diagnostics",
+    "Reviewed existing-show metadata source and aired/DVD-order migration",
+    "Deluge daemon and put.io adapters; every native adapter connected to main test/poll workflows",
+    "Scene aliases and mapping review; release-versioned show controls"
   ],
   "validation": {
     "pytest": {
-      "passed": 353,
+      "passed": 385,
       "failed": 0,
       "skipped": 2,
       "skip_reason": "Windows symbolic-link permission unavailable"
     },
-    "python_parse": 61,
-    "javascript_syntax": "38 passed",
+    "python_parse": 64,
+    "javascript_syntax": "39 passed",
     "dependency_consistency": "passed",
-    "clean_install_routes": "Actual isolated Flask initialization, restore token/CSRF and calendar scope/revocation passed",
-    "browser": "Synthetic archive approval/import/script, repeat scan, restart restore, calendar, handoff resolution and settings save passed",
-    "windows_executable": "Built and launched; routes/assets and persistent restart setting passed; compressed RAR worker extracted 2048 bytes",
-    "inno_setup": "Script updated; installer compiler not available",
+    "clean_install_routes": "Real isolated Flask setup covers provider editing/CSRF, invalid migration token and existing restore/calendar flows",
+    "browser": "Isolated provider save; Show Settings migration link; unmatched guard; 35-episode migration preserving recorded file; lazy destination choices and final-version confirmation",
+    "live_provider": "Configured NZBFinder capabilities and authenticated non-download search passed",
+    "windows_executable": "v18.7.0 executable drill remains prior evidence; no v18.8.0 executable or Inno installer build claimed",
     "fully_green": false
   },
   "activation": "Restart TV Manager normally and refresh open pages. Production process was not restarted.",
@@ -48,7 +48,12 @@
     "recover_library.py",
     "runtime_guard.py",
     "server_preflight.py",
-    "torrent_metadata.py"
+    "torrent_metadata.py",
+    "indexer_client.py",
+    "provider_manager.py",
+    "metadata_migration.py",
+    "static/metadata_change.js",
+    "templates/metadata_change.html"
   ],
   "sickchill_full_parity": false
 }

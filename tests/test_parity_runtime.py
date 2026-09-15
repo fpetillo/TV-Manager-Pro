@@ -24,11 +24,12 @@ def test_scene_date_and_absolute_search_queries():
 
 
 def test_provider_receives_date_query_without_season(monkeypatch):
+    import indexer_client
     seen={}
-    def get(url,**kwargs):
-        seen.update(kwargs['params'])
-        return SimpleNamespace(content=b'<rss><channel/></rss>',raise_for_status=lambda:None)
-    monkeypatch.setattr(engine.requests,'get',get)
+    def search(provider,params,timeout):
+        seen.update(params)
+        return []
+    monkeypatch.setattr(indexer_client,'search',search)
     engine.search_generic_provider({'url':'https://example.test','name':'test'},{'name':'Show','air_by_date':1},{'season':1,'episode':2,'airdate':'2026-09-07'})
     assert seen['q']=='Show 2026.09.07' and 'season' not in seen and 'ep' not in seen
 

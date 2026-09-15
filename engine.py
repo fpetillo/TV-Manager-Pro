@@ -631,34 +631,9 @@ def score_release(title, show=None):
     return score, None
 
 def parse_newznab():
-    raw = get_setting("Newznab", "newznab_data", "") or ""
-    raw = raw.strip().strip('"')
-    order = (get_setting("General", "provider_order", "") or "").split()
-    order_map = {name.lower(): idx for idx, name in enumerate(order)}
-    providers = []
-    for chunk in raw.split("!!!"):
-        parts = chunk.split("|")
-        if len(parts) < 2:
-            continue
-        name = parts[0].strip()
-        url = parts[1].strip()
-        key = parts[2].strip() if len(parts) > 2 else ""
-        cats = parts[3].strip() if len(parts) > 3 else ""
-        enabled_field = parts[4].strip() if len(parts) > 4 else "1"
-        # SickChill config variants have changed over time; provider_order is the strongest signal.
-        slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
-        enabled = slug in order_map or name.lower().replace(".", "_") in order_map or enabled_field in {"1", "true", "True"}
-        providers.append({
-            "name": name,
-            "url": url,
-            "api_key": key,
-            "categories": cats,
-            "enabled": enabled,
-            "priority": order_map.get(slug, order_map.get(name.lower().replace(".", "_"), 9999)),
-            "protocol": "nzb",
-        })
-    providers.sort(key=lambda x: (not x["enabled"], x["priority"], x["name"].lower()))
-    return providers
+    import provider_manager
+    return provider_manager.parse(get_setting('Newznab','newznab_data',''), get_setting('General','provider_order',''))
+
 
 def provider_public():
     out = []
@@ -675,88 +650,23 @@ def _xml_text(el, tag):
     return node.text.strip() if node is not None and node.text else None
 
 def search_newznab(provider, show, episode, timeout=25):
-    base = provider["url"].rstrip("/") + "/api"
-    params = {
-        "t": "tvsearch",
-        "q": show["name"],
-        "season": episode["season"],
-        "ep": episode["episode"],
-        "extended": "1",
-        "o": "xml",
-    }
-    params.update(__import__("show_preferences").search_parameters(show,episode))
-    if params["t"]=="search":
-        params.pop("season",None);params.pop("ep",None)
-    if provider["api_key"]:
-        params["apikey"] = provider["api_key"]
-    if provider["categories"]:
-        params["cat"] = provider["categories"]
-    r = requests.get(base, params=params, timeout=timeout,
-                     headers={"User-Agent": "TVManager/4.0"})
-    r.raise_for_status()
-    root = ET.fromstring(r.content)
-    found = []
-    for item in root.findall(".//item"):
-        title = _xml_text(item, "title") or ""
-        link = _xml_text(item, "link") or ""
-        guid = _xml_text(item, "guid") or link or title
-        pub = _xml_text(item, "pubDate")
-        enclosure = item.find("enclosure")
-        size = 0
-        if enclosure is not None:
-            link = enclosure.attrib.get("url") or link
-            try: size = int(enclosure.attrib.get("length") or 0)
-            except Exception: size = 0
-        attrs = {}
-        for node in item.iter():
-            if node.tag.endswith("attr"):
-                n = node.attrib.get("name")
-                if n: attrs[n] = node.attrib.get("value")
-        try: seeders = int(attrs.get("seeders") or 0)
-        except Exception: seeders = 0
-        score, rejected = score_release(title, dict(show))
-        found.append({
-            "provider": provider["name"], "protocol": "nzb", "title": title,
-            "url": link, "guid": guid, "size": size, "publish_date": pub,
-            "seeders": seeders, "quality": infer_quality(title), "score": score,
-            "rejected_reason": rejected,
-        })
-    return found
+    return search_generic_provider(provider, show, episode, timeout)
 
 
 def search_generic_provider(provider, show, episode, timeout=25):
-    base=provider["url"].rstrip("/")+"/api"
-    params={"t":"tvsearch","q":show["name"],"season":episode["season"],"ep":episode["episode"],"extended":"1","o":"xml"}
-    params.update(__import__("show_preferences").search_parameters(show,episode))
-    if params["t"]=="search":
-        params.pop("season",None);params.pop("ep",None)
-    if provider.get("api_key"):params["apikey"]=provider["api_key"]
-    if provider.get("categories"):params["cat"]=provider["categories"]
-    r=requests.get(base,params=params,timeout=timeout,headers={"User-Agent":"TVManager/6.1"})
-    r.raise_for_status()
-    root=ET.fromstring(r.content)
+    import indexer_client, show_preferences
+    params=show_preferences.search_parameters(show,episode)
+    found=indexer_client.search(provider,params,timeout)
+    torrent=provider.get('protocol')=='torznab'
     out=[]
-    for item in root.findall(".//item"):
-        title=_xml_text(item,"title") or "";link=_xml_text(item,"link") or "";guid=_xml_text(item,"guid") or link or title
-        enclosure=item.find("enclosure");size=0
-        if enclosure is not None:
-            link=enclosure.attrib.get("url") or link
-            try:size=int(enclosure.attrib.get("length") or 0)
-            except Exception:size=0
-        attrs={}
-        for node in item.iter():
-            if node.tag.endswith("attr") and node.attrib.get("name"):
-                attrs[node.attrib["name"]]=node.attrib.get("value")
-        try:seeders=int(attrs.get("seeders") or 0)
-        except Exception:seeders=0
-        if provider.get("protocol")=="torznab" and seeders<int(provider.get("minimum_seeders") or 0):
+    for item in found:
+        title=item['title']
+        score,rejected=score_release(title,dict(show))
+        if torrent and item['seeders']<int(provider.get('minimum_seeders') or 0):
             score,rejected=-10000,f"Below minimum seeders ({provider.get('minimum_seeders')})"
-        else:
-            score,rejected=score_release(title,dict(show))
-        out.append({"provider":provider["name"],"protocol":"torrent" if provider.get("protocol")=="torznab" else "nzb",
-                    "title":title,"url":link,"guid":guid,"size":size,"publish_date":_xml_text(item,"pubDate"),
-                    "seeders":seeders,"quality":infer_quality(title),"score":score-(int(provider.get("priority") or 100)/1000),
-                    "rejected_reason":rejected})
+        out.append(dict(item,provider=provider['name'],protocol='torrent' if torrent else 'nzb',
+                        quality=infer_quality(title),score=score-(int(provider.get('priority') or 0)/1000),
+                        rejected_reason=rejected))
     return out
 
 
@@ -777,13 +687,13 @@ def _episode_context(episode_id):
                           WHERE e.id=?""", (episode_id,)).fetchone()
     return dict(row) if row else None
 
-def search_episode(episode_id, auto_grab=False):
+def search_episode(episode_id, auto_grab=False, purpose="manual"):
     import acquisition_guard
     with acquisition_guard.exclusive(DB, 'search', episode_id):
-        return _search_episode(episode_id, auto_grab)
+        return _search_episode(episode_id, auto_grab, purpose)
 
 
-def _search_episode(episode_id, auto_grab=False):
+def _search_episode(episode_id, auto_grab=False, purpose="manual"):
     ctx = _episode_context(episode_id)
     if not ctx:
         raise ValueError("Episode not found")
@@ -796,19 +706,34 @@ def _search_episode(episode_id, auto_grab=False):
         "preferred_words": ctx["preferred_words"], "required_words": ctx["required_words"],
         "ignored_words": ctx["ignored_words"], "quality": ctx["show_quality"], "quality_profile_id": ctx["quality_profile_id"],
     }
-    names=advanced.aliases(ctx["show_id"])
-    if names: show["search_name"]=names[0]
+    names=list(dict.fromkeys([show['name'],*advanced.aliases(ctx['show_id'])]))
     episode = dict(ctx)
+    variants=[episode]
     if ctx.get("scene_numbering"):
         import scene_sync
-        episode=scene_sync.for_search(ctx["show_id"],episode)
+        variants=scene_sync.search_variants(ctx["show_id"],episode)
     show.update({key:ctx.get(key) for key in ("scene_numbering","air_by_date","sports","anime")})
-    providers = [p for p in parse_newznab() if p["enabled"]]
-    custom = advanced.provider_defs_raw()
+    import provider_manager
+    providers = [p for p in parse_newznab() if provider_manager.eligible(p,purpose)]
+    custom = [p for p in advanced.provider_defs_raw() if provider_manager.eligible(p,purpose)]
     if as_bool(get_setting("General", "randomize_providers", "0")):
         import random
         random.shuffle(providers);random.shuffle(custom)
     all_results = []
+    def search_variants(searcher,provider):
+        import show_preferences
+        results=[];queries=set()
+        for variant in variants:
+            for name in names:
+                search_show=dict(show,search_name=name)
+                query=tuple(sorted(show_preferences.search_parameters(search_show,variant).items()))
+                if query in queries:continue
+                queries.add(query)
+                try:results.extend(searcher(provider,search_show,variant))
+                except Exception as error:
+                    error.partial_results=results
+                    raise
+        return results
     errors = [] if providers or custom else ["No enabled search providers are configured. Open Settings to configure one."]
     for p in providers:
         if not ops.provider_is_available(p["name"]):
@@ -816,12 +741,13 @@ def _search_episode(episode_id, auto_grab=False):
             continue
         started=time.perf_counter()
         try:
-            all_results.extend(search_newznab(p, show, episode))
+            all_results.extend(search_variants(search_newznab,p))
             ops.provider_result(p["name"],True,(time.perf_counter()-started)*1000)
         except Exception as e:
+            all_results.extend(getattr(e,'partial_results',[]))
             ops.provider_result(p["name"],False,(time.perf_counter()-started)*1000,e)
-            errors.append(f'{p["name"]}: {e}')
-            log("provider_error", f'{p["name"]} search failed: {e}', "warning",
+            errors.append(f'{p["name"]}: {__import__("indexer_client").safe_error(e)}')
+            log("provider_error", f'{p["name"]} search failed: {__import__("indexer_client").safe_error(e)}', "warning",
                 show_id=show["id"], episode_id=episode_id)
     for p in custom:
         if not ops.provider_is_available(p["name"]):
@@ -829,13 +755,17 @@ def _search_episode(episode_id, auto_grab=False):
             continue
         started=time.perf_counter()
         try:
-            all_results.extend(search_generic_provider(p,show,episode))
+            all_results.extend(search_variants(search_generic_provider,p))
             ops.provider_result(p["name"],True,(time.perf_counter()-started)*1000)
         except Exception as e:
+            all_results.extend(getattr(e,'partial_results',[]))
             ops.provider_result(p["name"],False,(time.perf_counter()-started)*1000,e)
-            errors.append(f'{p["name"]}: {e}')
-            log("provider_error",f'{p["name"]} search failed: {e}',"warning",
+            errors.append(f'{p["name"]}: {__import__("indexer_client").safe_error(e)}')
+            log("provider_error",f'{p["name"]} search failed: {__import__("indexer_client").safe_error(e)}',"warning",
                 show_id=show["id"],episode_id=episode_id)
+    if len(variants)>1:
+        for item in all_results:
+            item['rejected_reason']='Multiple scene episodes map to this episode. Review scene numbering before retrieving a single file.'
     all_results=[ops.apply_rules(x) for x in all_results]
     deduped=[];seen=set()
     for x in all_results:
@@ -891,8 +821,8 @@ def downloader_config_public():
             "category": get_setting("NZBGet","nzbget_category","tv"),
         },
         "torrent": {
-            "configured": bool(get_setting("TORRENT", "torrent_host", "")),
-            "host": get_setting("TORRENT", "torrent_host", ""),
+            "configured": bool(get_setting("TORRENT", "torrent_password" if torrent_method=="putio" else "torrent_host", "")),
+            "host": "https://api.put.io/v2" if torrent_method=="putio" else get_setting("TORRENT", "torrent_host", ""),
             "label": get_setting("TORRENT", "torrent_label", ""),
         },
     }
@@ -1012,6 +942,11 @@ def test_downloaders():
     if cfg["use_torrents"] and cfg["torrent_method"] == "deluge":
         try: out.append(test_deluge())
         except Exception as e: out.append({"ok":False,"client":"Deluge","error":str(e)})
+    import native_downloaders
+    method=cfg['torrent_method']
+    if cfg['use_torrents'] and method in native_downloaders.NAMES:
+        try:out.append(native_downloaders.run(method,get_setting,'test'))
+        except Exception:out.append({'ok':False,'client':native_downloaders.NAMES[method],'error':'Connection failed; check downloader address, credentials and availability'})
     return out
 
 def send_sab(result):
@@ -1176,8 +1111,8 @@ def run_search_job(kind="recent", auto_grab=None):
     for eid in ids:
         stats["searched"] += 1
         try:
-            res = search_episode(eid, auto_grab=auto_grab)
-            stats["errors"].extend(res.get("errors") or [])
+            res = search_episode(eid, auto_grab=auto_grab, purpose=kind)
+            stats["errors"] = list(dict.fromkeys([*stats["errors"], *(res.get("errors") or [])]))
             stats["found"] += len([x for x in res["results"] if not x.get("rejected_reason")])
             if res.get("grabbed"): stats["grabbed"] += 1
         except Exception as e:
@@ -1426,7 +1361,7 @@ def downloader_monitor(limit=200):
         else: configured.append({"type":"nzb","client":method,"configured":method=="blackhole","host":"","category":""})
     if cfg.get("use_torrents"):
         method=cfg.get("torrent_method") or "not selected"
-        if method in {"qbittorrent","transmission","deluge","utorrent","rtorrent","download_station"}: configured.append({"type":"torrent","client":method,"configured":cfg["torrent"].get("configured"),"host":cfg["torrent"].get("host"),"category":cfg["torrent"].get("label")})
+        if method in {"qbittorrent","transmission","deluge","deluged","utorrent","rtorrent","download_station","putio"}: configured.append({"type":"torrent","client":method,"configured":cfg["torrent"].get("configured"),"host":cfg["torrent"].get("host"),"category":cfg["torrent"].get("label")})
         else: configured.append({"type":"torrent","client":method,"configured":method=="blackhole","host":"","category":""})
     ready = any(x.get("configured") for x in configured)
     return {
@@ -1603,6 +1538,17 @@ def poll_downloaders():
     clients=[]
     if cfg["use_nzbs"] and cfg["nzb_method"]=="nzbget":clients.append("NZBGet")
     if cfg["use_torrents"] and cfg["torrent_method"] in {"transmission","deluge"}:clients.append({"transmission":"Transmission","deluge":"Deluge"}[cfg["torrent_method"]])
+    import native_downloaders
+    method=cfg['torrent_method']
+    if cfg['use_torrents'] and method in native_downloaders.NAMES:
+        client=native_downloaders.NAMES[method]
+        try:
+            result=update(DB,client,native_downloaders.run(method,get_setting,'snapshot'))
+            for failure in result.pop('failures',[]):
+                try:advanced.fire_webhooks('failed',failure)
+                except Exception:pass
+            results.append(result)
+        except Exception:results.append({'client':client,'error':'Polling failed; check client availability and configuration'})
     for client in clients:
         try:
             result=update(DB,client,snapshot(client,get_setting))

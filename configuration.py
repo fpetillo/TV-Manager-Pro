@@ -3,13 +3,14 @@ from urllib.parse import urlparse
 
 BOOL_NAMES=set("rename_episodes move_associated_files process_automatically randomize_providers use_nzbs use_torrents unpack ignore_season_zero_counts automation_enabled auto_grab simulation_mode subtitle_scan_network_paths refresh_media_servers_after_process sab_forced torrent_paused email_tls api_auth_enabled".split())
 CHOICES={('general','nzb_method'):['','sabnzbd','nzbget','blackhole'],
-         ('general','torrent_method'):['','qbittorrent','transmission','deluge','utorrent','rtorrent','download_station','blackhole'],
+         ('general','torrent_method'):['','qbittorrent','transmission','deluge','deluged','utorrent','rtorrent','download_station','putio','blackhole'],
          ('general','process_method'):['move','copy','hardlink','symlink','symlink_reversed']}
 RANGES={'recent_days':(1,90),'max_searches_per_run':(1,200),'metadata_missing_limit':(1,2000),
         'artwork_refresh_limit':(1,2000),'background_worker_limit':(1,16),'subtitle_scan_max_seconds':(1,3600),
         'subtitle_scan_max_candidates':(1,10000),'email_port':(1,65535),'archive_max_bytes':(1048576,1099511627776),
         'archive_max_seconds':(1,3600),'archive_max_members':(1,100000)}
 EDITORS={('general','root_dirs'):('/library-storage','Edit Library Locations'),
+         ('newznab','newznab_data'):('/settings#providers','Edit Search Providers'),
          ('tvmanager','postprocess_scripts'):('/postprocess','Edit Processing Scripts'),
          ('tvmanager','calendar_token_hash'):('/upcoming','Manage Calendar Subscription')}
 

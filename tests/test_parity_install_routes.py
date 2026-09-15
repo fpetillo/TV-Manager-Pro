@@ -51,6 +51,16 @@ assert client.get('/api/postprocess/scripts').status_code==200
 assert client.post('/api/postprocess/config',json={'process_method':'delete'},headers=headers).status_code==400
 assert client.patch('/api/settings/section/TVManager/background_worker_limit',json={'value':'99'},headers=headers).status_code==400
 assert client.get('/api/downloaders/handoffs').get_json()['results']==[]
+assert client.get('/api/providers/manage').status_code==200
+provider=client.post('/api/providers/custom',json={'name':'Route Fixture','url':'https://fixture.test/api','enabled':False,'enable_daily':False},headers=headers)
+assert provider.status_code==200,provider.data
+pid=provider.get_json()['id']
+assert client.get('/api/providers/manage').get_json()['results'][0]['enabled']==0
+assert client.patch('/api/providers/manage/custom-'+str(pid),json={'enabled':False,'enable_daily':True}).status_code==403
+assert client.patch('/api/providers/manage/custom-'+str(pid),json={'enabled':False,'enable_daily':True},headers=headers).status_code==200
+assert client.get('/api/providers/manage').get_json()['results'][0]['enable_daily']==1
+assert client.get('/shows/1/metadata-change').status_code==200
+assert client.post('/api/shows/1/metadata-change/apply',json={'token':'invalid','confirmation':'CHANGE'},headers=headers).status_code==400
 backup=database_safety.backup_database(app.DB,reason='route-test')['backup']
 r=client.post('/api/protection/restore/preview',json={'path':backup},headers=headers);assert r.status_code==200,r.data
 preview=r.get_json();assert 'token' in preview

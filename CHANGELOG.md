@@ -1,3 +1,11 @@
+## 18.8.0 — Provider reliability and reviewed metadata changes
+
+Imported provider order no longer re-enables disabled providers. Daily/backlog flags now govern automatic searches. Settings includes editable imported/custom providers, tested API capabilities and authentication, safe XML error reporting, rate-limit cooldowns and bounded paging. Reviewed TMDb/TVDB source and aired/DVD migration preserves episode IDs, files and history; stale/unmatched/active-download changes are blocked. Metadata refreshes share one guarded implementation.
+
+Added Deluge daemon and put.io. Connected every native adapter to the main connection-test and polling loops, correcting an omission in18.7.0. All stored aliases and scene destinations are searched; split scene episodes require review. Show-control scripts use the release version.
+
+See [release notes](docs/RELEASE_NOTES_v18.8.0.md), the current validation manifest and the explicit parity audit. Full SickChill parity is not claimed. Production activation requires a normal restart.
+
 ## 18.7.0 — Recovery, processing and downloader coverage
 
 Added reviewed database/config restore at restart, rollback after failed startup, offline recovery, ZIP/RAR staging and configured post-processing scripts. Manual job history persists, and uncertain download handoffs reserve episodes for explicit review instead of automatic resend. Season packs cannot overlap individual handoffs. Added native uTorrent, rTorrent HTTP XML-RPC and Synology Download Station, real watch-folder descriptors, reliable HTTP torrent identity and corrected Deluge magnet/file dispatch.

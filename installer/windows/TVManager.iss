@@ -1,6 +1,6 @@
 ; TV Manager Inno Setup starter script
 #define MyAppName "TV Manager"
-#define MyAppVersion "18.7.0"
+#define MyAppVersion "18.8.0"
 #define MyAppPublisher "Acuityware"
 #define MyAppExeName "TVManager.exe"
 

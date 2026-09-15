@@ -241,45 +241,25 @@ def season_pack_search(show_id,season):
     with cx() as c:
         show=c.execute("SELECT * FROM shows WHERE id=?",(show_id,)).fetchone()
     if not show:raise ValueError("Show not found")
-    q=f'{show["name"]} S{season:02d}'
-    providers=[p for p in engine.parse_newznab() if p["enabled"]]
-    custom=advanced.provider_defs_raw()
+    import indexer_client
+    providers=[p for p in engine.parse_newznab() if p['enabled']]+advanced.provider_defs_raw()
     found=[];errors=[]
-    # Reuse provider APIs but issue season query without episode.
-    def parse_response(name,protocol,url,key,categories,min_seeders=0):
-        params={"t":"tvsearch","q":q,"season":season,"extended":"1","o":"xml"}
-        if key:params["apikey"]=key
-        if categories:params["cat"]=categories
-        r=requests.get(url.rstrip("/")+"/api",params=params,timeout=25,headers={"User-Agent":"TVManager/10.0"})
-        r.raise_for_status()
-        import xml.etree.ElementTree as ET
-        root=ET.fromstring(r.content);items=[]
-        for item in root.findall(".//item"):
-            title=item.findtext("title") or "";link=item.findtext("link") or "";guid=item.findtext("guid") or link or title
-            if not re.search(fr"(?i)\bS{season:02d}\b",title):continue
-            if re.search(r"(?i)S\d{2}E\d{2}",title):continue
-            enc=item.find("enclosure");size=0
-            if enc is not None:
-                link=enc.attrib.get("url") or link
-                try:size=int(enc.attrib.get("length") or 0)
-                except:size=0
-            attrs={}
-            for node in item.iter():
-                if node.tag.endswith("attr") and node.attrib.get("name"):attrs[node.attrib["name"]]=node.attrib.get("value")
-            try:seeders=int(attrs.get("seeders") or 0)
-            except:seeders=0
-            if seeders<int(min_seeders or 0):continue
-            score,reject=engine.score_release(title,dict(show))
-            if reject:continue
-            items.append({"provider":name,"protocol":protocol,"title":title,"url":link,"guid":guid,"size":size,
-                          "seeders":seeders,"quality":engine.infer_quality(title),"score":score})
-        return items
     for p in providers:
-        try:found+=parse_response(p["name"],"nzb",p["url"],p.get("api_key"),p.get("categories"))
-        except Exception as e:errors.append(f'{p["name"]}: {e}')
-    for p in custom:
-        try:found+=parse_response(p["name"],"torrent" if p["protocol"]=="torznab" else "nzb",p["url"],p.get("api_key"),p.get("categories"),p.get("minimum_seeders"))
-        except Exception as e:errors.append(f'{p["name"]}: {e}')
+        if not engine.ops.provider_is_available(p['name']):
+            errors.append(p['name']+': temporarily suspended after repeated failures');continue
+        try:
+            items=indexer_client.search(p,{'t':'tvsearch','q':show['name'],'season':season})
+            for item in items:
+                title=item['title']
+                if not re.search(fr'(?i)\bS{season:02d}\b',title) or re.search(r'(?i)S\d{2}E\d{2}',title):continue
+                if p.get('protocol')=='torznab' and item['seeders']<int(p.get('minimum_seeders') or 0):continue
+                score,reject=engine.score_release(title,dict(show))
+                if reject:continue
+                found.append(dict(item,provider=p['name'],protocol='torrent' if p.get('protocol')=='torznab' else 'nzb',quality=engine.infer_quality(title),score=score))
+            engine.ops.provider_result(p['name'],True)
+        except Exception as error:
+            engine.ops.provider_result(p['name'],False,error=error)
+            errors.append(p['name']+': '+indexer_client.safe_error(error))
     found.sort(key=lambda x:(-x["score"],-(x["seeders"] or 0),-(x["size"] or 0)))
     with cx() as c:
         c.execute("DELETE FROM season_pack_searches WHERE show_id=? AND season=?",(show_id,season))

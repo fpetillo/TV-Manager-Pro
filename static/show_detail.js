@@ -1,8 +1,9 @@
 
 async function ensureFolderEditor(){
-  for(const [globalName,url] of [['previewLibraryRename','/static/library_rename.js?v=18.4.1'],['editShowPreferences','/static/show_preferences.js?v=18.5.9'],['loadLibraryStorage','/static/library_storage.js?v=folder-editor4'],['chooseShowDestination','/static/show_destination.js?v=folder-editor4']]){
+  const version=new URL(document.querySelector('script[src*="/static/show_detail.js"]')?.src||location.href).searchParams.get('v')||String(Date.now());
+  for(const [globalName,path] of [['previewLibraryRename','/static/library_rename.js'],['editShowPreferences','/static/show_preferences.js'],['loadLibraryStorage','/static/library_storage.js'],['chooseShowDestination','/static/show_destination.js']]){
     if(typeof window[globalName]==='function')continue;
-    await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(new Error('Could not load folder editor. Refresh and retry.'));document.head.append(script);});
+    await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=path+'?v='+encodeURIComponent(version);script.onload=resolve;script.onerror=()=>reject(new Error('Could not load show controls. Refresh and retry.'));document.head.append(script);});
   }
 }
 const page=document.querySelector('.show-detail-page');

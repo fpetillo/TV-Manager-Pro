@@ -97,8 +97,10 @@ def refresh_show(show,db=None):
     db=db or DB;info,seasons=show_payload(show,db)
     inserted=updated=0
     with dbcore.connect(db) as c:
-        current=c.execute('SELECT tvdb_id,metadata_provider FROM shows WHERE id=?',(show['id'],)).fetchone()
+        c.execute('BEGIN IMMEDIATE')
+        current=c.execute('SELECT * FROM shows WHERE id=?',(show['id'],)).fetchone()
         if not current or current['tvdb_id']!=show['tvdb_id'] or current['metadata_provider']!='tvdb':raise ValueError('Show metadata source changed during refresh')
+        if (dict(current).get('episode_order') or 'official')!=(show.get('episode_order') or 'official'):raise ValueError('Show episode order changed during refresh')
         c.execute("UPDATE shows SET name=COALESCE(NULLIF(name_override,''),?),overview=?,poster=COALESCE(?,poster),first_air_date=?,network=?,genre=? WHERE id=?",
                   (info['name'],info['overview'],info.get('poster'),info['first_air_date'],', '.join(n.get('name','') for n in info['networks']),', '.join(g.get('name','') for g in info['genres']),show['id']))
         for season,payload in seasons:

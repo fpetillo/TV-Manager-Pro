@@ -13,7 +13,45 @@ async function loadClients(){const r=await fetch("/api/downloaders"),d=await r.j
 pollClients.onclick=async()=>{pollClients.disabled=true;clientTest.innerHTML='<p class="muted">Polling downloader status…</p>';const r=await fetch("/api/downloaders/poll",{method:"POST"}),d=await r.json();clientTest.innerHTML=r.ok?d.results.map(x=>`<div class="notice ${x.error?"warn":"good"}">${esc(x.client)}: ${x.error?esc(x.error):`${x.checked||0} checked • ${x.updated||0} updated${x.active!=null?` • ${x.active} active • ${x.complete} complete`:""}`}</div>`).join(""):`<div class="notice warn">${esc(d.error||"Polling failed")}</div>`;pollClients.disabled=false}
 
 testClients.onclick=async()=>{testClients.disabled=true;clientTest.innerHTML='<p class="muted">Testing connections…</p>';const r=await fetch("/api/downloaders/test",{method:"POST"}),d=await r.json();clientTest.innerHTML=d.results.map(x=>`<div class="notice ${x.ok?"good":"warn"}">${esc(x.client)}: ${x.ok?"Connected "+esc(x.version||""):"Failed — "+esc(x.error)}</div>`).join("");testClients.disabled=false}
-async function loadProviders(){const r=await fetch("/api/providers"),d=await r.json();providers.innerHTML=d.results.length?`<div class="provider-grid">${d.results.map(p=>`<div class="service-card ${p.enabled?"":"disabled-card"}"><div class="result-top"><h3>${esc(p.name)}</h3><span class="status-pill">${p.enabled?"Enabled":"Disabled"}</span></div><p>${esc(p.url)}</p><small>Categories ${esc(p.categories||"all")} • API ${p.has_api_key?"configured":"missing"} • priority ${p.priority}</small></div>`).join("")}</div>`:'<p class="muted">No Newznab providers imported.</p>'}
+let searchProviderRows=[];
+async function providerRequest(url,method='GET',body){
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||'Provider request failed');return d;
+}
+async function loadProviders(){
+  try{
+    const d=await providerRequest('/api/providers/manage');searchProviderRows=d.results;
+    providers.innerHTML=d.results.length?`<div class="provider-grid">${d.results.map(p=>{
+      const h=p.health||{};
+      return `<div class="service-card ${p.enabled?'':'disabled-card'}"><div class="result-top"><h3>${esc(p.name)}</h3><span class="status-pill">${p.enabled?'Enabled':'Disabled'}</span></div><p>${esc(p.url)}</p><small>${esc(p.origin)} • API key ${p.has_api_key?'saved':'empty'} • Daily ${p.enable_daily?'on':'off'} • Backlog ${p.enable_backlog?'on':'off'}</small>${p.configuration_issue?`<p class="notice warn">${esc(p.configuration_issue)}</p>`:''}${h.last_error?`<p class="notice warn">${esc(h.last_error)}${!h.available?` Next automatic retry: ${esc(h.suspended_until)}.`:''}</p>`:h.last_success?`<p class="muted">Last successful check: ${esc(h.last_success)}</p>`:''}<div class="actions"><button data-provider-edit="${esc(p.id)}" class="secondary">Edit Provider</button><button data-provider-test="${esc(p.id)}" class="secondary">Test Connection</button></div></div>`;
+    }).join('')}</div>`:'<p class="muted">No search providers configured. Add a Newznab or Torznab indexer.</p>';
+    providers.querySelectorAll('[data-provider-edit]').forEach(b=>b.onclick=()=>editSearchProvider(searchProviderRows.find(p=>p.id===b.dataset.providerEdit)));
+    providers.querySelectorAll('[data-provider-test]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;providerMessage.textContent='Checking indexer capabilities and authenticated search…';
+      try{const result=await providerRequest(`/api/providers/manage/${b.dataset.providerTest}/test`,'POST');providerMessage.textContent=result.message;}catch(e){providerMessage.textContent=e.message;}finally{b.disabled=false;await loadProviders();}
+    });
+  }catch(e){providerMessage.textContent=e.message;}
+}
+function editSearchProvider(p={}){
+  const imported=String(p.id||'').startsWith('imported-');
+  providerEdit.innerHTML=`<form id="searchProviderForm" class="result-card"><h3>${p.id?'Edit':'Add'} Search Provider</h3><div class="form-grid"><label>Name<input name="name" required value="${esc(p.name||'')}"></label><label>Protocol<select name="protocol" ${imported?'disabled':''}><option value="newznab">Newznab (NZB)</option><option value="torznab" ${p.protocol==='torznab'?'selected':''}>Torznab (torrent)</option></select></label><label class="span2">Indexer URL<input name="url" required value="${esc(p.url||'')}" placeholder="https://indexer.example/api"></label><label>API key<input name="api_key" type="password" autocomplete="off" value="${p.has_api_key?'••••••••':''}"></label><label>Category IDs<input name="categories" value="${esc(p.categories||'')}" placeholder="5000"></label>${imported?'':`<label>Priority<input type="number" min="0" max="100000" name="priority" value="${p.priority??100}"></label><label>Minimum seeders<input type="number" min="0" max="100000" name="minimum_seeders" value="${p.minimum_seeders??0}"></label>`}<label class="checkline"><input type="checkbox" name="enabled" ${p.enabled!==false&&p.enabled!==0?'checked':''}>Enabled</label><label class="checkline"><input type="checkbox" name="enable_daily" ${p.enable_daily!==false&&p.enable_daily!==0?'checked':''}>Daily searches</label><label class="checkline"><input type="checkbox" name="enable_backlog" ${p.enable_backlog!==false&&p.enable_backlog!==0?'checked':''}>Backlog searches</label></div><div class="actions"><button type="submit" class="blue">Save Provider</button><button type="button" id="cancelProviderEdit" class="secondary">Cancel</button>${p.id?'<button type="button" id="removeSearchProvider" class="danger">Remove Provider…</button>':''}</div><div id="providerFormMessage" role="status"></div></form>`;
+  const form=document.getElementById('searchProviderForm');
+  form.onsubmit=async event=>{
+    event.preventDefault();const button=form.querySelector('[type="submit"]');button.disabled=true;
+    const data=Object.fromEntries(new FormData(form));for(const key of ['enabled','enable_daily','enable_backlog'])data[key]=form.elements[key].checked;
+    data.revision=p.revision;if(imported)data.protocol='nzb';
+    try{await providerRequest(p.id?`/api/providers/manage/${p.id}`:'/api/providers/custom',p.id?'PATCH':'POST',data);providerEdit.innerHTML='';providerMessage.textContent='Provider settings saved.';await loadProviders();}catch(e){document.getElementById('providerFormMessage').textContent=e.message;}finally{button.disabled=false;}
+  };
+  document.getElementById('cancelProviderEdit').onclick=()=>{providerEdit.innerHTML='';};
+  const remove=document.getElementById('removeSearchProvider');if(remove)remove.onclick=()=>{
+    document.getElementById('providerFormMessage').innerHTML=`<p>Remove ${esc(p.name)} from search providers?</p><button type="button" id="confirmProviderRemoval" class="danger">Confirm Removal</button>`;
+    document.getElementById('confirmProviderRemoval').onclick=async function(){this.disabled=true;try{await providerRequest(`/api/providers/manage/${p.id}`,'DELETE',{revision:p.revision});providerEdit.innerHTML='';providerMessage.textContent='Provider removed.';await loadProviders();}catch(e){document.getElementById('providerFormMessage').textContent=e.message;}};
+  };
+  form.elements.name.focus();providerEdit.scrollIntoView({block:'nearest'});
+}
+addSearchProvider.onclick=()=>editSearchProvider();
+if(location.hash==='#providers')document.querySelector('[data-view="providers"]').click();
+
 async function loadNotifications(){const r=await fetch("/api/notifications"),d=await r.json();notifications.innerHTML=d.results.length?`<div class="provider-grid">${d.results.map(n=>`<div class="service-card"><div class="result-top"><h3>${esc(n.section)}</h3><span class="status-pill ${n.enabled?"Downloaded":""}">${n.enabled?"Enabled":"Configured"}</span></div><small>${n.settings} imported settings</small></div>`).join("")}</div>`:'<p class="muted">No notification sections found.</p>'}
 testEmail.onclick=async()=>{testEmail.disabled=true;const r=await fetch("/api/notifications/email/test",{method:"POST"}),d=await r.json();notificationMsg.className=r.ok?"notice good":"notice warn";notificationMsg.textContent=r.ok?"Test email sent.":d.error;testEmail.disabled=false}
 let sectionData=[];async function loadSections(){const r=await fetch("/api/settings/sections"),d=await r.json();sectionData=d.results;renderSections()}

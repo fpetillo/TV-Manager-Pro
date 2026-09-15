@@ -10,7 +10,7 @@ from xmlrpc.client import dumps,loads,Binary
 import requests
 import torrent_metadata
 
-NAMES={'utorrent':'uTorrent','rtorrent':'rTorrent','download_station':'DownloadStation'}
+NAMES={'utorrent':'uTorrent','rtorrent':'rTorrent','download_station':'DownloadStation','deluged':'DelugeDaemon','putio':'put.io'}
 
 
 def ratio(value,total=1):
@@ -142,7 +142,83 @@ class DownloadStation(Client):
         super().__exit__(*args)
 
 
-CLASSES={'utorrent':UTorrent,'rtorrent':RTorrent,'download_station':DownloadStation}
+class DelugeDaemon(Client):
+    def connect(self):
+        from deluge_client import DelugeRPCClient
+        parsed=urlparse(self.host)
+        # Deluge's native RPC uses its own TLS protocol and daemon certificate.
+        self.rpc_client=DelugeRPCClient(parsed.hostname,parsed.port or 58846,self.option('username'),self.option('password'),
+                                        decode_utf8=True,automatic_reconnect=False,timeout=20)
+        self.rpc_client.connect()
+        if not self.rpc_client.connected:raise ValueError('Deluge daemon authentication failed')
+        self.rpc_client.call('daemon.info')
+    def rpc(self,method,*args):return self.rpc_client.call(method,*args)
+    def snapshot(self):
+        rows=self.rpc('core.get_torrents_status',{},['progress','state','is_finished']) or {}
+        return {str(tid).lower():state(ratio(row.get('progress'),100),failed=row.get('state')=='Error',
+                complete=bool(row.get('is_finished')) or row.get('state')=='Seeding',queued=row.get('state') in {'Paused','Queued'}) for tid,row in rows.items()}
+    def send(self,result):
+        import base64
+        tid,data=torrent_metadata.describe(result['url'])
+        if tid in self.snapshot():return tid
+        label=self.option('label').strip().lower()
+        if label:
+            if not re.fullmatch(r'[a-z0-9_-]+',label):raise ValueError('Deluge labels use lowercase letters, numbers, underscores or hyphens')
+            if 'Label' not in self.rpc('core.get_enabled_plugins'):raise ValueError('Enable the Deluge Label plugin before using a download label')
+            if label not in self.rpc('label.get_labels'):self.rpc('label.add',label)
+        options={'add_paused':self.paused()}
+        if self.option('path'):options['download_location']=self.option('path')
+        accepted=self.rpc('core.add_torrent_file','tvmanager.torrent',base64.b64encode(data).decode('ascii'),options) if data else self.rpc('core.add_torrent_magnet',result['url'],options)
+        if not accepted:raise ValueError('Deluge daemon did not return a torrent ID; review its queue')
+        accepted=str(accepted).lower()
+        if accepted!=tid:raise ValueError('Deluge returned a different torrent identity; review its queue')
+        if label:self.rpc('label.set_torrent',accepted,label)
+        return accepted
+    def __exit__(self,*args):
+        try:
+            if getattr(self,'rpc_client',None):self.rpc_client.disconnect()
+        finally:super().__exit__(*args)
+
+
+class PutIO(Client):
+    def __init__(self,get):
+        # Fixed vendor endpoint; imported SickChill password holds the OAuth token.
+        super().__init__(lambda section,key,default='':'https://api.put.io/v2' if key=='torrent_host' else get(section,key,default))
+        self.headers={'Authorization':'Bearer '+self.option('password')}
+    def rpc(self,method,path,**kwargs):
+        value=self.request(method,self.host+path,headers=self.headers,**kwargs).json()
+        if value.get('status')!='OK':raise ValueError('put.io rejected the request; check account access and quota')
+        return value
+    def connect(self):
+        if not self.option('password'):raise ValueError('Set the put.io OAuth token in the torrent password field')
+        self.rpc('GET','/account/info')
+    def snapshot(self):
+        result={}
+        for item in self.rpc('GET','/transfers/list').get('transfers',[]):
+            result[str(item['id'])]=state(ratio(item.get('percent_done'),100),failed=item.get('status') in {'ERROR','CANCELLED'},
+                complete=item.get('status') in {'COMPLETED','SEEDING'},queued=item.get('status') in {'IN_QUEUE','WAITING','STOPPED'})
+        return result
+    def send(self,result):
+        if self.paused():raise ValueError('put.io transfer creation does not support the paused option. Turn it off before sending.')
+        parent=self.option('path')
+        if parent and not str(parent).isdigit():raise ValueError('For put.io, torrent_path is a numeric destination folder ID')
+        parent=int(parent or 0)
+        if not parent and self.option('username'):
+            matches=[f for f in self.rpc('GET','/files/list',params={'parent_id':0}).get('files',[]) if f.get('name')==self.option('username') and f.get('content_type')=='application/x-directory']
+            if len(matches)!=1:raise ValueError('The put.io destination folder name is missing or ambiguous; use its numeric folder ID')
+            parent=int(matches[0]['id'])
+        tid,data=torrent_metadata.describe(result['url'])
+        if data:
+            value=self.request('POST','https://upload.put.io/v2/files/upload',headers=self.headers,params={'torrent':'true'},
+                data={'parent_id':parent},files={'file':('tvmanager.torrent',data,'application/x-bittorrent')}).json()
+            if value.get('status')!='OK':raise ValueError('put.io rejected the torrent upload')
+        else:value=self.rpc('POST','/transfers/add',data={'url':result['url'],'save_parent_id':parent})
+        identity=(value.get('transfer') or {}).get('id')
+        if not identity:raise ValueError('put.io did not return a transfer ID; review its transfers before retrying')
+        return str(identity)
+
+
+CLASSES={'utorrent':UTorrent,'rtorrent':RTorrent,'download_station':DownloadStation,'deluged':DelugeDaemon,'putio':PutIO}
 
 
 def run(method,get,action,result=None):
