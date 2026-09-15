@@ -9,6 +9,8 @@ from typing import Any, Callable
 _LOCK = threading.RLock()
 _JOBS: dict[str, dict[str, Any]] = {}
 _MAX_JOBS = 100
+_SLOTS = threading.Condition()
+_RUNNING_COUNT = 0
 
 TERMINAL_STATUSES = {"complete", "error", "cancelled"}
 
@@ -84,18 +86,57 @@ def list_jobs(kind: str | None = None, *, limit: int = 50) -> list[dict[str, Any
     return [dict(j) for j in jobs[: max(1, int(limit or 50))]]
 
 
+def worker_limit():
+    try:
+        import engine
+        return max(1, min(16, int(engine.get_setting('TVManager', 'background_worker_limit', '4'))))
+    except (ValueError, TypeError):
+        return 4
+
+
+def cancel_requested(job_id):
+    return bool((get_job(job_id) or {}).get('cancel_requested'))
+
+
+def request_cancel(job_id):
+    with _LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            raise ValueError('Job not found')
+        if not job.get('meta', {}).get('cancelable'):
+            raise ValueError('This job cannot be stopped safely from this screen.')
+        if job.get('status') not in TERMINAL_STATUSES:
+            job['cancel_requested'] = True
+            job['message'] = 'Stop requested. Waiting for the current episode to finish.'
+        return dict(job)
+
+
 def run_background(kind: str, worker: Callable[[str], Any], *, stage: str = "Queued", message: str = "Queued.", total: int = 0, meta: dict[str, Any] | None = None) -> dict[str, Any]:
     job = create_job(kind, stage=stage, message=message, total=total, meta=meta)
     job_id = job["job_id"]
 
     def _runner() -> None:
-        update_job(job_id, status="running", stage=stage, message=message, percent=0)
+        global _RUNNING_COUNT
         try:
-            result = worker(job_id)
-            final = get_job(job_id) or {}
-            if final.get("status") not in TERMINAL_STATUSES:
-                update_job(job_id, status="complete", stage="Complete", message="Complete.", percent=100, result=result)
-        except Exception as exc:  # noqa: BLE001 - operator job boundary
+            limit = worker_limit()
+            with _SLOTS:
+                while _RUNNING_COUNT >= limit and not cancel_requested(job_id):
+                    _SLOTS.wait(0.5)
+                if cancel_requested(job_id):
+                    update_job(job_id, status='cancelled', stage='Stopped', message='Stopped before starting.')
+                    return
+                _RUNNING_COUNT += 1
+            try:
+                update_job(job_id, status="running", stage=stage, message=message, percent=0)
+                result = worker(job_id)
+                final = get_job(job_id) or {}
+                if final.get("status") not in TERMINAL_STATUSES:
+                    update_job(job_id, status="complete", stage="Complete", message="Complete.", percent=100, result=result)
+            finally:
+                with _SLOTS:
+                    _RUNNING_COUNT -= 1
+                    _SLOTS.notify_all()
+        except Exception as exc:
             append_error(job_id, {"error": str(exc), "traceback": traceback.format_exc()[-4000:]})
             update_job(job_id, status="error", stage="Error", message=str(exc), percent=(get_job(job_id) or {}).get("percent", 0))
 

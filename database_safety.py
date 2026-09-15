@@ -6,6 +6,9 @@ import os
 import shutil
 import sqlite3
 import time
+import uuid
+import re
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +20,8 @@ SAFE_BACKUPS = BACKUPS / "safe"
 CONFIG_BACKUPS = BACKUPS / "config"
 MANIFEST = BACKUPS / "db-backup-manifest.json"
 
+_MANIFEST_LOCK = threading.RLock()
+
 SECRET_NAMES = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "API", "AUTH")
 CONFIG_FILES = (".env", "settings.ini", "config.ini", "sickbeard.ini", "VERSION")
 
@@ -26,7 +31,7 @@ def _now() -> str:
 
 
 def _stamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
+    return datetime.now().strftime("%Y%m%d-%H%M%S-%f")
 
 
 def _sha256(path: Path) -> str:
@@ -54,13 +59,16 @@ def _manifest_records() -> list[dict[str, Any]]:
 def _write_manifest(records: list[dict[str, Any]]) -> None:
     BACKUPS.mkdir(parents=True, exist_ok=True)
     payload = {"updated_at": _now(), "backups": records[-500:]}
-    MANIFEST.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    temp = MANIFEST.with_suffix(".tmp")
+    temp.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    os.replace(temp, MANIFEST)
 
 
 def record_backup(record: dict[str, Any]) -> dict[str, Any]:
-    records = _manifest_records()
-    records.append(record)
-    _write_manifest(records)
+    with _MANIFEST_LOCK:
+        records = _manifest_records()
+        records.append(record)
+        _write_manifest(records)
     return record
 
 
@@ -76,6 +84,7 @@ def quick_check(db_path: str | Path = DB) -> dict[str, Any]:
         "checked_at": _now(),
     }
     if not db_path.exists() or out["size"] == 0:
+        out.update(ok=False, error="Database is missing or empty", quick_check="missing_or_empty")
         return out
     con = None
     try:
@@ -102,7 +111,8 @@ def backup_database(db_path: str | Path = DB, *, reason: str = "manual", retenti
     """
     db_path = Path(db_path)
     SAFE_BACKUPS.mkdir(parents=True, exist_ok=True)
-    ts = _stamp()
+    ts = _stamp()+"-"+uuid.uuid4().hex[:12]
+    reason = re.sub(r"[^A-Za-z0-9_-]+", "-", str(reason))[:80] or "manual"
     target = SAFE_BACKUPS / f"tvmanager-{reason}-{ts}.db"
     record: dict[str, Any] = {
         "timestamp": _now(),
@@ -117,7 +127,10 @@ def backup_database(db_path: str | Path = DB, *, reason: str = "manual", retenti
         "error": None,
     }
     if not db_path.exists():
-        record.update({"ok": True, "quick_check": "source_missing", "error": None})
+        record.update({"ok": False, "quick_check": "source_missing", "error": "Source database does not exist"})
+        return record_backup(record)
+    if db_path.stat().st_size == 0:
+        record.update({"quick_check": "source_empty", "error": "Source database is empty"})
         return record_backup(record)
 
     source = dest = None

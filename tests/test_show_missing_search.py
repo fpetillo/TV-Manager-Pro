@@ -71,3 +71,28 @@ def test_handoff_and_recheck_skip_newly_queued_episode(db,monkeypatch):
     monkeypatch.setattr(search.job_center,'run_background',synchronous)
     result=search.start(1)['result']
     assert result['queued']==34 and result['skipped']==1 and 2 not in calls
+
+
+def test_completed_history_allows_missing_file_replacement(db):
+    with db() as c:
+        c.execute("INSERT INTO downloads VALUES(1,'Completed')")
+        c.execute("INSERT INTO downloads VALUES(2,'Downloading')")
+    assert 1 in search.candidates(1) and 2 not in search.candidates(1)
+
+
+def test_running_stop_leaves_remaining_episodes_unsearched(db,monkeypatch):
+    calls=[]
+    monkeypatch.setattr(search.engine,'get_setting',lambda *a:'0')
+    def episode(eid,auto_grab):
+        calls.append(eid)
+        search.job_center.request_cancel(current[0])
+        return {'grabbed':{'ok':True}}
+    current=[]
+    def synchronous(kind,worker,**kwargs):
+        job=search.job_center.create_job(kind,**kwargs);current.append(job['job_id'])
+        worker(job['job_id']);return search.job_center.get_job(job['job_id'])
+    monkeypatch.setattr(search.engine,'search_episode',episode)
+    monkeypatch.setattr(search.job_center,'run_background',synchronous)
+    job=search.start(1)
+    assert calls==[1] and job['status']=='cancelled'
+    assert job['processed']==1 and job['succeeded']==1

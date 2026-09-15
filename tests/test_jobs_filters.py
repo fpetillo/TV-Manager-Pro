@@ -9,7 +9,7 @@ def test_status_filters_counts_empty_state_and_refresh_preserve_selection():
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const nodes=new Map();
 const node=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',contains:()=>false,querySelectorAll:()=>[]});return nodes.get(id);};
-const ctx={document:{getElementById:node,activeElement:null},window:{addEventListener(){}},console};
+const ctx={document:{addEventListener(){},getElementById:node,activeElement:null},window:{addEventListener(){}},console};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/jobs.js','utf8'),ctx);
 vm.runInContext("jobs=[{status:'queued'},{status:'running'},{status:'complete'},{status:'error'},{status:'cancelled'},{status:'paused'}];selectedStatus='active';renderJobs()",ctx);
 assert.match(node('jobFilterSummary').textContent,/Showing 2 of 6/);

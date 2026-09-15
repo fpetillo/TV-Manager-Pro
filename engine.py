@@ -33,6 +33,7 @@ import naming
 import database_safety
 import library_maintenance
 import episode_rules
+import episode_dates
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / "tvmanager.db"
@@ -444,9 +445,11 @@ def settings_for_section(section):
 
 def update_setting_safe(section,name,value):
     with cx() as c:
-        old=c.execute("""SELECT is_secret,value FROM settings
+        old=c.execute("""SELECT section,name,is_secret,value FROM settings
                          WHERE lower(section)=lower(?) AND lower(name)=lower(?)""",
                       (section,name)).fetchone()
+    if old:
+        section,name=old["section"],old["name"]
     secret = int(old["is_secret"]) if old else (1 if is_secret_like(name) else 0)
     if secret and value == "••••••••":
         return
@@ -767,6 +770,12 @@ def _episode_context(episode_id):
     return dict(row) if row else None
 
 def search_episode(episode_id, auto_grab=False):
+    import acquisition_guard
+    with acquisition_guard.exclusive(DB, 'search', episode_id):
+        return _search_episode(episode_id, auto_grab)
+
+
+def _search_episode(episode_id, auto_grab=False):
     ctx = _episode_context(episode_id)
     if not ctx:
         raise ValueError("Episode not found")
@@ -792,7 +801,7 @@ def search_episode(episode_id, auto_grab=False):
         import random
         random.shuffle(providers);random.shuffle(custom)
     all_results = []
-    errors = []
+    errors = [] if providers or custom else ["No enabled search providers are configured. Open Settings to configure one."]
     for p in providers:
         if not ops.provider_is_available(p["name"]):
             errors.append(f'{p["name"]}: temporarily suspended after repeated failures')
@@ -848,7 +857,7 @@ def search_episode(episode_id, auto_grab=False):
     log("episode_search", f'Searched {show["name"]} S{ctx["season"]:02d}E{ctx["episode"]:02d}: {len(all_results)} results',
         show_id=show["id"], episode_id=episode_id, data={"errors": errors})
     grabbed = None
-    if auto_grab:
+    if auto_grab and not as_bool(get_setting("TVManager", "simulation_mode", "0")):
         best = next((x for x in all_results if not x["rejected_reason"]), None)
         if best:
             grabbed = grab_result(best["id"])
@@ -1051,6 +1060,23 @@ def send_blackhole(result):
     return str(path)
 
 def grab_result(result_id):
+    import acquisition_guard
+    with cx() as c:
+        result = c.execute('SELECT episode_id FROM search_results WHERE id=?', (result_id,)).fetchone()
+    if not result:
+        raise ValueError('Search result not found')
+    with acquisition_guard.exclusive(DB, 'handoff', result['episode_id']):
+        with cx() as c:
+            existing = c.execute("""SELECT id FROM downloads WHERE episode_id=?
+                AND (lower(status) IN ('queued','downloading','downloaded','importing')
+                OR (search_result_id=? AND lower(status)='completed')) LIMIT 1""",
+                (result['episode_id'], result_id)).fetchone()
+        if existing:
+            raise ValueError('This episode already has an active download or this release was already processed.')
+        return _grab_result(result_id)
+
+
+def _grab_result(result_id):
     with cx() as c:
         r = c.execute("""SELECT sr.*,e.show_id,e.season,e.episode,e.status episode_status,s.name show_name
                          FROM search_results sr
@@ -1120,23 +1146,26 @@ def eligible_episodes(kind="recent", limit=25):
     params = []
     where = ["""lower(COALESCE(e.status,'')) IN ('wanted','failed','unaired')""",
              "COALESCE(e.monitored,1)=1", "COALESCE(e.ignored,0)=0", "lower(COALESCE(e.status,''))<>'ignored'", "COALESCE(s.paused,0)=0", "COALESCE(s.search_enabled,1)=1"]
+    where += ["TRIM(COALESCE(e.location,''))=''",
+              "NOT EXISTS (SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND lower(d.status) IN ('queued','downloading','downloaded','importing'))"]
     if ignore_specials_from_wanted():
         where.append("COALESCE(e.season,-1)<>0")
     if kind == "recent":
         days = max(1, as_int(get_setting("TVManager", "recent_days", "14"), 14))
         start = (today - timedelta(days=days)).isoformat()
         end = today.isoformat()
-        where += ["e.airdate IS NOT NULL", "e.airdate>=?", "e.airdate<=?"]
+        where += ["e.airdate IS NOT NULL", "date(episode_airdate(e.airdate))>=?", "date(episode_airdate(e.airdate))<=?"]
         params += [start, end]
     else:
-        where += ["(e.airdate IS NULL OR e.airdate<=?)"]
+        where += ["date(episode_airdate(e.airdate))<=?"]
         params += [today.isoformat()]
     sql = f"""SELECT e.id FROM episodes e JOIN shows s ON s.id=e.show_id
               WHERE {' AND '.join(where)}
-              ORDER BY COALESCE(e.airdate,'1900-01-01') {'DESC' if kind=='recent' else 'ASC'}
+              ORDER BY date(episode_airdate(e.airdate)) {'DESC' if kind=='recent' else 'ASC'},e.id
               LIMIT ?"""
     params.append(limit)
     with cx() as c:
+        c.create_function("episode_airdate",1,episode_dates.normalize)
         return [r["id"] for r in c.execute(sql, params).fetchall()]
 
 def run_search_job(kind="recent", auto_grab=None):
@@ -1148,9 +1177,10 @@ def run_search_job(kind="recent", auto_grab=None):
         auto_grab=False
     stats = {"searched":0,"found":0,"grabbed":0,"errors":[]}
     for eid in ids:
+        stats["searched"] += 1
         try:
             res = search_episode(eid, auto_grab=auto_grab)
-            stats["searched"] += 1
+            stats["errors"].extend(res.get("errors") or [])
             stats["found"] += len([x for x in res["results"] if not x.get("rejected_reason")])
             if res.get("grabbed"): stats["grabbed"] += 1
         except Exception as e:
@@ -1284,10 +1314,11 @@ def upcoming(days=14):
     start = date.today().isoformat()
     end = (date.today()+timedelta(days=days)).isoformat()
     with cx() as c:
+        c.create_function("episode_airdate",1,episode_dates.normalize)
         rows = c.execute("""SELECT e.*,s.name show_name,s.poster,s.network
                             FROM episodes e JOIN shows s ON s.id=e.show_id
-                            WHERE e.airdate BETWEEN ? AND ?
-                            ORDER BY e.airdate,s.name,e.season,e.episode""",(start,end)).fetchall()
+                            WHERE date(episode_airdate(e.airdate)) BETWEEN ? AND ?
+                            ORDER BY date(episode_airdate(e.airdate)),s.name,e.season,e.episode""",(start,end)).fetchall()
     return [dict(r) | {"status_label":status_label(r["status"])} for r in rows]
 
 def missing(limit=500):
@@ -1295,12 +1326,13 @@ def missing(limit=500):
                             FROM episodes e JOIN shows s ON s.id=e.show_id
                             WHERE lower(COALESCE(e.status,'')) IN ('wanted','failed')
                               AND (e.location IS NULL OR trim(e.location)='')
-                              AND (e.airdate IS NULL OR e.airdate<=date('now'))
+                              AND date(episode_airdate(e.airdate))<=date('now','localtime')
                               AND COALESCE(e.monitored,1)=1 AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored' AND COALESCE(s.paused,0)=0
                          """ + specials_wanted_sql('e') + """
-                            ORDER BY COALESCE(e.airdate,'1900-01-01') DESC,s.name,e.season,e.episode
+                            ORDER BY date(episode_airdate(e.airdate)) DESC,s.name,e.season,e.episode
                             LIMIT ?"""
     with cx() as c:
+        c.create_function("episode_airdate",1,episode_dates.normalize)
         rows = c.execute(sql,(limit,)).fetchall()
     return [dict(r) | {"status_label":status_label(r["status"])} for r in rows]
 
@@ -1431,9 +1463,6 @@ def jobs_public():
 
 def set_automation(enabled):
     set_setting("TVManager","automation_enabled","1" if enabled else "0")
-    with cx() as c:
-        c.execute("UPDATE scheduler_jobs SET enabled=?", (1 if enabled else 0,))
-        c.commit()
     log("automation", "Automation armed" if enabled else "Automation paused")
     return {"enabled":enabled}
 
@@ -1709,13 +1738,15 @@ def run_job(name):
             msg = json.dumps(result)
         else:
             raise ValueError("Unknown job")
-        _finish_job(name,"OK",msg)
+        failed = result.get("ok") is False or bool(result.get("errors"))
+        status = "Error" if failed else "OK"
+        _finish_job(name,status,msg)
         if run_id:
             def finish_run_ok():
                 with cx() as c:
-                    c.execute("UPDATE scheduler_runs SET finished_at=CURRENT_TIMESTAMP,status='OK',message=? WHERE id=?",(msg[:2000],run_id));c.commit()
+                    c.execute("UPDATE scheduler_runs SET finished_at=CURRENT_TIMESTAMP,status=?,message=? WHERE id=?",(status,msg[:2000],run_id));c.commit()
             dbcore.retry(finish_run_ok, attempts=8)
-        return {"ok":True,"result":result}
+        return {"ok":not failed,"result":result}
     except Exception as e:
         try:
             _finish_job(name,"Error",str(e))

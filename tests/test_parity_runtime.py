@@ -45,13 +45,19 @@ def test_episode_context_is_mapping_and_aired_unaired_is_searchable(tmp_path,mon
     database=tmp_path/'test.db';monkeypatch.setattr(engine,'DB',database)
     with dbcore.connect(database) as c:
         c.executescript('''CREATE TABLE shows(id INTEGER PRIMARY KEY,name,paused,search_enabled,preferred_words,required_words,ignored_words,quality,quality_profile_id,scene_numbering,air_by_date,sports,anime);
-        CREATE TABLE episodes(id INTEGER PRIMARY KEY,show_id,season,episode,status,monitored,ignored,airdate);
+        CREATE TABLE episodes(id INTEGER PRIMARY KEY,show_id,season,episode,status,monitored,ignored,airdate,location);
+        CREATE TABLE downloads(episode_id,status);
         CREATE TABLE settings(section,name,value);
         INSERT INTO shows VALUES(1,'Show',0,1,'','','','HD',4,0,0,0,0);
-        INSERT INTO episodes VALUES(1,1,1,1,'Unaired',1,0,'2020-01-01');
-        INSERT INTO episodes VALUES(2,1,1,2,'Unaired',1,0,'2099-01-01');''')
+        INSERT INTO episodes VALUES(1,1,1,1,'Unaired',1,0,'2020-01-01','');
+        INSERT INTO episodes VALUES(2,1,1,2,'Unaired',1,0,'2099-01-01','');''')
     assert engine._episode_context(1).get('quality_profile_id')==4
     assert engine.eligible_episodes('backlog',10)==[1]
+    with dbcore.connect(database) as c:
+        for eid,airdate in [(3,'01/02/2020'),(4,'20200103'),(5,'not a date'),(6,None),(7,'20990101'),(8,'2020-01-04')]:
+            c.execute("INSERT INTO episodes VALUES(?,1,1,?,'Wanted',1,0,?,'')",(eid,eid,airdate))
+        c.execute("INSERT INTO downloads VALUES(8,'Queued')")
+    assert engine.eligible_episodes('backlog',10)==[1,3,4]
 
 
 def test_scene_exceptions_are_used_as_search_aliases(tmp_path,monkeypatch):
@@ -98,6 +104,9 @@ def test_episode_search_and_retrieve_with_real_sqlite_rows(tmp_path,monkeypatch)
     with dbcore.connect(database,readonly=True) as c:
         assert c.execute('SELECT search_count FROM episodes WHERE id=1').fetchone()[0]==2
         assert c.execute("SELECT COUNT(*) FROM search_results WHERE status='Found'").fetchone()[0]==1
+    monkeypatch.setattr(engine,'get_setting',lambda section,name,default=None:'1' if name=='simulation_mode' else '0')
+    result=engine.search_episode(1,auto_grab=True)
+    assert result['grabbed'] is None and len(grabs)==1
 
 
 def test_custom_show_name_validation_and_defaults_exclusion():

@@ -1,4 +1,4 @@
-# SickChill coverage audit — 2026-09-07
+# SickChill coverage audit — reviewed 2026-09-15
 
 Full parity is not achieved. This audit replaces earlier broad claims of completeness. Complete means the named local workflow exists; it does not certify an external integration. Partial identifies implemented behavior plus missing coverage. Missing means no complete corresponding workflow was identified.
 
@@ -16,11 +16,11 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Shows | Save add-show preferences as defaults | Edit Show Settings / Add Show | Complete | show_preferences.py: save defaults without changing existing shows; Search and Trakt add routes inherit them. |
 | Episodes | Bulk episode status management | Manage Center | Complete | episode_rules.py and sickchill_parity.py: preview/apply episode changes. |
 | Episodes | Specials / Season 00 control | Show Detail / Settings | Complete | episode_rules.py: ignored specials excluded from search and missing counts. |
-| Search | Manual and backlog episode search | Show Detail / Missing | Partial | engine.py: search and scoring implemented; live provider behavior needs validation. |
+| Search | Manual and backlog episode search | Show Detail / Missing | Partial | engine.py, show_missing_search.py: aired-only manual/backlog/bulk search, per-episode locks, duplicate handoff checks and safe bulk stop. Live provider behavior needs validation. |
 | Search | Date, sports and scene searches | Show Settings / Advanced | Partial | show_preferences.py: date and stored scene numbering used in provider requests; manual and cached XEM mapping sources are supported. |
 | Search | Anime and automatic XEM mapping | Advanced | Partial | scene_sync.py: cached XEM refresh after metadata refresh, manual override precedence and reverse matching. Live XEM returned HTTP 403 in this environment; aliases/group rules and complete multi-mapping search remain partial. |
 | Search | Native SickChill provider roster | Providers | Partial | Generic Newznab/Torznab adapters do not implement upstream site-specific login, cookies and scraping. See upstream inventory. |
-| Downloads | Client handoff and queue monitoring | Download Center | Partial | engine.py and downloader_polling.py: SAB/qBittorrent plus NZBGet/Transmission/Deluge polling. Other upstream clients remain missing. Live credentials/clients needed for end-to-end checks. |
+| Downloads | Client handoff and queue monitoring | Download Center | Partial | engine.py and downloader_polling.py: SAB/qBittorrent plus NZBGet/Transmission/Deluge polling. Other upstream clients remain missing. Blackhole currently writes URL descriptors, not native NZB/torrent payloads. Live credentials/clients needed for end-to-end checks. |
 | Downloads | Failed download history and retry | Manage Center | Partial | Failure records and retry workflows exist; automatic recovery needs live client validation. |
 | Post processing | Preview and approve completed files | Post Processing | Complete | engine.py: matched/blocked/unmatched review and explicit approval before processing. |
 | Post processing | Naming and season folders | Naming / Show Settings | Complete | naming.py: configured naming and per-show flat/season folders. |
@@ -33,9 +33,12 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Subtitles | Automatic subtitle search and per-show switch | Subtitles / Show Settings | Partial | sync.py and production.py: OpenSubtitles adapter and per-show opt-out; upstream subtitle-provider coverage is incomplete. |
 | Notifications | Native notification services | Notification Services | Partial | notifiers.py: native Discord, Slack, Telegram, Gotify, Pushover and Pushbullet event delivery. Other upstream adapters remain missing; live delivery is unverified. |
 | Media servers | Plex / Kodi / Emby / Jellyfin updates | Media Servers | Partial | Configuration and refresh integrations require live server validation; not all upstream behaviors are covered. |
-| Automation | Scheduled jobs and mutual exclusion | Jobs / Settings | Partial | scheduler_guard.py: UTC leases and atomic acquisition; every scheduled external workflow is not yet certified. |
+| Automation | Scheduled jobs and mutual exclusion | Jobs / Settings | Partial | scheduler_guard.py: UTC leases; master automation preserves job choices. job_center respects worker limit for API jobs; scheduled jobs use separate leases. Persistent job recovery remains incomplete. |
 | Operations | Logs, job status and diagnostics | Logs / Jobs / System | Complete | Local status, progress and diagnostic workflows implemented. |
-| Safety | Backup and restore | Database Safety | Partial | Backup validation and recovery guidance exist; native complete restore workflow is missing. |
+| Safety | Backup and restore | Database Safety | Partial | database_safety.py: unique verified online snapshots, empty/missing rejection and atomic manifest writes; native complete restore workflow is missing. |
+| Schedule | Calendar and subscription feed | Upcoming | Partial | Upcoming provides an air-date list. Calendar grid and iCalendar subscription feed are not implemented. |
+| Operations | Job history across restarts | Jobs | Partial | Recent manual jobs are in memory; scheduler runs and activity have DB history. Durable manual jobs and restart reconciliation remain missing. |
+| Settings | Full imported setting behavior | Settings | Partial | Stored and known defaults are editable with dedicated editors for structured values. Not every imported SickChill setting has native behavior; comprehensive typed validation remains incomplete. |
 | Help | In-app workflow guidance | Help Center | Complete | help_content.py: searchable guides and explicit coverage gaps. |
 
 ## Upstream integration inventory
@@ -168,3 +171,8 @@ Each entry below requires its own adapter and live compatibility check. A generi
 18.5.0 adds native TVDB search/refresh and aired/DVD order for new TVDB shows. 291 tests pass; a synthetic browser add flow verified source/order persistence. Live credentials, AniDB and existing-library provider/order migration remain outstanding.
 
 18.5.1 prevents aired XEM mappings from applying to DVD-order libraries. Automatic DVD scene mapping remains unsupported; explicit manual overrides work. 292 tests pass.
+
+
+## 2026-09-15 project review
+
+See [the project review](PROJECT_REVIEW_2026-09-15.md) for v18.6.0 fixes, current verification, and prioritized acceptance gaps. The expanded matrix has 32 feature families. Upstream master was rechecked at e1f8475ded8dd77662fad3ba9488740133ca8ce1. No integration was promoted to Complete without new evidence.

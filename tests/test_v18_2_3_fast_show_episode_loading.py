@@ -14,7 +14,8 @@ def test_show_detail_has_fast_and_quick_paths():
 
 def test_show_detail_js_does_not_block_whole_page_on_counts():
     js = read('static/show_detail.js')
-    assert '/api/shows/${showId}?fast=1' in js
+    assert '/api/shows/${showId}/snapshot' in js
+    assert 'await loadShowCountsFast' not in js
     assert 'quick:\'1\'' in js
     assert ('Promise.allSettled' in js or 'loadShow().then' in js)
     assert 'loadShowCountsFast' in js

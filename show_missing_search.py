@@ -2,6 +2,7 @@
 import threading
 import engine
 import job_center
+import episode_dates
 
 _lock = threading.RLock()
 _active = {}
@@ -9,6 +10,7 @@ _active = {}
 
 def candidates(show_id, episode_id=None):
     with engine.cx() as c:
+        c.create_function("episode_airdate",1,episode_dates.normalize)
         show = c.execute("SELECT * FROM shows WHERE id=?", (show_id,)).fetchone()
         if not show:
             raise ValueError("Show not found")
@@ -19,10 +21,10 @@ def candidates(show_id, episode_id=None):
             WHERE e.show_id=? AND (? IS NULL OR e.id=?) AND TRIM(COALESCE(e.location,''))=''
             AND COALESCE(e.monitored,1)=1 AND COALESCE(e.ignored,0)=0
             AND lower(COALESCE(e.status,'')) IN ('wanted','failed','unaired','skipped','unknown','')
-            AND date(e.airdate) <= date('now','localtime')
+            AND date(episode_airdate(e.airdate)) <= date('now','localtime')
             AND (?=0 OR e.season<>0)
             AND NOT EXISTS (SELECT 1 FROM downloads d WHERE d.episode_id=e.id
-                AND lower(COALESCE(d.status,'')) NOT IN ('failed','error','cancelled','canceled','removed'))
+                AND lower(COALESCE(d.status,'')) IN ('queued','downloading','downloaded','importing'))
             ORDER BY e.season,e.episode""", (show_id, episode_id, episode_id, int(engine.ignore_specials_from_wanted()))).fetchall()
     return [r['id'] for r in rows]
 
@@ -39,6 +41,11 @@ def start(show_id):
         def worker(job_id):
             stats = dict(total=len(ids), searched=0, queued=0, not_found=0, skipped=0, failed=0)
             for index, eid in enumerate(ids):
+                if job_center.cancel_requested(job_id):
+                    job_center.update_job(job_id, status='cancelled', stage='Stopped',
+                        message=f"Search stopped. {stats['queued']} already sent to downloader; remaining episodes were not searched.",
+                        processed=index, percent=index*100//len(ids), succeeded=stats['queued'], failed=stats['failed'], skipped=stats['skipped'], result=stats)
+                    return stats
                 job_center.update_job(job_id, stage='Searching missing episodes',
                     message=f"Searching episode {index+1} of {len(ids)}; {stats['queued']} sent to downloader.",
                     processed=index, total=len(ids), percent=index*100//len(ids))
@@ -61,12 +68,12 @@ def start(show_id):
                     job_center.append_error(job_id, {'episode_id':eid, 'error':str(exc)})
             message = (f"{stats['queued']} sent to downloader; {stats['not_found']} not queued "
                        f"(no acceptable release or simulation mode); {stats['skipped']} skipped; {stats['failed']} failed.")
-            job_center.update_job(job_id, status='complete', stage='Search finished', message=message,
+            job_center.update_job(job_id, status='error' if stats['failed'] else 'complete', stage='Search finished', message=message,
                 percent=100, processed=len(ids), succeeded=stats['queued'], failed=stats['failed'],
                 skipped=stats['skipped'], result=stats)
             return stats
 
         job = job_center.run_background('show_missing_search', worker, total=len(ids),
-            message=f'Searching {len(ids)} missing episodes.', meta={'show_id':show_id})
+            message=f'Searching {len(ids)} missing episodes.', meta={'show_id':show_id,'cancelable':True})
         _active[show_id] = job['job_id']
         return job

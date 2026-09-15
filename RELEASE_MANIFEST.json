@@ -1,24 +1,29 @@
 {
   "product": "TV Manager",
-  "version": "18.5.14",
-  "release_name": "Aired Episode Queue Progress",
-  "generated_at": "2026-09-10T00:27:49.714110+00:00",
+  "version": "18.6.0",
+  "release_name": "Project Review and Reliability",
+  "generated_at": "2026-09-15T10:15:31.126860+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Aired-only downloaded and missing totals",
-    "Missing-versus-aired season summaries",
-    "Default missing-share priority before pagination"
+    "Correct show and season counts",
+    "Safe bulk search cancellation and bounded API workers",
+    "Duplicate handoff and simulation safeguards",
+    "Accurate job errors and protected backups",
+    "Expanded SickChill coverage review"
   ],
   "validation": {
     "pytest": {
-      "passed": 307,
+      "passed": 318,
       "failed": 0
     },
-    "javascript_syntax": "passed",
-    "browser": "Isolated queue excludes future Season 2 from totals and season summary",
+    "python_parse": 47,
+    "javascript_syntax": "38 passed",
+    "dependency_consistency": "passed",
+    "html_route_smoke": "41 passed; zero broken literal template links",
+    "browser": "Isolated cancellation, preserved scheduler selections, correct show counts and partial search results",
     "fully_green": true
   },
-  "activation": "Restart TV Manager and refresh Show Queue for aired-only totals.",
+  "activation": "Restart TV Manager normally and refresh open pages. Production process was not restarted.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

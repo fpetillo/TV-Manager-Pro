@@ -86,3 +86,35 @@ vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','u
 """
     result = subprocess.run(['node', '-e', script], cwd=ROOT, capture_output=True, text=True)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+
+def test_header_counts_and_partial_search_results_use_real_response_fields():
+    script=r"""
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+const nodes=new Map();
+const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',dataset:{showId:'1'},addEventListener(){},textContent:'',innerHTML:''});return nodes.get(id);};
+const ctx={document:{querySelector:()=>node('page'),getElementById:node,querySelectorAll:()=>[]},setTimeout(){},clearTimeout(){},console};ctx.window=ctx;
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','utf8'),ctx);
+(async()=>{
+ ctx.jsonFetch=async url=>{
+   assert.equal(url,'/api/shows/1');
+   return {show:{considered_episode_count:35,ignored_episode_count:4,episode_count:39}};
+ };
+ await ctx.loadShowCountsFast();
+ assert.equal(node('consideredCount').textContent,'35');assert.equal(node('ignoredCount').textContent,'4');assert.equal(node('allEpisodeCount').textContent,'39');
+ ctx.jsonFetch=async url=>{
+   assert.equal(url,'/api/shows/1/episodes');
+   return {seasons:[{season:0,considered_count:0,episode_count:4,ignored_count:4},{season:1,considered_count:35,episode_count:35}]};
+ };
+ await ctx.refreshSeasonCountsDetailed();
+ assert.match(node('seasonFilter').innerHTML,/Specials \(0, 4 ignored\)/);assert.match(node('seasonFilter').innerHTML,/Season 1 \(35\)/);
+ ctx.rememberEpisodePosition=()=>{};ctx.modalTitle=node('modalTitle');ctx.modalBody=node('modalBody');
+ ctx.jsonFetch=async()=>({job:{job_id:'test'}});
+ ctx.pollJob=async()=>({status:'error',result:{errors:['Provider unavailable'],results:[{id:1,title:'Available episode',provider:'Working',size:100,score:10}]}});
+ await ctx.searchEpisode(1,'Review',1,1);
+ assert.match(ctx.modalBody.innerHTML,/Provider unavailable/);assert.match(ctx.modalBody.innerHTML,/Available episode/);assert.match(ctx.modalBody.innerHTML,/Send to Downloader/);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+    result=subprocess.run(['node','-e',script],cwd=ROOT,capture_output=True,text=True)
+    assert result.returncode==0,result.stdout+result.stderr

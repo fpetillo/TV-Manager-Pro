@@ -2,7 +2,7 @@ const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&
 const $=id=>document.getElementById(id);
 async function jsonFetch(url){const r=await fetch(url);let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d;}
 function bar(job){const pct=Math.max(0,Math.min(100,Number(job.percent||0)));return `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>`;}
-function row(job){return `<div class="result-card job-card"><div class="result-top"><div><strong>${esc((job.kind||'job').replaceAll('_',' '))}</strong><div class="muted">${esc(job.stage||job.status)} • ${esc(job.message||'')}</div></div><span class="status-pill ${esc(job.status||'')}">${esc(job.status||'queued')}</span></div>${bar(job)}<div class="result-meta">${Number(job.percent||0)}% • ${Number(job.processed||0).toLocaleString()} / ${Number(job.total||0).toLocaleString()} processed • ${Number(job.succeeded||0).toLocaleString()} ok • ${Number(job.failed||0).toLocaleString()} failed • updated ${esc(job.updated_at||'')}</div>${job.current_show?`<p class="muted">Current: ${esc(job.current_show)}</p>`:''}${(job.errors||[]).length?`<details><summary>${job.errors.length} recent errors</summary><pre>${esc(JSON.stringify(job.errors.slice(0,10),null,2))}</pre></details>`:''}</div>`;}
+function row(job){return `<div class="result-card job-card"><div class="result-top"><div><strong>${esc((job.kind||'job').replaceAll('_',' '))}</strong><div class="muted">${esc(job.stage||job.status)} • ${esc(job.message||'')}</div></div><span class="status-pill ${esc(job.status||'')}">${esc(job.status||'queued')}</span></div>${job.meta?.cancelable&&['queued','running'].includes(job.status)?`<button class="secondary" data-cancel-job="${esc(job.job_id)}" ${job.cancel_requested?'disabled':''}>${job.cancel_requested?'Stopping…':'Stop Search'}</button>`:''}${bar(job)}<div class="result-meta">${Number(job.percent||0)}% • ${Number(job.processed||0).toLocaleString()} / ${Number(job.total||0).toLocaleString()} processed • ${Number(job.succeeded||0).toLocaleString()} ok • ${Number(job.failed||0).toLocaleString()} failed • updated ${esc(job.updated_at||'')}</div>${job.current_show?`<p class="muted">Current: ${esc(job.current_show)}</p>`:''}${(job.errors||[]).length?`<details><summary>${job.errors.length} recent errors</summary><pre>${esc(JSON.stringify(job.errors.slice(0,10),null,2))}</pre></details>`:''}</div>`;}
 let jobs=[],selectedStatus='all',jobsLoading=false,lastFiltersHtml='';
 const statusLabels={queued:'Queued',running:'Running',complete:'Completed',error:'Failed',cancelled:'Cancelled'};
 function jobStatus(job){return String(job.status||'queued').toLowerCase();}
@@ -43,3 +43,13 @@ async function loadJobs(){
   finally{jobsLoading=false;}
 }
 window.addEventListener('DOMContentLoaded',()=>{$('refreshJobs').onclick=loadJobs;renderJobs();loadJobs();setInterval(loadJobs,2500);});
+
+;document.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-cancel-job]');if(!button)return;
+  button.disabled=true;
+  try{
+    const response=await fetch('/api/jobs/'+encodeURIComponent(button.dataset.cancelJob)+'/cancel',{method:'POST'});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not stop search');
+    await loadJobs();
+  }catch(e){button.disabled=false;alert(e.message);}
+});

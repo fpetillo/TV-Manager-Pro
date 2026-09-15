@@ -29,3 +29,5 @@ release/
 
 .media-files.lock
 rename-journals/
+
+.acquisition-locks/

@@ -675,48 +675,8 @@ def api_trakt_add_show():
 
 
 def _normalize_queue_airdate(value):
-    """Normalize legacy SickChill/imported airdate values to YYYY-MM-DD for API clients.
-
-    Some SickChill/imported rows store dates as Python ordinals (for example
-    737203) instead of normal ISO text.  Those values looked like IDs in the
-    Show Queue screenshot, so normalize them before returning rows to the UI.
-    Unknown numeric fragments such as ``1`` are not useful dates and are hidden.
-    """
-    if value is None:
-        return ""
-    text=str(value).strip()
-    if not text or text in {"0","0000-00-00","None","null"}:
-        return ""
-    # Already ISO-ish
-    try:
-        if len(text) >= 10 and text[4] == '-' and text[7] == '-':
-            return datetime.fromisoformat(text[:10]).date().isoformat()
-    except Exception:
-        pass
-    # Common US imported values
-    for fmt in ("%m/%d/%Y","%m-%d-%Y","%Y%m%d","%Y/%m/%d","%d-%b-%Y","%b %d, %Y"):
-        try:
-            return datetime.strptime(text[:20],fmt).date().isoformat()
-        except Exception:
-            pass
-    # SickChill/Python ordinal dates occasionally appear in imported data.
-    try:
-        if text.isdigit() and 700000 <= int(text) <= 900000:
-            return datetime.fromordinal(int(text)).date().isoformat()
-    except Exception:
-        pass
-    # Unix timestamps occasionally appear in legacy data.
-    try:
-        if text.isdigit() and len(text) in (10,13):
-            ts=int(text[:10])
-            if ts > 0:
-                return datetime.fromtimestamp(ts).date().isoformat()
-    except Exception:
-        pass
-    # Small numeric fragments are not real dates; hide instead of showing noise.
-    if text.isdigit():
-        return ""
-    return text
+    from episode_dates import normalize
+    return normalize(value)
 
 def _queue_download_percent(row):
     total=int(row.get("episode_count") or 0)
@@ -2159,7 +2119,9 @@ def api_episode_search_start(eid):
     def worker(job_id):
         job_center.update_job(job_id, stage="Episode search", message="Searching configured providers.", percent=10, total=1)
         result=engine.search_episode(eid,auto_grab=auto_grab)
-        job_center.update_job(job_id, status="complete", stage="Complete", message="Episode search complete.", percent=100, result=result, processed=1, succeeded=1)
+        errors=result.get("errors") or []
+        for error in errors: job_center.append_error(job_id, str(error))
+        job_center.update_job(job_id, status="error" if errors else "complete", stage="Finished", message="Episode search finished with errors. Review job details." if errors else "Episode search complete.", percent=100, result=result, processed=1, succeeded=0 if errors else 1, failed=1 if errors else 0)
         return result
     return jsonify(ok=True, job=job_center.run_background("episode_search", worker, stage="Queued", message="Episode search queued.", meta={"episode_id":eid,"auto_grab":auto_grab}))
 
@@ -2172,8 +2134,10 @@ def api_run_search_start(kind):
     def worker(job_id):
         job_center.update_job(job_id, stage=f"{kind.title()} search", message="Searching missing episodes in the background.", percent=5)
         result=engine.run_search_job(kind,auto_grab=auto_grab)
-        searched=len(result.get("searched") or result.get("results") or []) if isinstance(result,dict) else 0
-        job_center.update_job(job_id, status="complete", stage="Complete", message=f"{kind.title()} search complete.", percent=100, result=result, processed=searched, succeeded=searched)
+        searched=int(result.get("searched") or 0)
+        errors=result.get("errors") or []
+        for error in errors: job_center.append_error(job_id, str(error))
+        job_center.update_job(job_id, status="error" if errors else "complete", stage="Finished", message=f"{kind.title()} search finished: {searched} searched, {result.get('grabbed',0)} queued, {len(errors)} errors.", percent=100, result=result, processed=searched, succeeded=searched, failed=len(errors))
         return result
     return jsonify(ok=True, job=job_center.run_background(kind+"_search", worker, stage="Queued", message=f"{kind.title()} search queued.", meta={"auto_grab":auto_grab}))
 
@@ -2757,7 +2721,9 @@ def api_media_server_refresh_start(sid):
         server=advanced.media_server(sid)
         job_center.update_job(job_id, stage="Media server refresh", message=f"Requesting library refresh for {server.get('name')}.", percent=35, total=1)
         result=advanced.refresh_media_server(sid)
-        job_center.update_job(job_id, status="complete", stage="Complete", message=f"Refresh request sent to {server.get('name')}.", percent=100, processed=1, succeeded=1, total=1, result=result)
+        ok=bool(result.get("ok"))
+        if not ok: job_center.append_error(job_id, result.get("message") or result.get("error") or "Media server refresh failed")
+        job_center.update_job(job_id, status="complete" if ok else "error", stage="Finished", message=f"Refresh request sent to {server.get('name')}." if ok else f"Refresh request failed for {server.get('name')}. Review job details.", percent=100, processed=1, succeeded=int(ok), failed=int(not ok), total=1, result=result)
         return result
     return jsonify(ok=True, job=job_center.run_background("media_server_refresh", worker, stage="Queued", message="Media server refresh queued.", meta={"media_server_id":sid}))
 
@@ -2954,6 +2920,13 @@ def jobs_page():
 @app.get("/api/jobs")
 def api_jobs():
     return jsonify(ok=True, jobs=job_center.list_jobs(request.args.get("kind") or None))
+
+@app.post("/api/jobs/<job_id>/cancel")
+def api_cancel_job(job_id):
+    try:
+        return jsonify(ok=True, job=job_center.request_cancel(job_id))
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
 
 @app.get("/api/jobs/<job_id>")
 def api_job(job_id):
