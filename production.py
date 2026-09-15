@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 import dbcore
 import hashlib, io, json, os, re, shutil, sqlite3, tempfile, zipfile
 from datetime import datetime
@@ -6,7 +7,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 import requests
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 DIAG=BASE/"diagnostics"
 DIAG.mkdir(exist_ok=True)

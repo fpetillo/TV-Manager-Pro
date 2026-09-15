@@ -31,3 +31,6 @@ release/
 rename-journals/
 
 .acquisition-locks/
+.runtime/
+recovery/
+archive-staging/

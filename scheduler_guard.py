@@ -1,10 +1,11 @@
 from __future__ import annotations
+import app_paths
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os, socket, uuid
 import dbcore
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 OWNER=f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
 

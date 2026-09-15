@@ -1,10 +1,11 @@
 from __future__ import annotations
+import app_paths
 import dbcore
 import json, sqlite3
 from pathlib import Path
 import requests
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 
 def cx():

@@ -1,10 +1,11 @@
+import app_paths
 """Cached XEM mappings kept separate from operator numbering overrides."""
 from pathlib import Path
 import time
 import requests
 import dbcore
 
-DB=Path(__file__).resolve().parent/'tvmanager.db'
+DB=app_paths.application_root()/'tvmanager.db'
 
 def init():
     with dbcore.connect(DB) as c:

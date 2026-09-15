@@ -7,9 +7,42 @@ function formatBytes(value){
 }
 async function jsonFetch(url,opts){const r=await fetch(url,opts);let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||`Request failed: ${r.status}`);return d;}
 function progress(job){if(!job)return '<p class="muted">No job running.</p>';const pct=Math.max(0,Math.min(100,Number(job.percent||0)));return `<div class="import-progress"><div class="progress-head"><strong>${esc(job.stage||job.status)}</strong><span>${pct}%</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div><p class="muted">${esc(job.message||'Working…')}</p></div>`;}
-function backupTable(rows){if(!rows?.length)return '<p class="muted">No database backups found yet.</p>';return `<table class="compact-table"><tr><th>Status</th><th>Modified</th><th>Size</th><th>Path</th><th>Check</th></tr>${rows.slice(0,100).map(x=>`<tr><td><span class="status-pill ${x.ok?'Downloaded':'Failed'}">${x.ok?'OK':'BAD'}</span></td><td>${esc(x.modified_at||'')}</td><td>${formatBytes(x.size)}</td><td><code>${esc(x.path||x.database||'')}</code></td><td>${esc(x.quick_check||x.error||'')}</td></tr>`).join('')}</table>`;}
+function backupTable(rows){if(!rows?.length)return '<p class="muted">No database backups found yet.</p>';return `<table class="compact-table"><tr><th>Status</th><th>Modified</th><th>Size</th><th>Path</th><th>Check</th><th>Restore</th></tr>${rows.slice(0,100).map(x=>`<tr><td><span class="status-pill ${x.ok?'Downloaded':'Failed'}">${x.ok?'OK':'BAD'}</span></td><td>${esc(x.modified_at||'')}</td><td>${formatBytes(x.size)}</td><td><code>${esc(x.path||x.database||'')}</code></td><td>${esc(x.quick_check||x.error||'')}</td><td>${x.ok?`<button class="secondary" data-restore-path="${esc(x.path||x.database||'')}">Select Backup</button>`:''}</td></tr>`).join('')}</table>`;}
 async function loadStatus(){try{const d=await jsonFetch('/api/protection/status');const db=d.database||{};const b=d.backups||{};$('protectionStatus').innerHTML=`<div class="dashboard-grid"><div class="dash-card"><span>Database</span><strong>${db.ok?'OK':'BAD'}</strong></div><div class="dash-card"><span>Quick Check</span><strong>${esc(db.quick_check||'')}</strong></div><div class="dash-card"><span>DB Size</span><strong>${formatBytes(db.size)}</strong></div><div class="dash-card"><span>Backups Found</span><strong>${Number(b.count||0).toLocaleString()}</strong></div></div>${b.newest_usable_backup?`<div class="notice good">Newest usable backup: <code>${esc(b.newest_usable_backup.path)}</code></div>`:'<div class="notice warn">No verified usable backup was found yet. Click Protect Now.</div>'}`;}catch(e){$('protectionStatus').innerHTML=`<div class="notice warn">${esc(e.message)}</div>`;}}
 async function scanBackups(){try{$('backupList').innerHTML='<p class="muted">Scanning backups…</p>';const d=await jsonFetch('/api/protection/backups');$('backupList').innerHTML=backupTable(d.results||[]);}catch(e){$('backupList').innerHTML=`<div class="notice warn">${esc(e.message)}</div>`;}}
 async function pollJob(jobId){for(;;){const d=await jsonFetch('/api/jobs/'+encodeURIComponent(jobId));$('backupProgress').innerHTML=progress(d.job);if(['complete','error','cancelled'].includes(String(d.job.status||''))){if(d.job.status==='complete'){$('backupProgress').insertAdjacentHTML('beforeend','<div class="notice good">Protection snapshot complete.</div>');await loadStatus();await scanBackups();}return;}await new Promise(r=>setTimeout(r,800));}}
 async function startBackup(){try{$('startBackup').disabled=true;const d=await jsonFetch('/api/protection/backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:'manual'})});$('backupProgress').innerHTML=progress(d.job);await pollJob(d.job.job_id);}catch(e){$('backupProgress').innerHTML=`<div class="notice warn">${esc(e.message)}</div>`;}finally{$('startBackup').disabled=false;}}
 window.addEventListener('DOMContentLoaded',()=>{$('refreshStatus').onclick=loadStatus;$('scanBackups').onclick=scanBackups;$('startBackup').onclick=startBackup;loadStatus();scanBackups();});
+
+let restoreToken=null;
+async function loadRestore(){
+  const d=await jsonFetch('/api/protection/restore');
+  $('restoreConfig').innerHTML='<option value="">Keep current configuration files</option>'+(d.config||[]).map(c=>`<option value="${esc(c.path)}">${esc(c.name)}</option>`).join('');
+  $('restoreStatus').textContent=d.restore?.message||'No restore queued.';
+  $('cancelRestore').hidden=d.restore?.status!=='pending';
+}
+window.addEventListener('DOMContentLoaded',()=>{
+  const invalidate=()=>{restoreToken=null;$('restoreReview').textContent='Preview the selected backup before confirming.'};
+  $('restorePath').oninput=invalidate;$('restoreConfig').onchange=invalidate;
+  $('previewRestore').onclick=async()=>{
+    restoreToken=null;
+    try{
+      const d=await jsonFetch('/api/protection/restore/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:$('restorePath').value,config_directory:$('restoreConfig').value})});
+      restoreToken=d.token;const p=d.preview;
+      $('restoreReview').innerHTML=`<div class="notice warn">Restore ${Number(p.counts.shows)} shows and ${Number(p.counts.episodes)} episodes from ${esc(p.path)}. ${p.config.length} configuration files will be replaced. Changes since this backup will leave the active library; the current database is preserved for rollback.</div><label>Type RESTORE to confirm<input id="restoreConfirm" autocomplete="off"></label><button id="queueRestore" class="primary">Queue Restore for Restart</button>`;
+      $('queueRestore').onclick=async()=>{
+        try{const r=await jsonFetch('/api/protection/restore/stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:restoreToken,confirmation:$('restoreConfirm').value})});restoreToken=null;$('restoreReview').textContent=r.restore.message;await loadRestore();}
+        catch(e){$('restoreStatus').textContent=e.message;}
+      };
+    }catch(e){$('restoreReview').textContent=e.message;}
+  };
+  $('cancelRestore').onclick=async()=>{try{await jsonFetch('/api/protection/restore/cancel',{method:'POST'});await loadRestore();}catch(e){$('restoreStatus').textContent=e.message;}};
+  loadRestore().catch(e=>$('restoreStatus').textContent=e.message);
+});
+
+;document.addEventListener('click',event=>{
+ const button=event.target.closest('[data-restore-path]');if(!button)return;
+ $('restorePath').value=button.dataset.restorePath;restoreToken=null;
+ $('restoreReview').textContent='Backup selected. Click Preview Restore to verify it.';
+ $('restorePath').scrollIntoView({block:'center'});$('restorePath').focus();
+});

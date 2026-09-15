@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 
 import json
 import os
@@ -35,7 +36,7 @@ import library_maintenance
 import episode_rules
 import episode_dates
 
-BASE = Path(__file__).resolve().parent
+BASE = app_paths.application_root()
 DB = BASE / "tvmanager.db"
 _LOCK = threading.Lock()
 _STOP = threading.Event()
@@ -402,7 +403,7 @@ def delete_quality_profile(pid):
         c.commit()
 
 def configurable_defaults():
-    path = Path(__file__).with_name("settings_defaults.json")
+    path = BASE / "settings_defaults.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
@@ -441,6 +442,11 @@ def settings_for_section(section):
                 secret = int(is_secret_like(name))
                 out.append(dict(section=section, name=name, value="" if secret else value,
                     is_secret=secret, has_value=False, source="Application default", updated_at=None))
+    import configuration
+    defaults=configurable_defaults()
+    for item in out:
+        known=any(sec.lower()==section.lower() and item['name'].lower() in {n.lower() for n in values} for sec,values in defaults.items())
+        item.update(configuration.metadata(section,item['name'],known))
     return sorted(out, key=lambda row: row["name"].lower())
 
 def update_setting_safe(section,name,value):
@@ -453,6 +459,8 @@ def update_setting_safe(section,name,value):
     secret = int(old["is_secret"]) if old else (1 if is_secret_like(name) else 0)
     if secret and value == "••••••••":
         return
+    import configuration
+    value=configuration.validate(section,name,value)
     set_setting(section,name,value,secret,"tvmanager")
 
 def is_secret_like(name):
@@ -976,10 +984,15 @@ def send_deluge(result):
     if not r.json().get("result"):raise ValueError("Deluge authentication failed")
     opts={}
     label=get_setting("TORRENT","torrent_label","") or ""
-    r=sess.post(host+"/json",json={"method":"core.add_torrent_url","params":[result["url"],opts],"id":2},timeout=15);r.raise_for_status()
+    import torrent_metadata,base64
+    torrent_id,payload=torrent_metadata.describe(result["url"])
+    method="core.add_torrent_file" if payload else "core.add_torrent_magnet"
+    params=["tvmanager.torrent",base64.b64encode(payload).decode(),opts] if payload else [result["url"],opts]
+    r=sess.post(host+"/json",json={"method":method,"params":params,"id":2},timeout=15);r.raise_for_status()
     data=r.json()
     if data.get("error"):raise ValueError(str(data["error"]))
-    return str(data.get("result") or "")
+    if not data.get("result"):raise ValueError("Deluge did not provide a tracking ID")
+    return str(data["result"])
 
 def test_downloaders():
     cfg = downloader_config_public()
@@ -1018,7 +1031,8 @@ def send_sab(result):
     if not data.get("status", False):
         raise ValueError(data.get("error") or "SABnzbd rejected the NZB")
     ids = data.get("nzo_ids") or []
-    return ids[0] if ids else None
+    if not ids:raise ValueError("SABnzbd accepted the request but did not provide a tracking ID")
+    return ids[0]
 
 def _magnet_hash(url):
     from urllib.parse import urlparse, parse_qs
@@ -1034,16 +1048,18 @@ def _magnet_hash(url):
 
 def send_qbit(result):
     sess, host = _qbit_session()
-    data = {"urls": result["url"]}
+    import torrent_metadata
+    torrent_id,payload=torrent_metadata.describe(result["url"])
+    data = {} if payload else {"urls": result["url"]}
     label = get_setting("TORRENT", "torrent_label", "") or ""
     if label: data["category"] = label
     if as_bool(get_setting("TORRENT", "torrent_paused", "0")):
         data["paused"] = "true"
-    r = sess.post(host + "/api/v2/torrents/add", data=data, timeout=15)
+    r = sess.post(host + "/api/v2/torrents/add", data=data, timeout=15, **({"files":{"torrents":("tvmanager.torrent",payload,"application/x-bittorrent")}} if payload else {}))
     r.raise_for_status()
     if r.text.strip().lower() not in {"ok.", ""}:
         raise ValueError("qBittorrent rejected the torrent: " + r.text[:200])
-    return _magnet_hash(result["url"])
+    return torrent_id
 
 def send_blackhole(result):
     if result["protocol"] == "nzb":
@@ -1052,12 +1068,9 @@ def send_blackhole(result):
         target = get_setting("Blackhole", "torrent_dir", "")
     if not target:
         raise ValueError("Blackhole directory is not configured")
-    Path(target).mkdir(parents=True, exist_ok=True)
-    # For URL-based search results, save a URL descriptor; compatible clients can watch this via helper tooling.
-    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", result["title"])[:180]
-    path = Path(target) / (safe + ".url")
-    path.write_text("[InternetShortcut]\nURL=" + (result["url"] or "") + "\n", encoding="utf-8")
-    return str(path)
+    import blackhole
+    return blackhole.send(dict(result),target)
+
 
 def grab_result(result_id):
     import acquisition_guard
@@ -1091,55 +1104,39 @@ def _grab_result(result_id):
         bad = c.execute("SELECT 1 FROM failed_releases WHERE guid=? LIMIT 1", (r["guid"],)).fetchone()
     if bad:
         raise ValueError("This release is on the failed-release blacklist")
-    cfg = downloader_config_public()
-    client = None
-    external = None
-    try:
-        if r["protocol"] == "nzb":
-            method = cfg["nzb_method"]
-            if method == "sabnzbd":
-                client = "SABnzbd"; external = send_sab(r)
-            elif method == "nzbget":
-                client = "NZBGet"; external = send_nzbget(r)
-            elif method == "blackhole":
-                client = "Blackhole"; external = send_blackhole(r)
-            else:
-                raise ValueError(f"NZB method '{method}' is not yet configured for direct sending")
-        else:
-            method = cfg["torrent_method"]
-            if method == "qbittorrent":
-                client = "qBittorrent"; external = send_qbit(r)
-            elif method == "transmission":
-                client = "Transmission"; external = send_transmission(r)
-            elif method == "deluge":
-                client = "Deluge"; external = send_deluge(r)
-            elif method == "blackhole":
-                client = "Blackhole"; external = send_blackhole(r)
-            else:
-                raise ValueError(f"Torrent method '{method}' is not yet configured for direct sending")
-        with cx() as c:
-            cur = c.execute("""INSERT INTO downloads(episode_id,search_result_id,client,provider,release_name,
-                                                     external_id,status,url)
-                               VALUES(?,?,?,?,?,?,?,?)""",
-                            (r["episode_id"], result_id, client, r["provider"], r["title"],
-                             external, "Queued", r["url"]))
-            lifecycle.transition("episode",cur.lastrowid,"Found","Queued",
-                                 message=f'Queued in {client}',details={"result_id":result_id},conn=c)
-            c.execute("UPDATE search_results SET status='Grabbed' WHERE id=?", (result_id,))
-            c.execute("UPDATE episodes SET status='Snatched',release_name=? WHERE id=?",
-                      (r["title"], r["episode_id"]))
-            c.commit()
-        payload={"show":r["show_name"],"season":r["season"],"episode":r["episode"],"release":r["title"],"client":client}
-        log("download_queued", f'Queued {r["show_name"]} S{r["season"]:02d}E{r["episode"]:02d} in {client}',
-            show_id=r["show_id"], episode_id=r["episode_id"],
-            data=payload)
-        try: advanced.fire_webhooks("snatched",payload)
-        except Exception: pass
-        return {"ok":True,"client":client,"external_id":external,"download_id":cur.lastrowid}
-    except Exception as e:
-        log("download_error", f'Failed to queue {r["title"]}: {e}', "error",
-            show_id=r["show_id"], episode_id=r["episode_id"])
-        raise
+    import acquisition_journal
+    result=dict(r)
+    client,sender=handoff_adapter(result)
+    outcome=acquisition_journal.submit(DB,'episode',result,client,[r['episode_id']],sender,record_episode_handoff)
+    payload={"show":r["show_name"],"season":r["season"],"episode":r["episode"],"release":r["title"],"client":client}
+    log("download_queued",f'Queued {r["show_name"]} in {client}',show_id=r['show_id'],episode_id=r['episode_id'],data=payload)
+    try:advanced.fire_webhooks('snatched',payload)
+    except Exception:pass
+    return outcome
+
+
+def handoff_adapter(result):
+    cfg=downloader_config_public()
+    method=cfg['nzb_method'] if result['protocol']=='nzb' else cfg['torrent_method']
+    adapters={'sabnzbd':('SABnzbd',send_sab),'nzbget':('NZBGet',send_nzbget),
+              'qbittorrent':('qBittorrent',send_qbit),'transmission':('Transmission',send_transmission),
+              'deluge':('Deluge',send_deluge),'blackhole':('Blackhole',send_blackhole)}
+    import native_downloaders
+    if method in native_downloaders.NAMES:
+        return native_downloaders.NAMES[method],lambda:native_downloaders.run(method,get_setting,'send',result)
+    if method not in adapters:raise ValueError(f'Downloader method {method} is not configured for direct sending')
+    client,send=adapters[method]
+    return client,lambda:send(result)
+
+
+def record_episode_handoff(c,r,client,external):
+    cur=c.execute("""INSERT INTO downloads(episode_id,search_result_id,client,provider,release_name,external_id,status,url)
+                    VALUES(?,?,?,?,?,?,?,?)""",(r['episode_id'],r['id'],client,r['provider'],r['title'],external,'Queued',r['url']))
+    lifecycle.transition('episode',cur.lastrowid,'Found','Queued',message=f'Queued in {client}',details={'result_id':r['id']},conn=c)
+    c.execute("UPDATE search_results SET status='Grabbed' WHERE id=?",(r['id'],))
+    c.execute("UPDATE episodes SET status='Snatched',release_name=? WHERE id=?",(r['title'],r['episode_id']))
+    return {'ok':True,'client':client,'external_id':external,'download_id':cur.lastrowid}
+
 
 def eligible_episodes(kind="recent", limit=25):
     today = date.today()
@@ -1429,7 +1426,7 @@ def downloader_monitor(limit=200):
         else: configured.append({"type":"nzb","client":method,"configured":method=="blackhole","host":"","category":""})
     if cfg.get("use_torrents"):
         method=cfg.get("torrent_method") or "not selected"
-        if method in {"qbittorrent","transmission","deluge"}: configured.append({"type":"torrent","client":method,"configured":cfg["torrent"].get("configured"),"host":cfg["torrent"].get("host"),"category":cfg["torrent"].get("label")})
+        if method in {"qbittorrent","transmission","deluge","utorrent","rtorrent","download_station"}: configured.append({"type":"torrent","client":method,"configured":cfg["torrent"].get("configured"),"host":cfg["torrent"].get("host"),"category":cfg["torrent"].get("label")})
         else: configured.append({"type":"torrent","client":method,"configured":method=="blackhole","host":"","category":""})
     ready = any(x.get("configured") for x in configured)
     return {
@@ -1932,6 +1929,9 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
     selected_sources limits processing to paths chosen from a preview, giving the
     UI a safe preview/apply workflow instead of blindly processing everything.
     """
+    import media_transfer
+    method=media_transfer.method(process_method_override or get_setting('General','process_method','move'))
+    if not dry_run:media_transfer.check_links(BASE,method)
     root = ops.map_path(root_override or get_setting("General","tv_download_dir","") or "")
     selected_sources = set(str(x) for x in (selected_sources or []) if str(x).strip())
     result = {"root":root,"dry_run":dry_run,"files":0,"matched":0,"unmatched":0,
@@ -1945,7 +1945,25 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
         progress_callback({"stage":"Post-processing scan","message":"Walking completed-download folder.","percent":1,"processed":0,"total":limit})
     files=[]
     walked=0
+    archive_errors=[]
+    unpack=as_bool(get_setting('General','unpack','0'))
     for p in Path(root).rglob("*"):
+        if p.is_symlink() or p.resolve().is_relative_to(BASE/'archive-staging'):continue
+        if unpack and p.is_file() and p.suffix.lower() in {'.zip','.rar'}:
+            part=re.search(r'(?i)\.part(\d+)\.rar$',p.name)
+            if part and int(part.group(1))>1:continue
+            try:
+                import archive_processing
+                extracted=archive_processing.prepare(p,BASE/'archive-staging',
+                    max_bytes=max(1048576,as_int(get_setting('TVManager','archive_max_bytes','107374182400'),107374182400)),
+                    max_members=max(1,as_int(get_setting('TVManager','archive_max_members','2000'),2000)),
+                    timeout=max(1,as_int(get_setting('TVManager','archive_max_seconds','600'),600)),
+                    unrar_path=get_setting('TVManager','unrar_path',''))
+                for file in extracted:
+                    if not selected_sources or str(file) in selected_sources:files.append(file)
+                if len(files)>=limit:files=files[:limit];break
+            except Exception as exc:archive_errors.append({'file':str(p),'error':str(exc)})
+            continue
         walked+=1
         if progress_callback and walked % 200 == 0:
             progress_callback({"stage":"Post-processing scan","message":f"Scanning folder entries: {walked:,} checked, {len(files):,} media files found.","percent":min(35, max(2, int(len(files)/max(1,limit)*35))),"processed":len(files),"total":limit})
@@ -1955,6 +1973,8 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
             files.append(p)
             if len(files)>=limit: break
     result["files"]=len(files)
+    result["errors"]=archive_errors
+    result["processed_count"]=0
     if progress_callback:
         progress_callback({"stage":"Post-processing match","message":f"Matching {len(files):,} media files to shows and episodes.","percent":40,"processed":0,"total":len(files)})
 
@@ -2069,7 +2089,7 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
         result["matched"]+=len(episode_rows)
         if dry_run:continue
 
-        replacement_ids=[]
+        replacement_ids=[];transfers=[];database_committed=False
         try:
             # Stage old files into managed trash before replacing them.
             staged_old_paths=set()
@@ -2093,27 +2113,20 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
                     lifecycle.transition("episode",d["id"],d["status"],"Importing",
                                          message="Post-processing media file",force=True)
 
-            method=(process_method_override or get_setting("General","process_method","move") or "move").lower()
-            if method not in {"move","copy","hardlink","hard link"}:
-                method="move"
             move_associated=as_bool(get_setting("General","move_associated_files","1"),True)
             sidecars=naming.associated_destinations(p,dest) if move_associated else []
             dest_dir.mkdir(parents=True,exist_ok=True)
             if dest.exists() and dest.resolve()!=p.resolve():
                 # The current file should already have been staged. Never silently overwrite an unrelated file.
                 raise FileExistsError(f"Destination already exists: {dest}")
-            if method=="copy":shutil.copy2(p,dest)
-            elif method in {"hardlink","hard link"}:os.link(p,dest)
-            else:shutil.move(str(p),str(dest))
+            transfers.append(media_transfer.transfer(p,dest,method))
 
             associated_moved=[]
             for src_side,dst_side in sidecars:
                 try:
                     dst_side.parent.mkdir(parents=True,exist_ok=True)
                     if dst_side.exists():continue
-                    if method=="copy":shutil.copy2(src_side,dst_side)
-                    elif method in {"hardlink","hard link"}:os.link(src_side,dst_side)
-                    else:shutil.move(str(src_side),str(dst_side))
+                    transfers.append(media_transfer.transfer(src_side,dst_side,method))
                     associated_moved.append({"source":str(src_side),"destination":str(dst_side)})
                 except Exception as side_ex:
                     log("associated_file_error",str(side_ex),"warning",show_id=show["id"])
@@ -2136,6 +2149,7 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
                                              details={"path":str(dest)},conn=c,force=True)
                 c.commit()
 
+            database_committed=True
             for rid in replacement_ids:lifecycle.complete_replacement(rid,dest)
             action["associated_files"]=associated_moved
             try:
@@ -2143,6 +2157,13 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
             except Exception as fp_ex:
                 action["fingerprint_error"]=str(fp_ex)
             touched_shows.add(show["id"])
+            result['processed_count']+=1
+            action['processed']=True
+            try:
+                import archive_processing
+                archive_processing.mark_processed(p,BASE/'archive-staging')
+            except Exception as archive_ex:
+                result['errors'].append({'file':str(p),'error':'Media imported; archive completion record failed: '+str(archive_ex)})
 
             for e in episode_rows:
                 payload={"show":show["name"],"season":e["season"],"episode":e["episode"],
@@ -2151,6 +2172,14 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
                     show_id=show["id"],episode_id=e["id"],data=payload)
                 try:advanced.fire_webhooks("downloaded",payload)
                 except Exception:pass
+                try:
+                    import postprocess_scripts
+                    outcomes=postprocess_scripts.run(dest,p,show['id'],dict(e))
+                    action.setdefault('scripts',[]).extend(outcomes)
+                    for outcome in outcomes:
+                        if not outcome['ok']:result['errors'].append({'file':str(dest),'error':'Media imported; extra script failed: '+outcome['error']})
+                except Exception as script_ex:
+                    result['errors'].append({'file':str(dest),'error':'Media imported; extra script failed: '+str(script_ex)})
 
             try:
                 completed=release.mark_pack_processed(show["id"],season)
@@ -2161,8 +2190,12 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
                 log("season_pack_finalize_error",str(ex),"warning",show_id=show["id"])
 
         except Exception as ex:
-            # Restore staged originals if the replacement import fails.
-            for rid in reversed(replacement_ids):
+            # Undo only uncommitted transfers before restoring replaced originals.
+            if not database_committed:
+                for operation in reversed(transfers):
+                    try:media_transfer.undo(operation)
+                    except Exception as undo_ex:log("processing_rollback_error",str(undo_ex),"error",show_id=show["id"])
+            for rid in reversed(replacement_ids if not database_committed else []):
                 try:lifecycle.rollback_replacement(rid)
                 except Exception as rollback_ex:
                     log("upgrade_rollback_error",str(rollback_ex),"error",show_id=show["id"])

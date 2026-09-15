@@ -20,8 +20,11 @@ function Write-Step($Message) {
 
 function Remove-SafeDirectory($Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) { return }
-    if (Test-Path $Path) {
-        Remove-Item $Path -Recurse -Force -ErrorAction Stop
+    $ResolvedTarget = [IO.Path]::GetFullPath($Path)
+    $AllowedTargets = @([IO.Path]::GetFullPath($BuildRoot), [IO.Path]::GetFullPath($ReleaseApp))
+    if ($ResolvedTarget -notin $AllowedTargets) { throw "Unexpected build output path: $ResolvedTarget" }
+    if (Test-Path -LiteralPath $ResolvedTarget) {
+        Remove-Item -LiteralPath $ResolvedTarget -Recurse -Force -ErrorAction Stop
     }
 }
 
@@ -69,8 +72,13 @@ Write-Step "Building launcher EXE outside the project tree"
 # operator database while building the EXE.
 $PreviousBuildFlag = [Environment]::GetEnvironmentVariable("TVMANAGER_BUILDING_EXE", "Process")
 [Environment]::SetEnvironmentVariable("TVMANAGER_BUILDING_EXE", "1", "Process")
+$HiddenImports = @()
+Get-ChildItem -LiteralPath $Root -Filter '*.py' -File | ForEach-Object {
+    $HiddenImports += '--hidden-import'
+    $HiddenImports += $_.BaseName
+}
 try {
-    & $VenvPython -m PyInstaller `
+    & $VenvPython -m PyInstaller @HiddenImports `
         --noconfirm `
         --clean `
         --name TVManager `
@@ -79,6 +87,7 @@ try {
         --distpath $DistPath `
         --specpath $SpecPath `
         (Join-Path $Root "server.py")
+    if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
 }
 finally {
     [Environment]::SetEnvironmentVariable("TVMANAGER_BUILDING_EXE", $PreviousBuildFlag, "Process")
@@ -103,7 +112,14 @@ $ExcludeDirs = @(
     "logs",
     "backups",
     "managed_trash",
-    "imports"
+    "imports",
+    "recovery",
+    "archive-staging",
+    ".runtime",
+    ".acquisition-locks",
+    "rename-journals",
+    "corrupt-db",
+    "db-emergency"
 )
 
 $ExcludeFiles = @(
@@ -114,7 +130,14 @@ $ExcludeFiles = @(
     "*.zip",
     "*.pyc",
     "*.pyo",
-    "TVManager.spec"
+    "TVManager.spec",
+    "*.db",
+    "*.db-wal",
+    "*.db-shm",
+    "*.log",
+    "*.ini",
+    ".tvmanager-session-key",
+    ".media-files.lock"
 )
 
 $RoboArgs = @(

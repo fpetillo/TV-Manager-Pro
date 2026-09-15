@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 
 import json
 import sys
@@ -6,7 +7,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
+BASE = app_paths.application_root()
 DB = BASE / "tvmanager.db"
 LOG = BASE / "diagnostics" / "startup-db-repair.json"
 

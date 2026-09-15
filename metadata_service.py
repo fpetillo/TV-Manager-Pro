@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 from datetime import date
 from pathlib import Path
 import os
@@ -9,7 +10,7 @@ import tmdb_client
 import job_center
 import requests
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 
 def cx():

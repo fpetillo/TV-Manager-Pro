@@ -1,36 +1,54 @@
 {
   "product": "TV Manager",
-  "version": "18.6.0",
-  "release_name": "Project Review and Reliability",
-  "generated_at": "2026-09-15T10:15:31.126860+00:00",
+  "version": "18.7.0",
+  "release_name": "Recovery, Processing and Downloader Coverage",
+  "generated_at": "2026-09-15T11:30:46.220010+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Correct show and season counts",
-    "Safe bulk search cancellation and bounded API workers",
-    "Duplicate handoff and simulation safeguards",
-    "Accurate job errors and protected backups",
-    "Expanded SickChill coverage review"
+    "Native reviewed database/configuration restore at restart",
+    "ZIP/RAR processing, scripts and explicit transfer methods",
+    "Persistent jobs and uncertain handoff reconciliation",
+    "uTorrent, rTorrent and Download Station adapters",
+    "Calendar subscriptions, typed settings and stable Windows executable paths"
   ],
   "validation": {
     "pytest": {
-      "passed": 318,
-      "failed": 0
+      "passed": 353,
+      "failed": 0,
+      "skipped": 2,
+      "skip_reason": "Windows symbolic-link permission unavailable"
     },
-    "python_parse": 47,
+    "python_parse": 61,
     "javascript_syntax": "38 passed",
     "dependency_consistency": "passed",
-    "html_route_smoke": "41 passed; zero broken literal template links",
-    "browser": "Isolated cancellation, preserved scheduler selections, correct show counts and partial search results",
-    "fully_green": true
+    "clean_install_routes": "Actual isolated Flask initialization, restore token/CSRF and calendar scope/revocation passed",
+    "browser": "Synthetic archive approval/import/script, repeat scan, restart restore, calendar, handoff resolution and settings save passed",
+    "windows_executable": "Built and launched; routes/assets and persistent restart setting passed; compressed RAR worker extracted 2048 bytes",
+    "inno_setup": "Script updated; installer compiler not available",
+    "fully_green": false
   },
   "activation": "Restart TV Manager normally and refresh open pages. Production process was not restarted.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
-    "server_preflight.py",
-    "library_locations.py",
+    "acquisition_journal.py",
+    "app_paths.py",
+    "archive_processing.py",
+    "blackhole.py",
+    "configuration.py",
+    "episode_calendar.py",
     "library_destinations.py",
-    "library_storage.py"
+    "library_locations.py",
+    "library_recovery.py",
+    "library_storage.py",
+    "media_transfer.py",
+    "native_downloaders.py",
+    "postprocess_scripts.py",
+    "process_runner.py",
+    "recover_library.py",
+    "runtime_guard.py",
+    "server_preflight.py",
+    "torrent_metadata.py"
   ],
   "sickchill_full_parity": false
 }

@@ -3,16 +3,51 @@ from __future__ import annotations
 import threading
 import traceback
 import uuid
+import json
+import sqlite3
+from pathlib import Path
+from contextlib import closing
 from datetime import datetime
 from typing import Any, Callable
 
 _LOCK = threading.RLock()
 _JOBS: dict[str, dict[str, Any]] = {}
-_MAX_JOBS = 100
+_MAX_JOBS = 500
 _SLOTS = threading.Condition()
 _RUNNING_COUNT = 0
+_STORE = None
+_MAX_PENDING = 256
 
 TERMINAL_STATUSES = {"complete", "error", "cancelled"}
+
+
+def configure(path):
+    """Load history once per serving process; interrupted work must be reviewed before retry."""
+    global _STORE
+    with _LOCK:
+        _STORE=Path(path)
+        _STORE.parent.mkdir(parents=True,exist_ok=True)
+        with closing(sqlite3.connect(_STORE,timeout=15)) as con:
+            con.execute('PRAGMA journal_mode=WAL')
+            con.execute('CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,payload TEXT NOT NULL,updated TEXT NOT NULL)')
+            rows=con.execute('SELECT payload FROM jobs ORDER BY updated DESC LIMIT 500').fetchall()
+            _JOBS.clear()
+            for (payload,) in reversed(rows):
+                job=json.loads(payload)
+                if job.get('status') not in TERMINAL_STATUSES:
+                    job.update(status='error',stage='Interrupted by restart',completed_at=_now(),updated_at=_now(),
+                        message='TV Manager restarted before this job finished. Review its result and the downloader/library before starting it again.',interrupted=True)
+                _JOBS[job['job_id']]=job
+                con.execute('INSERT OR REPLACE INTO jobs VALUES(?,?,?)',(job['job_id'],json.dumps(job,default=str),job['updated_at']))
+            con.commit()
+
+
+def _persist(job):
+    if _STORE is None:return
+    with closing(sqlite3.connect(_STORE,timeout=15)) as con:
+        con.execute('INSERT OR REPLACE INTO jobs VALUES(?,?,?)',(job['job_id'],json.dumps(job,default=str),job.get('updated_at',_now())))
+        con.execute('DELETE FROM jobs WHERE id NOT IN (SELECT id FROM jobs ORDER BY updated DESC LIMIT 500)')
+        con.commit()
 
 
 def _now() -> str:
@@ -41,6 +76,9 @@ def create_job(kind: str, *, stage: str = "Queued", message: str = "Queued.", to
         "completed_at": None,
     }
     with _LOCK:
+        if sum(j.get('status') not in TERMINAL_STATUSES for j in _JOBS.values())>=_MAX_PENDING:
+            raise ValueError('The background queue is full. Wait for jobs to finish before starting more.')
+        _persist(job)
         _JOBS[job_id] = job
         _prune_locked()
         return dict(job)
@@ -58,6 +96,7 @@ def update_job(job_id: str, **updates: Any) -> dict[str, Any]:
         job["updated_at"] = _now()
         if job.get("status") in TERMINAL_STATUSES and not job.get("completed_at"):
             job["completed_at"] = _now()
+        _persist(job)
         return dict(job)
 
 
@@ -68,6 +107,7 @@ def append_error(job_id: str, error: dict[str, Any] | str, *, limit: int = 50) -
         errors.append({"error": str(error)} if not isinstance(error, dict) else error)
         job["errors"] = errors[-max(1, limit):]
         job["updated_at"] = _now()
+        _persist(job)
         return dict(job)
 
 
@@ -108,6 +148,8 @@ def request_cancel(job_id):
         if job.get('status') not in TERMINAL_STATUSES:
             job['cancel_requested'] = True
             job['message'] = 'Stop requested. Waiting for the current episode to finish.'
+            job['updated_at'] = _now()
+            _persist(job)
         return dict(job)
 
 

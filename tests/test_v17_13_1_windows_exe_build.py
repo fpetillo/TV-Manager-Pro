@@ -35,6 +35,6 @@ def test_windows_exe_build_uses_project_python_module_invocation():
 
 def test_inno_setup_uses_release_windows_payload_and_current_version():
     text = ISS.read_text(encoding="utf-8")
-    assert '17.14.0' in text
+    assert (ROOT / 'VERSION').read_text().strip() in text
     assert 'release\\windows\\TVManager\\*' in text
     assert 'dist\\TVManager\\*' not in text

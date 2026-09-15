@@ -32,5 +32,5 @@ def test_build_script_keeps_safe_external_staging_and_exclusions():
 
 def test_inno_version_matches_patch_release():
     text = ISS.read_text(encoding="utf-8")
-    assert "17.14.0" in text
+    assert (ROOT / 'VERSION').read_text().strip() in text
     assert "release\\windows\\TVManager\\*" in text

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 from datetime import datetime
 from pathlib import Path
 import json
@@ -6,7 +7,7 @@ import re
 import shutil
 import dbcore
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 TRASH=BASE/"managed_trash"/"upgrades"
 
@@ -14,7 +15,7 @@ STATES=("Found","Queued","Downloading","Downloaded","Importing","Completed","Fai
 TRANSITIONS={
     "Found":{"Queued","Blocked"},
     "Queued":{"Downloading","Downloaded","Failed","Blocked"},
-    "Downloading":{"Downloaded","Failed","Blocked"},
+    "Downloading":{"Queued","Downloaded","Failed","Blocked"},
     "Downloaded":{"Importing","Failed","Blocked"},
     "Importing":{"Completed","Failed","Quarantined"},
     "Completed":{"Superseded"},

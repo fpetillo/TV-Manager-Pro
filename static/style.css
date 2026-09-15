@@ -333,3 +333,7 @@ html{overflow-x:hidden} body{overflow-x:hidden}.shell.has-side-navigation{width:
 .brand-lockup.brand-with-logo{flex-direction:column;align-items:flex-start;gap:8px;min-width:0;width:100%}.nav-product-logo{display:block;width:100%;max-width:210px;height:auto;border-radius:10px}.hero-logo-link{display:block;flex:0 1 260px;max-width:260px}.hero-product-logo{display:block;width:100%;height:auto;border-radius:14px}.nav-brand-pro:has(.nav-product-logo) .nav-health-dot{display:none}@media(max-width:700px){.hero-logo-link{flex-basis:auto;width:190px;max-width:100%}.nav-product-logo{max-width:180px}}
 
 .layout-audited .topbar.product-branded-header{display:grid;grid-template-columns:200px minmax(0,1fr);align-items:center;gap:20px}.product-branded-header .hero-logo-link{width:200px;max-width:100%}.layout-audited .topbar.product-branded-header>.nav{grid-column:1/-1;width:100%;justify-content:flex-start}@media(max-width:860px){.layout-audited .topbar.product-branded-header{grid-template-columns:1fr}.product-branded-header .hero-logo-link{width:190px}}
+
+/* Preserve native hidden-state semantics even for flex/grid controls. */
+[hidden]{display:none!important}
+dialog::backdrop{background:rgba(0,0,0,.65)}

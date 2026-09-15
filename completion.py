@@ -1,10 +1,11 @@
 from __future__ import annotations
+import app_paths
 import dbcore
 import json, os, sqlite3, shutil, hashlib
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 TRASH=BASE/"managed_trash"
 TRASH.mkdir(exist_ok=True)

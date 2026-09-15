@@ -72,7 +72,7 @@ def update(db,client,states):
                 state=states.get(str(row['external_id']).lower())
                 if not state:continue
                 status=state['status']
-                if row['status']=='Downloaded' and status=='Downloading':continue
+                if row['status']=='Downloaded' and status in {'Queued','Downloading'}:continue
                 if table=='season_pack_downloads':
                     c.execute('UPDATE season_pack_downloads SET progress=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',(state.get('progress',0),row['id']))
                 if status==row['status']:continue

@@ -17,10 +17,11 @@
     <div class="postprocess-form-grid">
       <label class="field grow"><span>Configured completed TV folder</span><input id="defaultDir" placeholder="Example: D:\\Downloads\\TV or /downloads/tv"></label>
       <label class="field grow"><span>Override folder for this run</span><input id="overrideDir" placeholder="Optional alternate filesystem path on this server"></label>
-      <label class="field"><span>Processing method</span><select id="method"><option value="move">Move</option><option value="copy">Copy</option><option value="hardlink">Hardlink</option></select></label>
+      <label class="field"><span>Processing method</span><select id="method"><option value="move">Move</option><option value="copy">Copy</option><option value="hardlink">Hardlink</option><option value="symlink">Move and Leave Source Link</option><option value="symlink_reversed">Link Library to Source</option></select></label>
       <label class="field"><span>Scan limit</span><input id="limit" type="number" min="1" max="1000" value="300"></label>
     </div>
-    <div class="toolbar postprocess-toolbar"><button id="saveConfig" class="secondary">Save Default Folder</button><button id="scan" class="primary">Preview Folder</button></div>
+    <p class="muted">Move and Leave Source Link keeps a link at the download location for seeding. Link Library to Source keeps the media in the download folder, which must remain available. Symbolic links require operating-system permission.</p>
+    <label class="checkline"><input id="unpackArchives" type="checkbox"> Extract ZIP and RAR downloads before matching episodes</label><p class="muted">Archives are preserved. Extracted files are staged separately for review, then use the same episode approval and library processing rules.</p><div class="toolbar postprocess-toolbar"><button id="saveConfig" class="secondary">Save Processing Settings</button><button id="scan" class="primary">Preview Folder</button></div>
     <div class="notice"><strong>Operator note:</strong> browsers cannot safely expose a full server filesystem picker. Enter the path as seen by the TV Manager server. On Windows this may be <code>D:\Downloads\TV</code>; on Linux it may be <code>/downloads/tv</code>.</div>
     <div id="message" class="message"></div>
   </section>
@@ -35,6 +36,7 @@
     </div>
     <div id="actions" class="table-wrap"></div>
   </section>
+<section class="panel col-12"><h2>Post-Processing Scripts</h2><p>Run a configured local helper after an episode is imported. Choose its executable (or an interpreter), then enter any fixed arguments one per line. TV Manager appends the final file, original file, indexer ID, season, episode and air date, following SickChill's argument order.</p><div id="processingScriptRows"></div><div class="actions"><button id="addProcessingScript" class="secondary">Add Script</button><button id="saveProcessingScripts" class="primary">Save Scripts</button></div><p id="processingScriptsMessage" role="status"></p></section>
 </section>
 
 <footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/postprocess.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

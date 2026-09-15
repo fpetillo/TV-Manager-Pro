@@ -25,10 +25,16 @@ window.openSection=async sec=>{
     const r=await fetch('/api/settings/section/'+encodeURIComponent(sec)),d=await r.json();
     if(!r.ok)throw new Error(d.error||'Could not load settings');
     sectionEditor.innerHTML=`<h3>${esc(sec)}</h3><input id="settingNameFilter" placeholder="Find a setting in this section"><p class="muted">Change values and save. Protected values stay unchanged unless replaced. Application defaults are shown even before they are saved.</p><div class="setting-rows">${d.results.map(x=>{
-      const path=sec.toLowerCase()==='general'&&x.name.toLowerCase()==='root_dirs';
-      return `<label class="setting-row"><span><strong>${esc(x.name)}</strong><small>${esc(x.source)}</small></span>${path?'<a href="/library-storage">Edit Library Locations</a>':`<input autocomplete="off" type="${x.is_secret?'password':'text'}" data-name="${esc(x.name)}" value="${esc(x.value??'')}">`}</label>`;
+      const name=esc(x.name),value=String(x.value??'');let editor;
+      if(x.control==='editor')editor=`<a href="${esc(x.editor)}">${esc(x.editor_label)}</a>`;
+      else if(x.control==='choice'||x.control==='boolean'){
+        const choices=x.control==='boolean'?['0','1']:x.choices;
+        const normalized=x.control==='boolean'?(['1','true','yes','on'].includes(value.toLowerCase())?'1':'0'):value;
+        editor=`<select data-name="${name}">${(!choices.includes(normalized)?`<option selected value="${esc(value)}">${esc(value)} (imported; choose a supported option)</option>`:'')+choices.map(c=>`<option value="${esc(c)}" ${c===normalized?'selected':''}>${x.control==='boolean'?(c==='1'?'On':'Off'):esc(c||'Disabled')}</option>`).join('')}</select>`;
+      }else editor=`<input autocomplete="off" type="${x.is_secret?'password':x.control==='number'?'number':'text'}" ${x.control==='number'?`min="${x.minimum}" max="${x.maximum}" step="1"`:''} data-name="${name}" value="${esc(value)}">`;
+      return `<label class="setting-row"><span><strong>${name}</strong><small>${esc(x.source)} · ${esc(x.support||'')}</small></span>${editor}</label>`;
     }).join('')}</div><button id="saveSection" class="blue">Save Changes</button><div id="sectionMsg" class="message" role="status"></div>`;
-    const inputs=Array.from(sectionEditor.querySelectorAll('input[data-name]'));
+    const inputs=Array.from(sectionEditor.querySelectorAll('[data-name]'));
     inputs.forEach(i=>i.dataset.original=i.value);
     document.getElementById('settingNameFilter').oninput=function(){sectionEditor.querySelectorAll('.setting-row').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(this.value.toLowerCase()));};
     document.getElementById('saveSection').onclick=async function(){
@@ -107,7 +113,7 @@ fetch("/api/settings/section/TVManager").then(r=>r.json()).then(d=>{const x=d.re
   const sidebar=document.querySelector('.settings-sidebar');
   const links=[['Library Locations','/library-storage'],['Quality Profiles','/quality'],['Metadata Sources','/metadata-sources'],['Native Notifications','/notifications'],['Providers, Media Servers & Webhooks','/advanced'],['Post-Processing','/postprocess'],['New Show Defaults','/'],['Database Protection','/database-safety']];
   for(const [label,url] of links){const a=document.createElement('a');a.className='btn secondary';a.href=url;a.textContent=label;sidebar.append(a);}
-  for(const [view,sections] of [['downloaders',['General','SABnzbd','NZBGet','TORRENT','Blackhole']],['providers',['Newznab']],['notifications',['Email']]]){
+  for(const [view,sections] of [['providers',['Newznab']],['notifications',['Email']]]){
     const box=document.getElementById('view-'+view);const actions=document.createElement('div');actions.className='actions';
     for(const sec of sections){const b=document.createElement('button');b.className='secondary';b.textContent='Edit '+sec;b.onclick=()=>openSection(sec);actions.append(b);}box.prepend(actions);
   }

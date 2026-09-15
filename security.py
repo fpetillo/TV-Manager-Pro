@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 from pathlib import Path
 from datetime import datetime
 import base64
@@ -8,7 +9,7 @@ import os
 import secrets
 import dbcore
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 SECRET_FILE=BASE/".tvmanager-session-key"
 PBKDF2_ITERATIONS=350_000

@@ -1,3 +1,4 @@
+import app_paths
 import dbcore
 import db_doctor
 import migrations
@@ -12,7 +13,7 @@ import sickchill_importer
 import library_maintenance
 import import_recovery
 import configparser, json, os, shutil, sqlite3, io, zipfile, threading, uuid, traceback, sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 import requests
 from dotenv import load_dotenv
@@ -35,14 +36,19 @@ import sickchill_parity
 import help_content
 import episode_rules
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
+import runtime_guard
+import library_recovery
+if str(os.getenv('TVMANAGER_BUILDING_EXE','')).lower() not in {'1','true','yes','on'}:
+    runtime_guard.acquire(BASE)
+    library_recovery.apply_pending(BASE)
 APP_VERSION=(BASE/"VERSION").read_text(encoding="utf-8").strip() if (BASE/"VERSION").exists() else "development"
 load_dotenv(BASE/".env")
 DB=BASE/"tvmanager.db"
 IMPORTS=BASE/"imports"; IMPORTS.mkdir(exist_ok=True)
 IMPORT_JOBS: dict[str, dict] = {}
 IMPORT_JOBS_LOCK = threading.RLock()
-app=Flask(__name__)
+app=Flask(__name__,root_path=str(BASE))
 app.secret_key=security.session_secret()
 app.config["MAX_CONTENT_LENGTH"]=512*1024*1024
 app.config["SESSION_COOKIE_HTTPONLY"]=True
@@ -444,6 +450,8 @@ PUBLIC_PATHS={"/login","/about","/about/","/version","/routes","/api/routes","/l
 def enforce_security():
     g.api_identity=None
     path=request.path
+    if path=='/calendar.ics' and request.method=='GET' and __import__('episode_calendar').verify_token(request.args.get('token','')):
+        return None
     if path.startswith("/static/"):
         return None
 
@@ -1992,6 +2000,35 @@ def api_manage_mass_refresh_start():
         return result
     return jsonify(ok=True, job=job_center.run_background("sickchill_mass_refresh", worker, stage="Queued", message="SickChill parity mass refresh queued.", meta={"limit":limit,"metadata":refresh_metadata,"artwork":refresh_artwork,"subtitles":scan_subtitles}))
 
+@app.get('/api/calendar')
+def calendar_data():
+    import episode_calendar
+    try:
+        start=request.args.get('start',date.today().isoformat())
+        end=request.args.get('end',(date.today()+timedelta(days=30)).isoformat())
+        return jsonify(results=episode_calendar.episodes(start,end,request.args.get('specials')=='1'))
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
+
+@app.get('/calendar.ics')
+def calendar_feed():
+    import episode_calendar
+    rows=episode_calendar.episodes((date.today()-timedelta(days=30)).isoformat(),(date.today()+timedelta(days=335)).isoformat())
+    return app.response_class(episode_calendar.feed(rows),mimetype='text/calendar',headers={'Content-Disposition':'attachment; filename="tvmanager.ics"','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'})
+
+
+@app.post('/api/calendar/subscription')
+def calendar_subscription():
+    token=__import__('episode_calendar').rotate_token()
+    return jsonify(url=request.url_root.rstrip('/')+'/calendar.ics?token='+token)
+
+
+@app.delete('/api/calendar/subscription')
+def calendar_revoke():
+    engine.set_setting('TVManager','calendar_token_hash','',is_secret=1)
+    return jsonify(ok=True)
+
+
 @app.get("/api/upcoming")
 def api_upcoming():
     return jsonify(results=engine.upcoming(max(1,min(90,int(request.args.get("days","14"))))))
@@ -2033,6 +2070,21 @@ def api_downloaders():
 @app.post("/api/downloaders/test")
 def api_test_downloaders():
     return jsonify(results=engine.test_downloaders())
+
+@app.get('/api/downloaders/handoffs')
+def unresolved_handoffs():
+    import acquisition_journal
+    return jsonify(results=acquisition_journal.listing(DB))
+
+
+@app.post('/api/downloaders/handoffs/<token>/resolve')
+def resolve_handoff(token):
+    import acquisition_journal
+    body=request.get_json(silent=True) or {}
+    if body.get('confirmed') is not True:return jsonify(error='Confirm that you checked the client queue and history.'),400
+    try:return jsonify(acquisition_journal.resolve(DB,token,body.get('action'),body.get('external_id','')))
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
 
 @app.get("/api/downloaders/monitor")
 def api_downloaders_monitor():
@@ -2348,9 +2400,21 @@ def api_show_options(sid):
     return jsonify(ok=True)
 
 
+@app.get('/api/postprocess/scripts')
+def processing_scripts_get():
+    return jsonify(scripts=__import__('postprocess_scripts').settings())
+
+
+@app.post('/api/postprocess/scripts')
+def processing_scripts_save():
+    try:return jsonify(ok=True,scripts=__import__('postprocess_scripts').save((request.get_json(silent=True) or {}).get('scripts',[])))
+    except (ValueError,TypeError) as exc:return jsonify(error=str(exc)),400
+
+
 @app.get("/api/postprocess/config")
 def api_postprocess_config():
     return jsonify(
+        unpack=engine.as_bool(engine.get_setting("General","unpack","0")),
         tv_download_dir=engine.get_setting("General","tv_download_dir","") or "",
         process_method=engine.get_setting("General","process_method","move") or "move",
         process_automatically=engine.as_bool(engine.get_setting("General","process_automatically","0"),False),
@@ -2362,10 +2426,11 @@ def api_postprocess_config():
 @app.post("/api/postprocess/config")
 def api_postprocess_config_save():
     body=request.get_json(silent=True) or {}
-    allowed={"tv_download_dir","process_method","process_automatically","rename_episodes","move_associated_files"}
-    for k,v in body.items():
-        if k in allowed:
-            engine.set_setting("General",k,str(v))
+    allowed={"tv_download_dir","process_method","process_automatically","rename_episodes","move_associated_files","unpack"}
+    import configuration
+    try:values={k:configuration.validate('General',k,v) for k,v in body.items() if k in allowed}
+    except ValueError as exc:return jsonify(error=str(exc)),400
+    for k,v in values.items():engine.set_setting('General',k,v)
     return jsonify(ok=True)
 
 @app.get("/api/postprocess/scan")
@@ -2397,8 +2462,9 @@ def api_postprocess_run_start():
     def worker(job_id):
         job_center.update_job(job_id, stage="Post-processing", message="Processing approved files.", percent=10)
         result=engine.scan_postprocess(dry_run=False,root_override=root,limit=limit,selected_sources=selected,process_method_override=method,progress_callback=lambda u: job_center.update_job(job_id, **u))
-        processed=len(result.get("processed") or result.get("results") or []) if isinstance(result,dict) else 0
-        job_center.update_job(job_id, status="complete", stage="Complete", message="Post-processing complete.", percent=100, result=result, processed=processed, succeeded=processed)
+        processed=int(result.get('processed_count',0));errors=result.get('errors') or []
+        for error in errors:job_center.append_error(job_id,error)
+        job_center.update_job(job_id, status='error' if errors else 'complete', stage='Finished', message=f'{processed} files processed; {len(errors)} errors.', percent=100, result=result, processed=processed, succeeded=processed,failed=len(errors))
         return result
     return jsonify(ok=True, job=job_center.run_background("post_processing", worker, stage="Queued", message="Post-processing queued.", meta={"root":root,"limit":limit,"method":method}))
 
@@ -2542,7 +2608,8 @@ def api_setting_value(section,name):
     if section.lower()=="general" and name.lower()=="root_dirs":
         return jsonify(error="Manage library paths under Library Locations so shows-in-use checks are applied.",url="/library-storage"),400
     body=request.get_json(silent=True) or {}
-    engine.update_setting_safe(section,name,body.get("value",""))
+    try:engine.update_setting_safe(section,name,body.get("value",""))
+    except ValueError as exc:return jsonify(error=str(exc)),400
     return jsonify(ok=True)
 
 @app.get("/api/quality-profiles")
@@ -2755,13 +2822,51 @@ def api_subtitle_scan_start():
         return result
     return jsonify(ok=True, job=job_center.run_background("subtitle_audit", worker, stage="Queued", message="Subtitle audit queued.", meta={"show_id":show_id}))
 
+@app.post("/api/protection/restore/preview")
+def restore_preview():
+    from itsdangerous import URLSafeTimedSerializer
+    body=request.get_json(silent=True) or {}
+    try:
+        report=library_recovery.preview(BASE,body.get('path',''),body.get('config_directory'))
+        token=URLSafeTimedSerializer(app.secret_key,salt='library-restore').dumps(report)
+        return jsonify(ok=True,preview=report,token=token)
+    except Exception as exc:return jsonify(error=str(exc)),400
+
+
+@app.post("/api/protection/restore/stage")
+def restore_stage():
+    from itsdangerous import URLSafeTimedSerializer
+    body=request.get_json(silent=True) or {}
+    try:
+        if body.get('confirmation')!='RESTORE':raise ValueError('Type RESTORE to queue the reviewed restore.')
+        report=URLSafeTimedSerializer(app.secret_key,salt='library-restore').loads(body.get('token',''),max_age=1800)
+        return jsonify(ok=True,restore=library_recovery.stage(BASE,report))
+    except Exception as exc:return jsonify(error=str(exc)),400
+
+
+@app.get("/api/protection/restore")
+def restore_status():
+    config=[]
+    for path in sorted((BASE/'backups'/'config').glob('*/config-backup.json'),reverse=True):
+        config.append({'path':str(path.parent),'name':path.parent.name})
+    return jsonify(restore=library_recovery.status(BASE),config=config[:100])
+
+
+@app.post("/api/protection/restore/cancel")
+def restore_cancel():
+    try:return jsonify(ok=True,restore=library_recovery.cancel(BASE))
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
+
 @app.post("/api/backup")
 def api_backup():
-    stamp=datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp=datetime.now().strftime("%Y%m%d-%H%M%S")+'-'+uuid.uuid4().hex[:8]
     path=BACKUPS/f"tvmanager-backup-{stamp}.zip"
-    manifest={"version":"6.1","created_at":datetime.now().isoformat(),"files":["tvmanager.db"]}
+    snapshot=database_safety.backup_database(DB,reason='zip-export')
+    if not snapshot.get('ok'):return jsonify(error=snapshot.get('error') or 'Backup failed validation'),400
+    manifest={"version":APP_VERSION,"created_at":datetime.now().isoformat(),"files":["tvmanager.db"],"sha256":snapshot['sha256']}
     with zipfile.ZipFile(path,"w",zipfile.ZIP_DEFLATED) as z:
-        z.write(DB,"tvmanager.db")
+        z.write(snapshot['backup'],"tvmanager.db")
         z.writestr("manifest.json",json.dumps(manifest,indent=2))
     with cx() as c:
         c.execute("INSERT INTO backup_history(path,kind,status) VALUES(?,'manual','OK')",(str(path),));c.commit()
@@ -3497,6 +3602,9 @@ scheduler_guard.init()
 security.init()
 metadata_service.init()
 engine.normalize_statuses()
+if str(os.getenv('TVMANAGER_BUILDING_EXE','')).lower() not in {'1','true','yes','on'}:
+    job_center.configure(BASE/'.runtime'/'jobs.sqlite3')
+    library_recovery.startup_complete(BASE)
 
 if __name__=="__main__":
     engine.start_scheduler()

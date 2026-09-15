@@ -1,10 +1,11 @@
+import app_paths
 """Native notification payloads; credentials stay masked in public responses."""
 from pathlib import Path
 from urllib.parse import urlparse
 import requests
 import dbcore
 
-DB=Path(__file__).resolve().parent/'tvmanager.db'
+DB=app_paths.application_root()/'tvmanager.db'
 MASK='********'
 KINDS={'discord','slack','telegram','gotify','pushover','pushbullet'}
 EVENTS={'snatched','downloaded','failed','subtitle'}

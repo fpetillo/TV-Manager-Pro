@@ -1,3 +1,13 @@
+## 18.7.0 — Recovery, processing and downloader coverage
+
+Added reviewed database/config restore at restart, rollback after failed startup, offline recovery, ZIP/RAR staging and configured post-processing scripts. Manual job history persists, and uncertain download handoffs reserve episodes for explicit review instead of automatic resend. Season packs cannot overlap individual handoffs. Added native uTorrent, rTorrent HTTP XML-RPC and Synology Download Station, real watch-folder descriptors, reliable HTTP torrent identity and corrected Deluge magnet/file dispatch.
+
+Upcoming has a monthly calendar and revocable calendar-only iCalendar subscriptions. Known settings have typed choices/limits and visible downloader edit controls. Both SickChill symbolic-link transfer directions are implemented, with permission checks and no silent fallback to Move. Packaged Windows data paths persist across restart; extraction workers run independently, and build staging excludes runtime data/secrets.
+
+Validation: 353 automated tests passed; two live symbolic-link tests skipped because this account lacks OS permission. All 61 Python modules and 38 JavaScript files pass syntax checks; dependency consistency passes. Actual isolated Flask routes verify restore/CSRF/subscription scope. Browser drills verify archive approval/import/script, repeat scan, restart restore, handoff resolution, calendar and settings save. A clean executable served routes/assets, retained a setting after restart and extracted a compressed RAR fixture. Installer compilation and live external-service certification are not claimed.
+
+[Release notes](docs/RELEASE_NOTES_v18.7.0.md) describe activation and limits. Full SickChill parity remains incomplete: 15 locally complete / 17 partial feature families. Source publication is separate from restarting the production application.
+
 ## 18.6.0 — Project review and reliability improvements
 
 Corrected Show Detail header/season counts, duplicate episode handoffs, imported-date search eligibility, automatic-grab simulation enforcement, false-success job reporting and backup validation. Bulk missing searches can be stopped safely from Active Jobs, and completed download history no longer prevents searching again for a missing wanted episode. Search results from working providers remain visible when another provider fails.

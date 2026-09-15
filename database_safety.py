@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 
 import hashlib
 import json
@@ -13,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-BASE = Path(__file__).resolve().parent
+BASE = app_paths.application_root()
 DB = BASE / "tvmanager.db"
 BACKUPS = BASE / "backups"
 SAFE_BACKUPS = BACKUPS / "safe"

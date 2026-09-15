@@ -5,6 +5,7 @@ Runs read-only checks before replacing a SickChill server. It does not modify
 SickChill, TV Manager, or media files. A JSON report is written to diagnostics/.
 """
 from __future__ import annotations
+import app_paths
 
 import argparse
 import json
@@ -55,7 +56,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=5050)
     args = parser.parse_args()
 
-    base = Path(__file__).resolve().parent
+    base = app_paths.application_root()
     diagnostics = base / "diagnostics"
     diagnostics.mkdir(exist_ok=True)
     report = {

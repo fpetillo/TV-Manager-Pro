@@ -1,10 +1,11 @@
 from __future__ import annotations
+import app_paths
 from pathlib import Path
 import hashlib
 import os
 import dbcore
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 CHUNK=1024*1024
 

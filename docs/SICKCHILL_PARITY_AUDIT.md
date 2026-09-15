@@ -1,10 +1,10 @@
-# SickChill coverage audit — reviewed 2026-09-15
+# SickChill coverage audit — v18.7.0, reviewed 2026-09-15
 
-Full parity is not achieved. This audit replaces earlier broad claims of completeness. Complete means the named local workflow exists; it does not certify an external integration. Partial identifies implemented behavior plus missing coverage. Missing means no complete corresponding workflow was identified.
+Full parity is not achieved. Complete means the named local workflow exists; it does not certify every external integration or an exhaustive match to every upstream option. Partial identifies remaining behavior or integration coverage. The current feature-family inventory has 15 locally complete and 17 partial families; these are not percentages of parity.
 
-Sources: [official feature list](https://sickchill.github.io/), [show settings](https://github.com/SickChill/sickchill/wiki/Show-settings-explained), [settings](https://github.com/SickChill/sickchill/wiki/Settings-explained).
+The v18.7.0 release adds native restore, archive/script processing, durable jobs and handoff reconciliation, additional downloaders, calendar subscriptions, typed settings and Windows packaging corrections. Remaining primary gaps include site-specific providers, three downloader clients, AniDB and existing-show indexer/order migration, full subtitle/notifier/metadata compatibility and configured-service acceptance.
 
-Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent JSON preserves the checked adapter paths. This is a feature-family audit and adapter inventory, not a claim of exhaustive behavioral equivalence.
+Sources: [official feature list](https://sickchill.github.io/), [show settings](https://github.com/SickChill/sickchill/wiki/Show-settings-explained), [settings](https://github.com/SickChill/sickchill/wiki/Settings-explained). Upstream source inventory: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`.
 
 | Area | Capability | Location | Status | Evidence / remaining work |
 |---|---|---|---|---|
@@ -20,11 +20,11 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Search | Date, sports and scene searches | Show Settings / Advanced | Partial | show_preferences.py: date and stored scene numbering used in provider requests; manual and cached XEM mapping sources are supported. |
 | Search | Anime and automatic XEM mapping | Advanced | Partial | scene_sync.py: cached XEM refresh after metadata refresh, manual override precedence and reverse matching. Live XEM returned HTTP 403 in this environment; aliases/group rules and complete multi-mapping search remain partial. |
 | Search | Native SickChill provider roster | Providers | Partial | Generic Newznab/Torznab adapters do not implement upstream site-specific login, cookies and scraping. See upstream inventory. |
-| Downloads | Client handoff and queue monitoring | Download Center | Partial | engine.py and downloader_polling.py: SAB/qBittorrent plus NZBGet/Transmission/Deluge polling. Other upstream clients remain missing. Blackhole currently writes URL descriptors, not native NZB/torrent payloads. Live credentials/clients needed for end-to-end checks. |
+| Downloads | Client handoff and queue monitoring | Download Center | Partial | engine.py, native_downloaders.py: SABnzbd, NZBGet, qBittorrent, Transmission, Deluge Web, uTorrent, rTorrent HTTP XML-RPC and Download Station handoff/polling. Real blackhole descriptors and durable uncertain-handoff review are implemented. Deluge daemon, MLDonkey and put.io remain absent; live client acceptance remains open. |
 | Downloads | Failed download history and retry | Manage Center | Partial | Failure records and retry workflows exist; automatic recovery needs live client validation. |
 | Post processing | Preview and approve completed files | Post Processing | Complete | engine.py: matched/blocked/unmatched review and explicit approval before processing. |
-| Post processing | Naming and season folders | Naming / Show Settings | Complete | naming.py: configured naming and per-show flat/season folders. |
-| Post processing | Archive extraction and extra scripts | Post Processing | Missing | No complete SickChill-compatible archive extraction and post-processing script workflow. |
+| Post processing | Naming and season folders | Naming / Show Settings | Complete | naming.py, media_transfer.py: configured naming, per-show flat/season folders and move/copy/hardlink/both SickChill symbolic-link methods. Symbolic links require operating-system permission; two live link tests skipped on this Windows account. |
+| Post processing | Archive extraction and extra scripts | Post Processing | Complete | archive_processing.py, postprocess_scripts.py: bounded ZIP/RAR staging, validated member paths, reviewed import, preserved archives and configured helper execution with SickChill argument order. ZIP import/script browser drill and compressed RAR source/EXE worker drills passed. Password-protected archives remain unsupported. |
 | Post processing | Rename existing library in place | Show Detail / Library | Complete | library_rename.py: signed preview, selected approval, no overwrite, sidecars, multi-episode grouping, rollback and recovery journals. |
 | Metadata | TMDb refresh and language | Show Settings | Partial | metadata_service.py: per-show language and default new-episode statuses; requires TMDb configuration. |
 | Metadata | TVDB / AniDB as primary indexers | Metadata Sources / Add Show | Partial | tvdb_client.py implements TVDB v4 search and refresh for new shows. AniDB and existing-library source migration remain missing; live TVDB credentials required. |
@@ -33,12 +33,12 @@ Upstream source tree: `e1f8475ded8dd77662fad3ba9488740133ca8ce1`. The adjacent J
 | Subtitles | Automatic subtitle search and per-show switch | Subtitles / Show Settings | Partial | sync.py and production.py: OpenSubtitles adapter and per-show opt-out; upstream subtitle-provider coverage is incomplete. |
 | Notifications | Native notification services | Notification Services | Partial | notifiers.py: native Discord, Slack, Telegram, Gotify, Pushover and Pushbullet event delivery. Other upstream adapters remain missing; live delivery is unverified. |
 | Media servers | Plex / Kodi / Emby / Jellyfin updates | Media Servers | Partial | Configuration and refresh integrations require live server validation; not all upstream behaviors are covered. |
-| Automation | Scheduled jobs and mutual exclusion | Jobs / Settings | Partial | scheduler_guard.py: UTC leases; master automation preserves job choices. job_center respects worker limit for API jobs; scheduled jobs use separate leases. Persistent job recovery remains incomplete. |
+| Automation | Scheduled jobs and mutual exclusion | Jobs / Settings | Partial | scheduler_guard.py, runtime_guard.py and job_center.py: UTC leases, one serving process per installation, bounded API workers and persistent interrupted-job history. Scheduled work still uses separate leases and interruption requires operator review. |
 | Operations | Logs, job status and diagnostics | Logs / Jobs / System | Complete | Local status, progress and diagnostic workflows implemented. |
-| Safety | Backup and restore | Database Safety | Partial | database_safety.py: unique verified online snapshots, empty/missing rejection and atomic manifest writes; native complete restore workflow is missing. |
-| Schedule | Calendar and subscription feed | Upcoming | Partial | Upcoming provides an air-date list. Calendar grid and iCalendar subscription feed are not implemented. |
-| Operations | Job history across restarts | Jobs | Partial | Recent manual jobs are in memory; scheduler runs and activity have DB history. Durable manual jobs and restart reconciliation remain missing. |
-| Settings | Full imported setting behavior | Settings | Partial | Stored and known defaults are editable with dedicated editors for structured values. Not every imported SickChill setting has native behavior; comprehensive typed validation remains incomplete. |
+| Safety | Backup and restore | Database Safety | Complete | library_recovery.py: signed preview, staged database/config restore at restart, rollback after failed startup, preserved previous files and paused automation. Database Safety browser restart drill passed. Offline recover_library.py is available when the UI cannot start. |
+| Schedule | Calendar and subscription feed | Upcoming | Partial | episode_calendar.py: monthly calendar, date-list view, iCalendar download and revocable calendar-only subscription. Air dates are all-day; network-local airing times and timezone metadata remain absent. |
+| Operations | Job history across restarts | Jobs | Complete | job_center.py: persistent recent manual jobs, retained counters/results and explicit interrupted-by-restart status. Uncertain external handoffs retain reservations and can be reconciled in Download Center; no automatic replay of external side effects. |
+| Settings | Full imported setting behavior | Settings | Partial | configuration.py: typed supported methods, booleans and numeric limits, structured editor links, protected values and visible imported-support labels. Not every imported SickChill setting has native behavior. |
 | Help | In-app workflow guidance | Help Center | Complete | help_content.py: searchable guides and explicit coverage gaps. |
 
 ## Upstream integration inventory

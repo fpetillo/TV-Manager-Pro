@@ -1,4 +1,5 @@
 from __future__ import annotations
+import app_paths
 
 """Shared TMDb client for TV Manager.
 
@@ -15,7 +16,7 @@ from typing import Any, Callable
 import requests
 from dotenv import load_dotenv
 
-BASE = Path(__file__).resolve().parent
+BASE = app_paths.application_root()
 load_dotenv(BASE / ".env", override=False)
 
 class TMDBConfigurationError(RuntimeError):

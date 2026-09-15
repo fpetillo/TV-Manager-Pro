@@ -1,6 +1,10 @@
 # TV Manager project review — 15 September 2026
 
-## Assessment
+## v18.7.0 follow-up
+
+The review below records the v18.6.0 baseline. Native restore, archive/script processing, durable jobs and handoffs, calendar/feed, three additional downloader adapters, typed settings and Windows packaging fixes are now implemented. The current matrix is 15 locally complete / 17 partial families; full parity remains incomplete. See [v18.7.0 release notes](RELEASE_NOTES_v18.7.0.md) for evidence and limits.
+
+## Original assessment
 
 TV Manager has substantial local coverage, but full SickChill parity is not achieved. The updated inventory contains 32 feature families: 12 locally complete, 19 partial, and one missing. These are coverage categories, not a percentage of product quality. A working configuration screen does not establish working integration with every external service.
 

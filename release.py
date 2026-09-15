@@ -1,11 +1,12 @@
 from __future__ import annotations
+import app_paths
 import dbcore
 import lifecycle
 import hashlib, secrets, sqlite3, json
 from datetime import datetime
 from pathlib import Path
 
-BASE=Path(__file__).resolve().parent
+BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
 
 def cx():
@@ -90,39 +91,31 @@ def grab_season_pack(search_id):
     if cp: protocol="torrent" if cp["protocol"]=="torznab" else "nzb"
     if not protocol:
         protocol="nzb" if ".nzb" in (result.get("url") or "").lower() else "torrent"
-    method=""
-    client=""
-    external=""
-    if protocol=="nzb":
-        method=(engine.get_setting("General","nzb_method","sabnzbd") or "sabnzbd").lower()
-        if method=="sabnzbd":client="SABnzbd";external=engine.send_sab(result)
-        elif method=="nzbget":client="NZBGet";external=engine.send_nzbget(result)
-        else:raise ValueError(f"Unsupported NZB method for season pack: {method}")
-    else:
-        method=(engine.get_setting("General","torrent_method","qbittorrent") or "qbittorrent").lower()
-        if method=="qbittorrent":client="qBittorrent";external=engine.send_qbit(result)
-        elif method=="transmission":client="Transmission";external=engine.send_transmission(result)
-        elif method=="deluge":client="Deluge";external=engine.send_deluge(result)
-        else:raise ValueError(f"Unsupported torrent method for season pack: {method}")
+    result['protocol']=protocol
+    import acquisition_journal
+    import episode_dates
+    from datetime import date
     with cx() as c:
-        cur=c.execute("""INSERT INTO season_pack_downloads(show_id,season,search_id,client,external_id,title,status,updated_at)
-                         VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)""",(result["show_id"],result["season"],search_id,client,external,result["title"],"Queued"))
-        lifecycle.transition("season_pack",cur.lastrowid,"Found","Queued",
-                             message=f"Season pack queued in {client}",details={"search_id":search_id},conn=c)
-        linked=c.execute("""SELECT id FROM episodes
-                            WHERE show_id=? AND season=? AND (location IS NULL OR trim(location)='')
-                            AND lower(COALESCE(status,'')) IN ('wanted','failed')""",
-                         (result["show_id"],result["season"])).fetchall()
-        for ep in linked:
-            c.execute("""INSERT OR IGNORE INTO acquisition_episode_links(acquisition_type,acquisition_id,episode_id)
-                         VALUES('season_pack',?,?)""",(cur.lastrowid,ep["id"]))
-        c.execute("""UPDATE episodes SET status='Snatched',release_name=?
-                     WHERE show_id=? AND season=? AND (location IS NULL OR trim(location)='')
-                     AND lower(COALESCE(status,'')) IN ('wanted','failed')""",
-                  (result["title"],result["show_id"],result["season"]))
-        c.execute("UPDATE season_pack_searches SET status='Grabbed' WHERE id=?",(search_id,))
-        c.commit()
-    return {"ok":True,"client":client,"external_id":external,"season_pack_download_id":cur.lastrowid}
+        rows=c.execute("""SELECT * FROM episodes WHERE show_id=? AND season=?
+            AND trim(COALESCE(location,''))='' AND lower(COALESCE(status,'')) IN ('wanted','failed','unaired')
+            AND COALESCE(ignored,0)=0 AND COALESCE(monitored,1)=1""",(result['show_id'],result['season'])).fetchall()
+    result['episode_ids']=[r['id'] for r in rows if episode_dates.normalize(r['airdate']) and episode_dates.normalize(r['airdate'])<=date.today().isoformat()]
+    if not result['episode_ids']:raise ValueError('No aired missing episodes remain for this season pack.')
+    with cx() as c:guard_ids=[e[0] for e in c.execute('SELECT id FROM episodes WHERE show_id=? AND season=?',(result['show_id'],result['season']))]
+    client,sender=engine.handoff_adapter(result)
+    return acquisition_journal.submit(DB,'season_pack',result,client,guard_ids,sender,record_pack_handoff)
+
+
+def record_pack_handoff(c,result,client,external):
+    cur=c.execute("""INSERT INTO season_pack_downloads(show_id,season,search_id,client,external_id,title,status,updated_at)
+        VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)""",(result['show_id'],result['season'],result['id'],client,external,result['title'],'Queued'))
+    lifecycle.transition('season_pack',cur.lastrowid,'Found','Queued',message=f'Season pack queued in {client}',details={'search_id':result['id']},conn=c)
+    for eid in result['episode_ids']:
+        c.execute("INSERT OR IGNORE INTO acquisition_episode_links(acquisition_type,acquisition_id,episode_id) VALUES('season_pack',?,?)",(cur.lastrowid,eid))
+        c.execute("UPDATE episodes SET status='Snatched',release_name=? WHERE id=?",(result['title'],eid))
+    c.execute("UPDATE season_pack_searches SET status='Grabbed' WHERE id=?",(result['id'],))
+    return {'ok':True,'client':client,'external_id':external,'season_pack_download_id':cur.lastrowid}
+
 
 def mark_pack_processed(show_id,season):
     with cx() as c:

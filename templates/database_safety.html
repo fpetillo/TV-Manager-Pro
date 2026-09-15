@@ -7,5 +7,10 @@
 <section class="panel col-6"><div class="toolbar"><h2>Current Protection Status</h2><button id="refreshStatus" class="secondary">Refresh</button></div><div id="protectionStatus"></div></section>
 <section class="panel col-6"><div class="toolbar"><h2>Create Protection Snapshot</h2><button id="startBackup" class="primary">Protect Now</button></div><p class="muted">Creates a verified SQLite database backup plus redacted config snapshot. Secrets are not copied unless explicitly requested in API mode.</p><div id="backupProgress"></div></section>
 <section class="panel col-12"><div class="toolbar"><h2>Backup Inventory</h2><button id="scanBackups" class="secondary">Scan Backups</button></div><div id="backupList" class="table-wrap"></div></section>
+<section class="panel col-12"><h2>Restore Library</h2><p>Review a TV Manager database backup, then queue it for your next normal restart. The current database is preserved for rollback. Restoring also restores the settings stored in that database.</p>
+<label>Database backup path<input id="restorePath" placeholder="Select a backup below or enter its full server path"></label>
+<label>Configuration snapshot (optional)<select id="restoreConfig"><option value="">Keep current configuration files</option></select></label>
+<div class="actions"><button id="previewRestore" class="secondary">Preview Restore</button><button id="cancelRestore" class="secondary" hidden>Cancel Queued Restore</button></div>
+<div id="restoreReview" role="status"></div><div id="restoreStatus" role="status"></div></section>
 </div>
 <footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/database_safety.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

@@ -1,3 +1,4 @@
+import app_paths
 """TheTVDB v4 client using operator-provided API credentials."""
 from pathlib import Path
 import threading
@@ -5,7 +6,7 @@ import time
 import requests
 import dbcore
 
-DB=Path(__file__).resolve().parent/'tvmanager.db'
+DB=app_paths.application_root()/'tvmanager.db'
 BASE='https://api4.thetvdb.com/v4'
 _tokens={}
 _lock=threading.Lock()

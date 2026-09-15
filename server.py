@@ -1,5 +1,11 @@
 from __future__ import annotations
 import os
+import sys
+# Archive workers must run before the app takes its installation lease.
+if __name__=='__main__' and len(sys.argv)>1 and sys.argv[1]=='--archive-worker':
+    import archive_processing
+    archive_processing.extract_rar_member(sys.argv[2:])
+    raise SystemExit(0)
 from waitress import serve
 from app import app
 import engine
