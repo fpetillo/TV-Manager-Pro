@@ -60,6 +60,25 @@ assert client.patch('/api/providers/manage/custom-'+str(pid),json={'enabled':Fal
 assert client.patch('/api/providers/manage/custom-'+str(pid),json={'enabled':False,'enable_daily':True},headers=headers).status_code==200
 assert client.get('/api/providers/manage').get_json()['results'][0]['enable_daily']==1
 assert client.get('/shows/1/metadata-change').status_code==200
+with app.cx() as c:
+    c.execute("INSERT INTO shows(id,name,status) VALUES(1,'Resolution One','Active'),(2,'Resolution Two','Ended')")
+assert client.get('/api/shows/resolution/options').get_json()['total']==2
+body={'scope':'all','resolution':'1080p','make_default':True}
+assert client.post('/api/shows/resolution/preview',json=body).status_code==403
+r=client.post('/api/shows/resolution/preview',json=body,headers=headers)
+assert r.status_code==200,r.data
+review=r.get_json();assert review['plan']['count']==2
+assert client.post('/api/shows/resolution/apply',json={'token':review['token']+'bad'},headers=headers).status_code==400
+assert client.post('/api/shows/resolution/apply',json=['invalid'],headers=headers).status_code==400
+assert client.post('/api/shows/resolution/apply',json={'token':review['token']}).status_code==403
+r=client.post('/api/shows/resolution/apply',json={'token':review['token']},headers=headers)
+assert r.status_code==200 and r.get_json()['changed']==2,r.data
+assert client.get('/api/shows/1?fast=1').get_json()['show']['preferred_resolution']=='1080p'
+assert client.get('/api/shows/defaults').get_json()['preferences']['preferred_resolution']=='1080p'
+assert client.get('/api/show-queue').get_json()['results'][0]['quality']=='1080p'
+assert client.patch('/api/shows/1/options',json={'preferred_resolution':'720p'},headers=headers).status_code==200
+assert client.patch('/api/shows/1/options',json={'preferred_resolution':'bad'},headers=headers).status_code==400
+assert client.post('/api/shows/resolution/apply',json={'token':review['token']},headers=headers).status_code==400
 assert client.post('/api/shows/1/metadata-change/apply',json={'token':'invalid','confirmation':'CHANGE'},headers=headers).status_code==400
 backup=database_safety.backup_database(app.DB,reason='route-test')['backup']
 r=client.post('/api/protection/restore/preview',json={'path':backup},headers=headers);assert r.status_code==200,r.data

@@ -84,6 +84,9 @@ def grab_season_pack(search_id):
                        JOIN shows s ON s.id=sp.show_id WHERE sp.id=?""",(search_id,)).fetchone()
         if not r:raise ValueError("Season-pack search result not found")
         result=dict(r)
+        show=c.execute('SELECT * FROM shows WHERE id=?',(r['show_id'],)).fetchone()
+    _, reason=engine.score_release(result['title'],show)
+    if reason:raise ValueError('This season pack no longer matches the show settings: '+reason)
     protocol="torrent" if result.get("url","").startswith("magnet:") else None
     # Prefer saved provider protocol when known.
     with cx() as c:

@@ -52,6 +52,7 @@ def test_episode_context_is_mapping_and_aired_unaired_is_searchable(tmp_path,mon
         INSERT INTO shows VALUES(1,'Show',0,1,'','','','HD',4,0,0,0,0);
         INSERT INTO episodes VALUES(1,1,1,1,'Unaired',1,0,'2020-01-01','');
         INSERT INTO episodes VALUES(2,1,1,2,'Unaired',1,0,'2099-01-01','');''')
+    with dbcore.connect(database) as c:show_preferences.init(c)
     assert engine._episode_context(1).get('quality_profile_id')==4
     assert engine.eligible_episodes('backlog',10)==[1]
     with dbcore.connect(database) as c:
@@ -83,6 +84,7 @@ def test_episode_search_and_retrieve_with_real_sqlite_rows(tmp_path,monkeypatch)
         INSERT INTO shows VALUES(1,'Show',0,1,'','','','HD',NULL,0,0,0,0);
         INSERT INTO episodes VALUES(1,1,1,2,'Wanted',1,0,NULL,0);""")
     monkeypatch.setattr(engine,'ignore_specials_from_wanted',lambda:False)
+    with dbcore.connect(database) as c:show_preferences.init(c)
     monkeypatch.setattr(engine,'get_setting',lambda *a:'0')
     monkeypatch.setattr(engine.advanced,'aliases',lambda *a:[])
     monkeypatch.setattr(engine.advanced,'provider_defs_raw',lambda:[])
@@ -107,6 +109,14 @@ def test_episode_search_and_retrieve_with_real_sqlite_rows(tmp_path,monkeypatch)
         assert c.execute("SELECT COUNT(*) FROM search_results WHERE status='Found'").fetchone()[0]==1
     monkeypatch.setattr(engine,'get_setting',lambda section,name,default=None:'1' if name=='simulation_mode' else '0')
     result=engine.search_episode(1,auto_grab=True)
+    assert result['grabbed'] is None and len(grabs)==1
+    with dbcore.connect(database) as c:
+        c.execute("UPDATE shows SET preferred_resolution='1080p' WHERE id=1")
+    monkeypatch.setattr(engine,'get_setting',lambda *a:'0')
+    # Even an accept rule must not allow an unknown/mismatched resolution.
+    monkeypatch.setattr(engine.ops,'apply_rules',lambda item:dict(item,rejected_reason=None))
+    result=engine.search_episode(1,auto_grab=True)
+    assert '1080p' in result['results'][0]['rejected_reason']
     assert result['grabbed'] is None and len(grabs)==1
 
 

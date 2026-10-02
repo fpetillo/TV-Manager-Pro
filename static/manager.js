@@ -1,6 +1,8 @@
 
 async function ensureFolderEditor(){
-  for(const [globalName,url] of [['previewLibraryRename','/static/library_rename.js?v=18.4.1'],['editShowPreferences','/static/show_preferences.js?v=18.5.9'],['loadLibraryStorage','/static/library_storage.js?v=folder-editor4'],['chooseShowDestination','/static/show_destination.js?v=folder-editor4']]){
+  const version=new URL(document.querySelector('script[src*="/static/manager.js"]')?.src||location.href).searchParams.get('v')||String(Date.now());
+  for(const [globalName,path] of [['previewLibraryRename','/static/library_rename.js'],['editShowPreferences','/static/show_preferences.js'],['loadLibraryStorage','/static/library_storage.js'],['chooseShowDestination','/static/show_destination.js']]){
+    const url=path+'?v='+encodeURIComponent(version);
     if(typeof window[globalName]==='function')continue;
     await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(new Error('Could not load folder editor. Refresh and retry.'));document.head.append(script);});
   }
@@ -12,6 +14,7 @@ const detail=document.getElementById("detailPanel");
 const search=document.getElementById("showSearch");
 const statusFilter=document.getElementById("statusFilter");
 const groupFilter=document.getElementById("groupFilter");
+const resolutionControls=createShowResolutionControls(document.getElementById('showResolutionControls'),async()=>{await loadShows();if(currentShowId)await openShow(currentShowId);});
 let currentShowId=null;
 let searchTimer=null;
 let showOffset=0;
@@ -45,7 +48,9 @@ function renderShowItem(s){
       <span>${esc(s.status||"Unknown")}${s.network?" • "+esc(s.network):""}</span>
     </div>`;
   item.onclick=()=>openShow(s.id);
-  return item;
+  const row=document.createElement('div');row.className='resolution-show-row';row.append(resolutionControls.checkbox(s.id,s.name),item);
+  if(s.preferred_resolution){const label=document.createElement('span');label.className='quality-badge';label.textContent='Download: '+(s.preferred_resolution==='sd'?'SD':s.preferred_resolution);item.querySelector('.show-list-copy').append(label);}
+  return row;
 }
 
 async function loadShows(opts={}){

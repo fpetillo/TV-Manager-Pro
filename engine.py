@@ -586,6 +586,12 @@ def infer_quality(title):
     return " ".join(x for x in (res, src, codec) if x)
 
 def score_release(title, show=None):
+    import show_resolution
+    show = dict(show) if show is not None else {}
+    resolution = show.get('preferred_resolution') or ''
+    rejection = show_resolution.rejection(title, resolution)
+    if rejection:
+        return -10000, rejection
     t = title.lower()
     profile=None
     if show and show.get("quality_profile_id"):
@@ -607,9 +613,9 @@ def score_release(title, show=None):
             return -10000, f"Required word missing: {w}"
     if profile:
         detected = 2160 if ("2160p" in t or "4k" in t) else 1080 if "1080p" in t else 720 if "720p" in t else 480
-        if detected < int(profile.get("min_resolution") or 0):
+        if not resolution and detected < int(profile.get("min_resolution") or 0):
             return -10000, f"Below profile minimum {profile.get('min_resolution')}p"
-        if detected > int(profile.get("max_resolution") or 2160):
+        if not resolution and detected > int(profile.get("max_resolution") or 2160):
             return -10000, f"Above profile maximum {profile.get('max_resolution')}p"
         if not profile.get("allow_hevc") and any(x in t for x in ("x265","h265","hevc")):
             return -10000, "HEVC is disabled by quality profile"
@@ -682,7 +688,7 @@ def _episode_context(episode_id):
     with cx() as c:
         row = c.execute("""SELECT e.*,s.name show_name,s.paused,s.search_enabled,
                                  s.preferred_words,s.required_words,s.ignored_words,
-                                 s.quality show_quality,s.quality_profile_id,s.id show_id,s.scene_numbering,s.air_by_date,s.sports,s.anime
+                                 s.quality show_quality,s.quality_profile_id,s.preferred_resolution,s.id show_id,s.scene_numbering,s.air_by_date,s.sports,s.anime
                           FROM episodes e JOIN shows s ON s.id=e.show_id
                           WHERE e.id=?""", (episode_id,)).fetchone()
     return dict(row) if row else None
@@ -705,6 +711,7 @@ def _search_episode(episode_id, auto_grab=False, purpose="manual"):
         "id": ctx["show_id"], "name": ctx["show_name"],
         "preferred_words": ctx["preferred_words"], "required_words": ctx["required_words"],
         "ignored_words": ctx["ignored_words"], "quality": ctx["show_quality"], "quality_profile_id": ctx["quality_profile_id"],
+        "preferred_resolution": ctx.get("preferred_resolution") or "",
     }
     names=list(dict.fromkeys([show['name'],*advanced.aliases(ctx['show_id'])]))
     episode = dict(ctx)
@@ -767,6 +774,12 @@ def _search_episode(episode_id, auto_grab=False, purpose="manual"):
         for item in all_results:
             item['rejected_reason']='Multiple scene episodes map to this episode. Review scene numbering before retrieving a single file.'
     all_results=[ops.apply_rules(x) for x in all_results]
+    # Acceptance/scoring rules cannot override an explicitly selected resolution.
+    if show.get('preferred_resolution'):
+        import show_resolution
+        for item in all_results:
+            reason=show_resolution.rejection(item['title'],show['preferred_resolution'])
+            if reason:item['rejected_reason']=reason
     deduped=[];seen=set()
     for x in all_results:
         key=(x.get("guid") or x.get("title") or "").lower()
@@ -1035,6 +1048,11 @@ def _grab_result(result_id):
         raise ValueError("Search result not found")
     if r["rejected_reason"]:
         raise ValueError("This result was rejected: " + r["rejected_reason"])
+    with cx() as c:
+        current_show = c.execute('SELECT * FROM shows WHERE id=?', (r['show_id'],)).fetchone()
+    _, reason = score_release(r['title'], current_show)
+    if reason:
+        raise ValueError('This release no longer matches the show settings: ' + reason)
     with cx() as c:
         bad = c.execute("SELECT 1 FROM failed_releases WHERE guid=? LIMIT 1", (r["guid"],)).fetchone()
     if bad:

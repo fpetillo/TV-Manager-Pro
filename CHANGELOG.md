@@ -1,3 +1,9 @@
+## 18.9.0 — Download resolution for one, selected or all shows
+
+Added explicit SD / 720p / 1080p / 2160p download resolution to Show Settings and new-show preferences. Shows and Show Queue provide selected-show, saved-group, entire-library and new-default scopes with reviewed counts, atomic changes and selection retained across paging/filters. Fixed resolution overrides profile resolution bounds while preserving other rules, files and episode statuses. Search, season-pack handoff and upgrade planning honor the preference; stale results cannot bypass it.
+
+Validation: 417 tests passed, two Windows symbolic-link checks skipped; 65 Python and 40 JavaScript syntax checks plus dependency consistency passed. Browser verification used an isolated 105-show library. Source update requires a normal restart and page refresh; no production settings, media or target-server activation changed. See [release notes](docs/RELEASE_NOTES_v18.9.0.md).
+
 ## 18.8.0 — Provider reliability and reviewed metadata changes
 
 Imported provider order no longer re-enables disabled providers. Daily/backlog flags now govern automatic searches. Settings includes editable imported/custom providers, tested API capabilities and authentication, safe XML error reporting, rate-limit cooldowns and bounded paging. Reviewed TMDb/TVDB source and aired/DVD migration preserves episode IDs, files and history; stale/unmatched/active-download changes are blocked. Metadata refreshes share one guarded implementation.

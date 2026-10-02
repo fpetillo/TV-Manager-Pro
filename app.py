@@ -789,7 +789,9 @@ def api_show_queue():
     # like 3/7 never drive ordering. Downloads is sorted by real downloaded count,
     # then total episode count and completion percent. Legacy ordinal dates are
     # normalized before date sorting and display.
-    sql=f"""SELECT s.id, s.name, s.network, COALESCE(s.quality,'HD') quality, COALESCE(s.status,'Wanted') status,
+    sql=f"""SELECT s.id, s.name, s.network, s.preferred_resolution,
+              CASE WHEN COALESCE(s.preferred_resolution,'')<>'' THEN s.preferred_resolution ELSE COALESCE(s.quality,'HD') END quality,
+              COALESCE(s.status,'Wanted') status,
               s.paused, s.search_enabled, s.monitor_new,
               (CASE WHEN COALESCE(s.paused,0)=0 AND COALESCE(s.search_enabled,1)=1 THEN 1 ELSE 0 END) active_flag,
               (SELECT MIN(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate>=date('now') {episode_filter}) next_ep,
@@ -2378,6 +2380,41 @@ def tvdb_config_save():
 def api_show_defaults():
     import show_preferences
     with cx(readonly=True) as c:return jsonify(preferences=show_preferences.defaults(c))
+
+
+@app.get('/api/shows/resolution/options')
+def show_resolution_options():
+    import show_resolution, show_preferences
+    with cx(readonly=True) as c:
+        total=c.execute('SELECT COUNT(*) FROM shows').fetchone()[0]
+        default=show_preferences.defaults(c).get('preferred_resolution','')
+    return jsonify(choices=show_resolution.CHOICES,default=default,total=total,groups=advanced.groups())
+
+
+@app.post('/api/shows/resolution/preview')
+def show_resolution_preview():
+    import show_resolution
+    from itsdangerous import URLSafeTimedSerializer
+    try:
+        with cx(readonly=True) as c:plan=show_resolution.preview(c,request.get_json(silent=True))
+        token=URLSafeTimedSerializer(app.secret_key,salt='show-resolution').dumps(plan)
+        return jsonify(plan=plan,token=token)
+    except ValueError as error:return jsonify(error=str(error)),400
+
+
+@app.post('/api/shows/resolution/apply')
+def show_resolution_apply():
+    import show_resolution
+    from itsdangerous import URLSafeTimedSerializer,BadData
+    body=request.get_json(silent=True) or {}
+    try:
+        if not isinstance(body,dict):raise ValueError('Enter a valid resolution review.')
+        plan=URLSafeTimedSerializer(app.secret_key,salt='show-resolution').loads(body.get('token',''),max_age=900)
+        with cx() as c:result=show_resolution.apply(c,plan)
+        return jsonify(result)
+    except (BadData,ValueError,TypeError,KeyError) as error:
+        message='This review expired or is invalid. Review the change again.' if isinstance(error,BadData) else str(error)
+        return jsonify(error=message),400
 
 @app.put("/api/shows/defaults")
 def api_save_show_defaults():

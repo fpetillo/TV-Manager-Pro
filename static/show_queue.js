@@ -1,4 +1,5 @@
 const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+const resolutionControls=createShowResolutionControls(document.getElementById('showResolutionControls'),()=>load());
 let sort='aired_missing',direction='desc',offset=0,total=0,ignoreS00=false;
 const numericDefaultDesc=new Set(['downloads','missing','download_percent','size','active']);
 function fmtDate(v){
@@ -44,13 +45,14 @@ async function load(){
       const meterClass=totalEpisodes===0?'empty':(downloaded>=totalEpisodes?'complete':(downloaded>0?'partial':'empty'));
       const seasonText=(r.season_progress||[]).map(s=>`S${String(s.season).padStart(2,'0')}: ${s.aired_count-s.downloaded_count}/${s.aired_count} aired missing`).join(' · ');
       const missingText=esc(r.missing_display||r.missing_episode_numbers||(missing?`${missing} missing`:'Complete'));
-      return `<tr data-show-id="${esc(r.id)}"><td>${esc(fmtDate(r.next_ep))}</td><td>${esc(fmtDate(r.prev_ep))}</td><td><a class="show-open-link" data-show-name="${esc(r.name)}" href="/show/${r.id}"><strong>${esc(r.name)}</strong></a><div class="muted tiny">Missing: ${missingText}</div><div class="muted tiny">${esc(seasonText)}</div></td><td>${esc(r.network||'')}</td><td><span class="quality-badge">${esc(r.quality||'HD')}</span></td><td class="downloads-cell" title="${downloaded} downloaded, ${missing} missing, ${totalEpisodes} aired${ignoreS00?' (S00 ignored)':''}"><div class="download-meter ${meterClass}"><span style="width:${Math.max(0,Math.min(100,pp))}%"></span><strong>${downloaded}/${totalEpisodes}</strong></div><small>${missing} missing · aired only${ignoreS00?' · no S00':''}</small></td><td class="num-cell">${esc(fmtSize(r.size_bytes))}</td><td class="center-cell">${r.active_flag?'✓':'—'}</td><td><span class="status-pill ${esc(r.status)}">${esc(r.status)}</span></td></tr>`
-    }).join(''):'<tr><td colspan="9">No shows match this filter.</td></tr>';
+      return `<tr data-show-id="${esc(r.id)}"><td class="resolution-select-cell"></td><td>${esc(fmtDate(r.next_ep))}</td><td>${esc(fmtDate(r.prev_ep))}</td><td><a class="show-open-link" data-show-name="${esc(r.name)}" href="/show/${r.id}"><strong>${esc(r.name)}</strong></a><div class="muted tiny">Missing: ${missingText}</div><div class="muted tiny">${esc(seasonText)}</div></td><td>${esc(r.network||'')}</td><td><span class="quality-badge">${esc(r.quality||'HD')}</span></td><td class="downloads-cell" title="${downloaded} downloaded, ${missing} missing, ${totalEpisodes} aired${ignoreS00?' (S00 ignored)':''}"><div class="download-meter ${meterClass}"><span style="width:${Math.max(0,Math.min(100,pp))}%"></span><strong>${downloaded}/${totalEpisodes}</strong></div><small>${missing} missing · aired only${ignoreS00?' · no S00':''}</small></td><td class="num-cell">${esc(fmtSize(r.size_bytes))}</td><td class="center-cell">${r.active_flag?'✓':'—'}</td><td><span class="status-pill ${esc(r.status)}">${esc(r.status)}</span></td></tr>`
+    }).join(''):'<tr><td colspan="10">No shows match this filter.</td></tr>';
+    for(const r of rows){const cell=showQueueBody.querySelector(`tr[data-show-id="${r.id}"] .resolution-select-cell`);if(cell)cell.append(resolutionControls.checkbox(r.id,r.name));}
     showQueuePrev.disabled=offset<=0;
     showQueueNext.disabled=!d.has_more;
   }catch(e){
     showQueueSummary.textContent='Show queue load error';
-    showQueueBody.innerHTML='<tr><td colspan="9">Could not load show queue.</td></tr>';
+    showQueueBody.innerHTML='<tr><td colspan="10">Could not load show queue.</td></tr>';
     showQueueMessage.className='message error';
     showQueueMessage.textContent=e.message;
   }

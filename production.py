@@ -86,20 +86,22 @@ def _resolution(q):
 
 def plan_upgrades():
     import engine
+    import show_resolution
     with cx() as c:
         c.execute("DELETE FROM upgrade_candidates WHERE status='Candidate'")
-        rows=c.execute("""SELECT e.id,e.quality,e.release_name,e.location,s.quality_profile_id
+        rows=c.execute("""SELECT e.id,e.quality,e.release_name,e.location,s.quality_profile_id,s.preferred_resolution
                           FROM episodes e JOIN shows s ON s.id=e.show_id
-                          WHERE e.location IS NOT NULL AND trim(e.location)<>'' AND s.quality_profile_id IS NOT NULL""").fetchall()
+                          WHERE e.location IS NOT NULL AND trim(e.location)<>''
+                          AND (s.quality_profile_id IS NOT NULL OR COALESCE(s.preferred_resolution,'')<>'')""").fetchall()
         count=0
         for r in rows:
             p=c.execute("SELECT * FROM quality_profiles WHERE id=?",(r["quality_profile_id"],)).fetchone()
-            if not p:continue
+            if not p and not r['preferred_resolution']:continue
             current=_resolution(r["quality"])
-            target=int(p["cutoff_resolution"] or p["max_resolution"] or 0)
-            if p["upgrade_allowed"] and current and target and current<target:
+            target=show_resolution.target(r['preferred_resolution']) or int(p["cutoff_resolution"] or p["max_resolution"] or 0)
+            if (p is None or p["upgrade_allowed"]) and current and target and current<target:
                 c.execute("""INSERT INTO upgrade_candidates(episode_id,current_quality,target_quality,reason)
-                             VALUES(?,?,?,?)""",(r["id"],r["quality"],f"{target}p",f"Current resolution {current}p is below profile cutoff {target}p"))
+                             VALUES(?,?,?,?)""",(r["id"],r["quality"],f"{target}p",f"Current resolution {current}p is below the target {target}p"))
                 count+=1
         c.commit()
         rows=c.execute("""SELECT u.*,e.season,e.episode,e.show_id,s.name show_name

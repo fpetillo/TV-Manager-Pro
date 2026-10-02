@@ -21,6 +21,7 @@ def test_queue_uses_aired_seasons_and_sorts_before_paging(tmp_path):
         INSERT INTO episodes VALUES(1,1,1,'2020-01-01','file',1,0,'Downloaded'),(1,1,2,'2020-01-01','',0,0,'Wanted'),
         (1,2,1,'2999-01-01','',0,0,'Wanted'),(1,1,3,NULL,'',0,0,'Wanted'),(1,0,1,'2020-01-01','',0,0,'Wanted'),
         (1,1,4,'2020-01-01','',0,1,'Ignored'),(2,1,1,'2999-01-01','',0,0,'Wanted'),(3,1,1,'737203','',0,0,'Wanted');""")
+    with cx() as c:__import__('show_preferences').init(c)
     app=Flask(__name__)
     source=(Path(__file__).resolve().parents[1]/'app.py').read_text(encoding='utf-8')
     ns=dict(app=app,request=request,jsonify=jsonify,datetime=datetime,cx=cx,episode_rules=episode_rules,
