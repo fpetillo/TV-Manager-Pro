@@ -14,7 +14,7 @@ function render(){const d=monitor||{};const c=d.counts||{};$('downloadStats').in
 }
 async function loadMonitor(){loadUnresolvedHandoffs();try{monitor=await jsonFetch('/api/downloaders/monitor?limit=200');render();}catch(e){$('downloadActionMsg').className='message error';$('downloadActionMsg').textContent=e.message;}}
 async function startJob(url){$('downloadActionMsg').className='message';$('downloadActionMsg').textContent='Queued background job…';const d=await jsonFetch(url,{method:'POST'});pollJob(d.job.job_id);}
-window.grabStart=async id=>{try{await startJob(`/api/search-results/${id}/grab/start`)}catch(e){alert(e.message)}};
+window.grabStart=async id=>{await sendReviewedDownload(id,$('downloadJobBox'),()=>loadMonitor());};
 window.addEventListener('DOMContentLoaded',()=>{$('refreshMonitor').onclick=loadMonitor;$('downloadFilter').oninput=render;$('testDownloader').onclick=()=>startJob('/api/downloaders/test/start').catch(e=>alert(e.message));$('pollDownloader').onclick=()=>startJob('/api/downloaders/poll/start').catch(e=>alert(e.message));loadMonitor();setInterval(loadMonitor,30000);});
 
 async function loadUnresolvedHandoffs(){

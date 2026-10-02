@@ -95,7 +95,7 @@
 .settings-section summary{cursor:pointer;padding:12px 0}
 .scheduler-row{display:grid;grid-template-columns:minmax(180px,1fr) 120px 120px 120px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #253146}
 .switchline{display:flex;align-items:center;gap:9px}
-.search-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:20px;z-index:50}
+.search-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:20px;z-index:130}
 .search-modal[hidden]{display:none}.modal-card{width:min(980px,96vw);max-height:88vh;overflow:auto;background:#111925;border:1px solid #35445c;border-radius:16px;padding:18px}
 .modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .close-x{background:#263246;border:0;color:#fff;border-radius:8px;padding:8px 11px}
@@ -341,3 +341,4 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 /* Library resolution controls */
 .resolution-toolbar h2{margin:0 0 .5rem}.resolution-toolbar .toolbar{gap:.7rem;flex-wrap:wrap}.resolution-show-row{display:flex;align-items:center;gap:.6rem}.resolution-show-row>.show-list-item{flex:1;min-width:0}.resolution-show-check{width:1.15rem!important;height:1.15rem;flex:none;cursor:pointer}.resolution-dialog{max-width:650px;width:calc(100vw - 40px)}.resolution-dialog label{display:flex;gap:.5rem}.resolution-dialog .field{flex-direction:column}.resolution-dialog .preference-switch input{width:auto}.resolution-dialog [hidden]{display:none!important}.resolution-dialog .notice{overflow-wrap:anywhere}.resolution-dialog form{display:grid;gap:.7rem}
 .resolution-dialog form>h2,.resolution-dialog form>p,.resolution-dialog .field,.resolution-dialog .preference-switch,.resolution-dialog .notice{margin:0}.resolution-dialog form{gap:16px}.resolution-dialog select{font:inherit;padding:10px;border-radius:8px}.resolution-dialog .preference-actions{margin:0;padding:12px 0}.resolution-dialog [role=alert]:empty{display:none}
+.folder-repair-dialog h2{margin:0 0 12px}.folder-repair-dialog form>p,.folder-repair-dialog .field{margin:10px 0}.folder-repair-dialog select{font:inherit;padding:8px;border-radius:8px}.folder-repair-dialog details{margin:12px 0}.folder-repair-dialog summary{cursor:pointer}.folder-repair-dialog .destination-error:empty{display:none}.folder-recovery-list{border:1px solid #536c89;border-radius:10px;padding:12px;margin:12px 0;max-height:350px;overflow:auto}.force-download-dialog p,.force-download-dialog li{overflow-wrap:anywhere}.force-download-dialog h2{margin-top:0}

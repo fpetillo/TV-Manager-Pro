@@ -1020,7 +1020,7 @@ def send_blackhole(result):
     return blackhole.send(dict(result),target)
 
 
-def grab_result(result_id):
+def grab_result(result_id,force_review=None):
     import acquisition_guard
     with cx() as c:
         result = c.execute('SELECT episode_id FROM search_results WHERE id=?', (result_id,)).fetchone()
@@ -1032,12 +1032,17 @@ def grab_result(result_id):
                 AND (lower(status) IN ('queued','downloading','downloaded','importing')
                 OR (search_result_id=? AND lower(status)='completed')) LIMIT 1""",
                 (result['episode_id'], result_id)).fetchone()
+        if force_review is not None:
+            import download_override
+            with cx() as c:download_override.validate(c,result_id,force_review)
+            return _grab_result(result_id,force_review=force_review)
         if existing:
-            raise ValueError('This episode already has an active download or this release was already processed.')
+            from download_override import DuplicateDownload
+            raise DuplicateDownload('This episode already has an active download or this release was already processed.')
         return _grab_result(result_id)
 
 
-def _grab_result(result_id):
+def _grab_result(result_id,force_review=None):
     with cx() as c:
         r = c.execute("""SELECT sr.*,e.show_id,e.season,e.episode,e.status episode_status,s.name show_name
                          FROM search_results sr
@@ -1060,9 +1065,9 @@ def _grab_result(result_id):
     import acquisition_journal
     result=dict(r)
     client,sender=handoff_adapter(result)
-    outcome=acquisition_journal.submit(DB,'episode',result,client,[r['episode_id']],sender,record_episode_handoff)
-    payload={"show":r["show_name"],"season":r["season"],"episode":r["episode"],"release":r["title"],"client":client}
-    log("download_queued",f'Queued {r["show_name"]} in {client}',show_id=r['show_id'],episode_id=r['episode_id'],data=payload)
+    outcome=acquisition_journal.submit(DB,'episode',result,client,[r['episode_id']],sender,record_episode_handoff,force_review=force_review)
+    payload={"show":r["show_name"],"season":r["season"],"episode":r["episode"],"release":r["title"],"client":client,"forced":force_review is not None}
+    log("download_forced" if force_review is not None else "download_queued",f'Queued {r["show_name"]} in {client}',show_id=r['show_id'],episode_id=r['episode_id'],data=payload)
     try:advanced.fire_webhooks('snatched',payload)
     except Exception:pass
     return outcome

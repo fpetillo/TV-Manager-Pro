@@ -49,6 +49,9 @@ def register_support_routes(app, base_path, version_getter):
         return shell("About", "ABOUT", body, "/about")
 
     def library_health():
+        # The early emergency route must not hide the later interactive page.
+        full_page=app.view_functions.get('library_health_page')
+        if full_page is not None:return full_page()
         body = f'''
 <section class="panel"><h2>Library Health route verified</h2><p class="notice good">This page is being served by support_routes.py in TV Manager v{version()}.</p>
 <p>Open the JSON report for live counts and warnings: <a class="btn secondary" href="/api/library/health-report">/api/library/health-report</a></p></section>

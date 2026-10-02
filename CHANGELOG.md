@@ -1,3 +1,9 @@
+## 18.10.0 — Folder recovery, force download and episode search fixes
+
+Missing show storage folders now open an in-place correction/create dialog during metadata refresh; bulk results link to Fix Folder & Refresh. Duplicate-download errors offer an explicit signed Force Download review while preserving existing queue/history and unresolved-handoff protections. Fixed apostrophe titles such as Wonka's The Golden Ticket breaking Search in both show screens, sidebar overlap of search dialogs, and disappearing success feedback. Restored the interactive Library Health page behind its early support route.
+
+Validation: 437 tests passed, two Windows symbolic-link checks skipped; 67 Python and 41 JavaScript syntax checks and dependency consistency passed. Browser verified the actual recovery/search/force workflows in a separate synthetic installation. Source publication requires an update/restart on the server; no production media/client/settings were changed. See [release notes and update steps](docs/RELEASE_NOTES_v18.10.0.md).
+
 ## 18.9.0 — Download resolution for one, selected or all shows
 
 Added explicit SD / 720p / 1080p / 2160p download resolution to Show Settings and new-show preferences. Shows and Show Queue provide selected-show, saved-group, entire-library and new-default scopes with reviewed counts, atomic changes and selection retained across paging/filters. Fixed resolution overrides profile resolution bounds while preserving other rules, files and episode statuses. Search, season-pack handoff and upgrade planning honor the preference; stale results cannot bypass it.

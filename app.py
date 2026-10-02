@@ -1400,9 +1400,24 @@ def resolve_tmdb_show(show):
             return results[0].get("id")
     return None
 
+def metadata_folder_issue(sid):
+    import show_folder
+    with cx(readonly=True) as c:show=c.execute('SELECT id,name,location FROM shows WHERE id=?',(sid,)).fetchone()
+    if not show:raise ValueError('Show not found')
+    return show_folder.inspect(show,ops.map_path)
+
+
 @app.post("/api/shows/<int:sid>/refresh/start")
 def refresh_show_metadata_start(sid):
+    try:issue=metadata_folder_issue(sid)
+    except ValueError as error:return jsonify(error=str(error)),404
+    if issue:return jsonify(issue),409
     def worker(job_id):
+        issue=metadata_folder_issue(sid)
+        if issue:
+            result={'recovery':issue}
+            job_center.update_job(job_id,status='error',stage='Choose library folder',message=issue['error'],result=result,failed=1)
+            return result
         job_center.update_job(job_id, stage="Show metadata", message="Refreshing show, season and episode metadata.", percent=10, total=1)
         result=metadata_service.refresh_show(sid)
         job_center.update_job(job_id, status="complete", stage="Complete", message="Show metadata refresh complete.", percent=100, result=result, processed=1, succeeded=1)
@@ -1414,6 +1429,8 @@ def refresh_show_metadata(sid):
     with cx(readonly=True) as c:
         if not c.execute('SELECT id FROM shows WHERE id=?',(sid,)).fetchone():return jsonify(error='Show not found'),404
     try:
+        issue=metadata_folder_issue(sid)
+        if issue:return jsonify(issue),409
         result=metadata_service.refresh_show(sid)
         inserted,updated=result.get('inserted',0),result.get('updated',0)
         return jsonify(ok=True,**result,episodes_inserted=inserted,episodes_updated=updated,
@@ -1502,6 +1519,9 @@ def api_show_destination(sid):
             return jsonify(error="The library folder has changed. Refresh the show and try again."),409
         try:
             location=requested_show_destination(body,show["name"],c)
+            if body.get('create_directory') is True:
+                import show_folder
+                show_folder.create(body['library_root'],location,ops.map_path)
         except ValueError as exc:
             return jsonify(error=str(exc)),400
         updated=0
@@ -2205,24 +2225,53 @@ def api_episode_results(eid):
 
 @app.post("/api/search-results/<int:rid>/grab")
 def api_grab_result(rid):
+    import download_override
     try:
-        return jsonify(engine.grab_result(rid))
+        review=download_force_review(rid)
+        return jsonify(engine.grab_result(rid,force_review=review) if review is not None else engine.grab_result(rid))
     except Exception as e:
-        return jsonify(error=str(e)),400
+        return jsonify(download_override.recovery(e,rid)),409 if isinstance(e,download_override.DuplicateDownload) else 400
+
+
+def download_force_review(rid):
+    from itsdangerous import URLSafeTimedSerializer,BadData
+    body=request.get_json(silent=True) or {}
+    if not isinstance(body,dict):raise ValueError('Invalid download request.')
+    if 'force_token' not in body:return None
+    try:
+        review=URLSafeTimedSerializer(app.secret_key,salt='force-download').loads(body['force_token'],max_age=300)
+    except (BadData,TypeError):raise ValueError('Force Download review expired or is invalid. Review it again.') from None
+    if review.get('result_id')!=rid:raise ValueError('Force Download review is for another release.')
+    return review
+
+
+@app.post('/api/search-results/<int:rid>/force-preview')
+def api_force_download_preview(rid):
+    import download_override
+    from itsdangerous import URLSafeTimedSerializer
+    try:
+        with cx(readonly=True) as c:plan=download_override.preview(c,rid)
+        token=URLSafeTimedSerializer(app.secret_key,salt='force-download').dumps({'result_id':rid,'fingerprint':plan['fingerprint']})
+        return jsonify(plan=plan,token=token)
+    except ValueError as error:return jsonify(download_override.recovery(error,rid)),400
 
 @app.post("/api/search-results/<int:rid>/grab/start")
 def api_grab_result_start(rid):
+    import download_override
+    try:review=download_force_review(rid)
+    except ValueError as error:return jsonify(download_override.recovery(error,rid)),400
     def worker(job_id):
         try:
             job_center.update_job(job_id, stage="Downloader handoff", message="Validating selected release and configured download client.", percent=10, total=1)
             job_center.update_job(job_id, stage="Downloader handoff", message="Sending release to configured downloader.", percent=45, processed=0, total=1)
-            result=engine.grab_result(rid)
+            result=engine.grab_result(rid,force_review=review) if review is not None else engine.grab_result(rid)
             job_center.update_job(job_id, status="complete", stage="Queued", message=f"Queued in {result.get('client','downloader')}.", percent=100, result=result, processed=1, succeeded=1, total=1)
             return result
         except Exception as exc:
             job_center.append_error(job_id, {"search_result_id":rid,"error":str(exc)})
-            job_center.update_job(job_id, status="error", stage="Downloader handoff failed", message=str(exc), percent=100, processed=1, failed=1, total=1)
-            raise
+            result={'recovery':download_override.recovery(exc,rid)}
+            job_center.update_job(job_id, status="error", stage="Downloader handoff failed", message=str(exc), percent=100, processed=1, failed=1, total=1,result=result)
+            return result
     return jsonify(ok=True, job=job_center.run_background("downloader_handoff", worker, stage="Queued", message="Downloader handoff queued.", meta={"search_result_id":rid}))
 
 @app.post("/api/search/run/<kind>")

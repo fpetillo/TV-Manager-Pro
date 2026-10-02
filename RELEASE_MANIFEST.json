@@ -1,33 +1,33 @@
 {
   "product": "TV Manager",
-  "version": "18.9.0",
-  "release_name": "Resolution Preferences for One, Selected or All Shows",
-  "generated_at": "2026-10-02T00:54:15.991837+00:00",
+  "version": "18.10.0",
+  "release_name": "Folder Recovery, Force Download and Episode Search Fixes",
+  "generated_at": "2026-10-02T11:37:17.249719+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Download resolution control in Shows and Show Queue for selected shows, saved groups, the whole library or new shows",
-    "SD, 720p, 1080p, 2160p / 4K and existing quality-profile behavior",
-    "Reviewed atomic bulk changes, persistent selection across pages and optional new-show default",
-    "Single-show resolution in Edit Show Settings; existing files and episode statuses preserved",
-    "Resolution enforced in episode/season-pack search and rechecked before downloader handoff; upgrade targets follow preference"
+    "Correct or create missing show storage folders during metadata refresh, then retry without leaving the workflow",
+    "Bulk metadata results link directly to folder correction; interactive Library Health page restored",
+    "Explicit reviewed force-download submission preserves earlier downloads and history",
+    "Apostrophes and other title punctuation no longer break Search buttons in either show screen",
+    "Search dialogs stay above navigation; download success feedback remains visible"
   ],
   "validation": {
     "pytest": {
-      "passed": 417,
+      "passed": 437,
       "failed": 0,
       "skipped": 2,
       "skip_reason": "Windows symbolic-link permission unavailable"
     },
-    "python_parse": 65,
-    "javascript_syntax": "40 passed",
+    "python_parse": 67,
+    "javascript_syntax": "41 passed",
     "dependency_consistency": "passed",
-    "clean_install_routes": "Isolated real Flask setup covers bulk review/apply, CSRF, malformed/tampered review, stale preferences, single-show editing and preserved existing restore/calendar/provider routes",
-    "browser": "Isolated 105-show library: selected save, saved group, all shows beyond first page, new-show default, cross-page queue selection and single-show override; no browser console errors",
-    "live_downloads": "Not performed; controlled fixtures verify mismatch rejection before individual/season-pack handoff",
-    "windows_executable": "No v18.9.0 executable or Inno installer build claimed",
+    "clean_install_routes": "Real isolated Flask routes cover folder repair/retry, all Library Health aliases, duplicate recovery, signed force review/replay and CSRF",
+    "browser": "Isolated synthetic library: reproduced and fixed apostrophe search; both show screens; layering; folder cancel/create/add root/retry; bulk repair link; force cancel/confirm and preserved old record. No new browser errors after fix.",
+    "live_downloads": "Not performed; simulated downloader and acquisition fixtures only",
+    "windows_executable": "No v18.10.0 executable or Inno installer build claimed",
     "fully_green": false
   },
-  "activation": "Restart TV Manager normally and refresh open pages. Production process was not restarted.",
+  "activation": "Update source on the server, restart normally and refresh browser pages. Production and 192.168.1.16 were not restarted or deployed to.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -55,7 +55,10 @@
     "static/metadata_change.js",
     "templates/metadata_change.html",
     "show_resolution.py",
-    "static/show_resolution.js"
+    "static/show_resolution.js",
+    "download_override.py",
+    "show_folder.py",
+    "static/workflow_recovery.js"
   ],
   "sickchill_full_parity": false
 }

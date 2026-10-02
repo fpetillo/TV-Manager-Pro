@@ -63,10 +63,12 @@ async function pollGenericJob(jobId,targetId,doneMessage){
     setHtml(targetId,progressHtml(d.job,'Working'));
     if(d.job.status==='complete'){
       setHtml(targetId,progressHtml(d.job,'Complete')+message('success',doneMessage||'Background job complete.'));
+      showFolderIssues(byId(targetId),d.job.result?.folder_issues||[]);
       startHealthScan();
     }else if(d.job.status==='error'){
       setHtml(targetId,message('error',d.job.message||'Background job failed.'));
     }else{
+      showFolderIssues(byId(targetId),d.job.folder_issues||[]);
       setTimeout(()=>pollGenericJob(jobId,targetId,doneMessage),1000);
     }
   }catch(ex){setHtml(targetId,message('error',ex.message));}
@@ -78,7 +80,7 @@ async function startArtworkRefresh(){
   try{setHtml('artworkStatus',progressHtml({stage:'Queued',percent:0,message:'Starting show and episode artwork refresh…'}));const d=await jsonFetch('/api/metadata/artwork/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:200,include_episodes:true})});pollGenericJob(d.job.job_id,'artworkStatus','Artwork refresh complete.')}catch(ex){setHtml('artworkStatus',message('error',ex.message));}
 }
 async function runMetadataBatch(){
-  try{await jsonFetch('/api/metadata/refresh/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batch_size:5})});byId('metadataGaps')?.insertAdjacentHTML('afterbegin',message('success','Metadata batch complete.'));startHealthScan();}
+  try{const result=await jsonFetch('/api/metadata/refresh/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batch_size:5})});let host=byId('metadataFolderIssues');if(!host){host=document.createElement('div');host.id='metadataFolderIssues';byId('metadataGaps').before(host);}host.replaceChildren();showFolderIssues(host,result.folder_issues||[]);startHealthScan();}
   catch(ex){byId('metadataGaps')?.insertAdjacentHTML('afterbegin',message('error',ex.message));}
 }
 function fullMetaOptions(){return {batch_size:Number(byId('fullMetaBatch')?.value||10),stale_only:!!byId('fullMetaStaleOnly')?.checked};}
@@ -94,6 +96,7 @@ async function startFullMetadata(){
 function renderFullMetaJob(job){
   if(!job)return;const pct=Math.max(0,Math.min(100,Number(job.percent||0)));
   setHtml('fullMetaStatus',`<div class="message info"><strong>${esc(job.stage||job.status)}</strong> ${esc(job.message||'')}</div><div class="progress"><span style="width:${pct}%"></span></div><p class="muted">${pct}% • ${esc(job.processed||0)}/${esc(job.total||0)} processed • ${esc(job.succeeded||0)} ok • ${esc(job.failed||0)} failed ${job.current_show?'• '+esc(job.current_show):''}</p>${(job.errors||[]).length?table(job.errors.slice(0,10),[['Show','name'],['Error','error']]):''}`);
+  showFolderIssues(byId('fullMetaStatus'),job.folder_issues||[]);
 }
 async function pollFullMeta(jobId){
   clearTimeout(fullMetaTimer);

@@ -4,7 +4,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_version_and_docs_exist_for_17_15_0():
-    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() in {"17.15.0", "17.16.0", "17.18.0", "17.20.0", "17.21.0", "17.22.0", "17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1", "18.2.2", "18.2.3", "18.2.4", "18.2.6", "18.3.0", "18.3.1", "18.3.2", "18.3.3", "18.4.0", "18.4.1", "18.4.2", "18.4.3", "18.5.0", "18.5.1", "18.5.2", "18.5.3", "18.5.4", "18.5.5", "18.5.6", "18.5.7", "18.5.8", "18.5.9", "18.5.10", "18.5.11", "18.5.12", "18.5.13", "18.5.14", "18.7.0", "18.8.0", "18.9.0"}
+    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() in {"17.15.0", "17.16.0", "17.18.0", "17.20.0", "17.21.0", "17.22.0", "17.23.0", "18.0.0", "18.1.0", "18.2.0", "18.2.1", "18.2.2", "18.2.3", "18.2.4", "18.2.6", "18.3.0", "18.3.1", "18.3.2", "18.3.3", "18.4.0", "18.4.1", "18.4.2", "18.4.3", "18.5.0", "18.5.1", "18.5.2", "18.5.3", "18.5.4", "18.5.5", "18.5.6", "18.5.7", "18.5.8", "18.5.9", "18.5.10", "18.5.11", "18.5.12", "18.5.13", "18.5.14", "18.7.0", "18.8.0", "18.9.0", "18.10.0"}
     assert (ROOT / "docs" / "BACKGROUND_JOBS_AND_SCHEDULER.md").exists()
     assert (ROOT / "docs" / "RELEASE_NOTES_v17.15.0.md").exists()
     assert (ROOT / "templates" / "jobs.html").exists()
@@ -57,7 +57,8 @@ def test_ui_uses_progress_bars_for_long_running_actions():
     post_js = (ROOT / "static" / "postprocess.js").read_text(encoding="utf-8")
     settings_js = (ROOT / "static" / "settings-v5.js").read_text(encoding="utf-8")
     assert '/search/start' in show_js
-    assert '/refresh/start' in show_js
+    recovery_js = (ROOT / 'static' / 'workflow_recovery.js').read_text(encoding='utf-8')
+    assert 'refreshShowWithFolder' in show_js and '/refresh/start' in recovery_js
     assert 'progress-fill' in show_js
     assert '/api/metadata/refresh/missing/start' in library_js
     assert '/api/metadata/artwork/start' in library_js

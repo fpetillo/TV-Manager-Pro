@@ -41,6 +41,10 @@ with client.session_transaction() as session:
     session['admin_user']='fixture-admin';app.security.csrf_value(session)
 assert app.BASE==__import__('pathlib').Path(__file__).resolve().parent
 assert client.get('/database-safety').status_code==200
+for route in ['/library-health','/library-health/','/library_health','/health/library']:
+    page=client.get(route)
+    assert page.status_code==200 and b'/static/workflow_recovery.js' in page.data and b'/static/library_health.js' in page.data
+
 with client.session_transaction() as session:csrf=session['csrf_token']
 headers={'X-CSRF-Token':csrf}
 assert client.post('/api/protection/restore/cancel').status_code==403
@@ -80,6 +84,62 @@ assert client.patch('/api/shows/1/options',json={'preferred_resolution':'720p'},
 assert client.patch('/api/shows/1/options',json={'preferred_resolution':'bad'},headers=headers).status_code==400
 assert client.post('/api/shows/resolution/apply',json={'token':review['token']},headers=headers).status_code==400
 assert client.post('/api/shows/1/metadata-change/apply',json={'token':'invalid','confirmation':'CHANGE'},headers=headers).status_code==400
+# Folder correction is offered before metadata is sent to a worker/provider.
+from pathlib import Path
+import time
+root=Path('fixture-tv');root.mkdir();root=root.resolve()
+engine.set_setting('General','root_dirs','0|'+str(root))
+metadata_calls=[]
+app.metadata_service.refresh_show=lambda sid:metadata_calls.append(sid) or {'show_id':sid,'inserted':0,'updated':0}
+for endpoint in ['/api/shows/1/refresh','/api/shows/1/refresh/start']:
+    response=client.post(endpoint,headers=headers)
+    assert response.status_code==409 and response.get_json()['code']=='show_folder_required',response.data
+assert metadata_calls==[]
+destination={'library_root':str(root),'folder_name':'Resolution One','previous_location':'','create_directory':True}
+assert client.patch('/api/shows/1/destination',json=destination).status_code==403
+response=client.patch('/api/shows/1/destination',json=destination,headers=headers)
+assert response.status_code==200,response.data
+assert (root/'Resolution One').is_dir()
+assert client.post('/api/shows/1/refresh',headers=headers).status_code==200
+assert metadata_calls==[1]
+with app.cx() as c:c.execute('UPDATE shows SET location=? WHERE id=1',(str(root/'Missing'),))
+assert client.post('/api/shows/1/refresh/start',headers=headers).status_code==409
+destination.update(previous_location=str(root/'Missing'),folder_name='Repaired')
+assert client.patch('/api/shows/1/destination',json=destination,headers=headers).status_code==200
+def wait_job(start):
+    assert start.status_code==200,start.data
+    jid=start.get_json()['job']['job_id']
+    for attempt in range(100):
+        job=client.get('/api/jobs/'+jid).get_json()['job']
+        if job['status'] in ['complete','error','cancelled']:return job
+        time.sleep(.02)
+    raise AssertionError('Job did not finish')
+assert wait_job(client.post('/api/shows/1/refresh/start',headers=headers))['status']=='complete'
+# Force requires a signed review and keeps the existing download.
+with app.cx() as c:
+    c.execute("INSERT INTO episodes(id,show_id,season,episode,status) VALUES(1,2,1,1,'Wanted')")
+    c.execute("INSERT INTO search_results(id,episode_id,provider,protocol,title,url,guid) VALUES(1,1,'Fixture','nzb','Resolution.Two.S01E01.1080p.WEB','https://fixture.test/file','fixture')")
+    c.execute("INSERT INTO downloads(id,episode_id,search_result_id,client,status,external_id) VALUES(1,1,1,'Fixture','Queued','original')")
+sent=[]
+engine.handoff_adapter=lambda result:('Fixture',lambda:sent.append(result['id']) or 'new-id')
+engine.advanced.fire_webhooks=lambda *a,**k:None
+response=client.post('/api/search-results/1/grab',json={'force':True},headers=headers)
+assert response.status_code==409 and response.get_json()['force_available'] and sent==[]
+job=wait_job(client.post('/api/search-results/1/grab/start',headers=headers))
+assert job['status']=='error' and job['result']['recovery']['force_available']
+assert client.post('/api/search-results/1/force-preview').status_code==403
+response=client.post('/api/search-results/1/force-preview',headers=headers)
+assert response.status_code==200,response.data
+force_token=response.get_json()['token']
+assert client.post('/api/search-results/1/grab/start',json={'force_token':force_token+'bad'},headers=headers).status_code==400
+assert client.post('/api/search-results/1/grab',json={'force_token':force_token}).status_code==403
+assert client.post('/api/search-results/2/grab',json={'force_token':force_token},headers=headers).status_code==400
+job=wait_job(client.post('/api/search-results/1/grab/start',json={'force_token':force_token},headers=headers))
+assert job['status']=='complete' and sent==[1],job
+assert client.post('/api/search-results/1/grab',json={'force_token':force_token},headers=headers).status_code==400
+with app.cx() as c:
+    assert c.execute('SELECT COUNT(*) FROM downloads').fetchone()[0]==2
+    assert c.execute('SELECT external_id FROM downloads WHERE id=1').fetchone()[0]=='original'
 backup=database_safety.backup_database(app.DB,reason='route-test')['backup']
 r=client.post('/api/protection/restore/preview',json={'path':backup},headers=headers);assert r.status_code==200,r.data
 preview=r.get_json();assert 'token' in preview

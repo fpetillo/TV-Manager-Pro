@@ -233,12 +233,9 @@ async function openShow(id){
 
   document.getElementById("refreshMetadata").onclick=async()=>{
     const b=document.getElementById("refreshMetadata"),m=document.getElementById("refreshMessage");
-    b.disabled=true;m.className="message";m.textContent="Refreshing show, season and episode metadata…";
-    const r=await fetch(`/api/shows/${id}/refresh`,{method:"POST"}),d=await r.json();
-    if(!r.ok){m.className="message error";m.textContent=d.error||"Refresh failed";b.disabled=false;return}
-    m.className="message success";m.textContent=d.message;
-    await loadDashboard();
-    setTimeout(()=>openShow(id),500);
+    b.disabled=true;
+    try{const result=await refreshShowWithFolder(id,m);if(result){await loadDashboard();await openShow(id);}}
+    finally{b.disabled=false;}
   };
 
   const seasonList=document.getElementById("seasonList");
@@ -293,9 +290,10 @@ async function openShow(id){
                 ${["Wanted","Snatched","Downloaded","Failed","Skipped","Ignored","Archived","Unaired"].map(st=>`<option ${String(e.status).toLowerCase()===st.toLowerCase()?"selected":""}>${st}</option>`).join("")}
               </select><label class="ep-monitor"><input type="checkbox" ${e.monitored!==0?"checked":""} onchange="updateEpisode(${e.id},{monitored:this.checked})"> monitor</label></td>
               <td class="file-cell">${e.location?esc(e.location):'<span class="missing-file">Missing</span>'}</td>
-              <td><button class="action-btn secondary" onclick="searchEpisode(${e.id}, '${esc(s.name).replace(/'/g,"&#039;")}', ${e.season}, ${e.episode})">Search</button></td>
+              <td><button class="action-btn secondary" data-search-episode="${e.id}">Search</button></td>
             </tr>`).join("")}</tbody>
         </table></div>`:'<p class="muted">No episodes in this season.</p>';
+      bindEpisodeSearch(body,s.name,d.episodes);
     };
     seasonList.appendChild(block);
     fetch(`/api/season-pack-plan/${id}/${season.season}`).then(r=>r.json()).then(p=>{const h=block.querySelector(".pack-hint");if(h&&p.season_pack_preferred){h.innerHTML=` • <button class="link-button" onclick="event.stopPropagation();searchSeasonPack(${id},${season.season})">Find season pack</button>`}});
@@ -323,6 +321,7 @@ window.searchEpisode=async function(eid,showName,season,episode){
   document.getElementById("modalTitle").textContent=`${showName} S${String(season).padStart(2,"0")}E${String(episode).padStart(2,"0")}`;
   const body=document.getElementById("modalBody");
   body.innerHTML='<div class="loading-box">Searching configured providers…</div>';
+  try{
   const r=await fetch(`/api/episodes/${eid}/search`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
   const d=await r.json();
   if(!r.ok){body.innerHTML=`<div class="message error">${esc(d.error||"Search failed")}</div>`;return}
@@ -333,14 +332,12 @@ window.searchEpisode=async function(eid,showName,season,episode){
     ${(x.decision_reasons||[]).length?`<div class="decision-reasons">${x.decision_reasons.map(r=>`<span>${esc(r)}</span>`).join("")}</div>`:""}
     ${x.rejected_reason?"":`<div class="actions"><button class="blue action-btn" onclick="grabSearchResult(${x.id},this)">Send to Downloader</button></div>`}
   </div>`).join("");
+  }catch(error){body.innerHTML=`<div class="message error">${esc(error.message||"Could not search. Check the connection and try again.")}</div>`;}
 }
 window.grabSearchResult=async function(rid,btn){
-  btn.disabled=true;btn.textContent="Sending…";
-  const r=await fetch(`/api/search-results/${rid}/grab`,{method:"POST"}),d=await r.json();
-  if(!r.ok){btn.disabled=false;btn.textContent="Send to Downloader";alert(d.error||"Unable to queue release");return}
-  btn.textContent=`Queued in ${d.client}`;
-  loadDashboard();
-}
+  const host=btn.parentElement;
+  await sendReviewedDownload(rid,host,()=>loadDashboard());
+};
 
 window.updateEpisode=async function(eid,body){
   const r=await fetch(`/api/episodes/${eid}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});

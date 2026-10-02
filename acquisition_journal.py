@@ -32,21 +32,28 @@ def init(database):
         """)
 
 
-def reserve(database,kind,payload,client,episode_ids,token=None):
+def reserve(database,kind,payload,client,episode_ids,token=None,force_review=None):
     init(database)
     ids=sorted(set(int(e) for e in episode_ids))
     if not ids:raise ValueError('No eligible episodes remain for this download.')
     token=token or uuid.uuid4().hex
     with dbcore.connect(database) as c:
         c.execute('BEGIN IMMEDIATE')
+        if force_review is not None:
+            import download_override
+            if kind!='episode':raise ValueError('Force review applies only to the selected episode release.')
+            review=download_override.validate(c,payload['id'],force_review)
+            payload=dict(payload,forced=True,overridden_downloads=review['conflicts'])
         tables={r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         for eid in ids:
             if c.execute('SELECT 1 FROM acquisition_reservations WHERE episode_id=?',(eid,)).fetchone():
                 raise ValueError('A previous handoff is unresolved. Check Download Center before sending again.')
-            if c.execute("SELECT 1 FROM downloads WHERE episode_id=? AND lower(status) IN ('queued','downloading','downloaded','importing')",(eid,)).fetchone():
-                raise ValueError('An episode already has an active download.')
-            if 'season_pack_downloads' in tables and c.execute("""SELECT 1 FROM season_pack_downloads p JOIN episodes e ON e.show_id=p.show_id AND e.season=p.season WHERE e.id=? AND lower(p.status) IN ('queued','downloading','downloaded','importing')""",(eid,)).fetchone():
-                raise ValueError('An active season pack already covers this episode.')
+            if force_review is None:
+                from download_override import DuplicateDownload
+                if c.execute("SELECT 1 FROM downloads WHERE episode_id=? AND lower(status) IN ('queued','downloading','downloaded','importing')",(eid,)).fetchone():
+                    raise DuplicateDownload('An episode already has an active download.')
+                if 'season_pack_downloads' in tables and c.execute("""SELECT 1 FROM season_pack_downloads p JOIN episodes e ON e.show_id=p.show_id AND e.season=p.season WHERE e.id=? AND lower(p.status) IN ('queued','downloading','downloaded','importing')""",(eid,)).fetchone():
+                    raise DuplicateDownload('An active season pack already covers this episode.')
         c.execute('INSERT INTO acquisition_intents(id,kind,payload,client,state) VALUES(?,?,?,?,?)',(token,kind,json.dumps(dict(payload)),client,'sending'))
         c.executemany('INSERT INTO acquisition_reservations(episode_id,intent_id) VALUES(?,?)',[(e,token) for e in ids])
     return token
@@ -64,10 +71,10 @@ def finish(database,token,external_id,finalize):
         return result
 
 
-def submit(database,kind,payload,client,episode_ids,sender,finalize):
+def submit(database,kind,payload,client,episode_ids,sender,finalize,force_review=None):
     token=uuid.uuid4().hex
     with active(database,token):
-        reserve(database,kind,payload,client,episode_ids,token=token)
+        reserve(database,kind,payload,client,episode_ids,token=token,force_review=force_review)
         return _submit_reserved(database,token,sender,finalize)
 
 

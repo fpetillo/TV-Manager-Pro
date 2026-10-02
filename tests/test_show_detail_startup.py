@@ -49,7 +49,7 @@ const node=id=>{
 };
 const ctx={document:{querySelector:()=>node('page'),getElementById:node,querySelectorAll:()=>[],createElement:()=>({})},
  setTimeout(){},clearTimeout(){},URLSearchParams,console};ctx.window=ctx;
-vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','utf8'),ctx);
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/workflow_recovery.js','utf8'),ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','utf8'),ctx);
 (async()=>{
  const calls=[];
  ctx.jsonFetch=async url=>{calls.push(url);return {seasons:[{season:0,episode_count:7,with_files:0},{season:2,episode_count:1,with_files:1},{season:1,episode_count:24,with_files:18}]};};
@@ -61,7 +61,7 @@ vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','u
  assert.ok(!html.includes(' open'), 'all seasons start collapsed');
  assert.match(html,/18 of 24 episodes downloaded/);assert.match(html,/1 of 1 episode downloaded/);assert.match(html,/0 of 7 episodes downloaded/);
  assert.ok(calls[0].endsWith('/episodes'),'load season totals without fetching episode pages');
- const body={innerHTML:''},message={textContent:'',append(){}};
+ const body={innerHTML:'',querySelectorAll:()=>[]},message={textContent:'',append(){}};
  const folder={dataset:{},querySelector:s=>s==='tbody'?body:message};
  let page=0;
  node('episodeSearch').value='Pilot';node('episodeStatus').value='Wanted';
@@ -93,9 +93,9 @@ def test_header_counts_and_partial_search_results_use_real_response_fields():
     script=r"""
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const nodes=new Map();
-const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',dataset:{showId:'1'},addEventListener(){},textContent:'',innerHTML:''});return nodes.get(id);};
+const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',dataset:{showId:'1'},addEventListener(){},textContent:'',innerHTML:'',querySelector:selector=>node(selector.slice(1))});return nodes.get(id);};
 const ctx={document:{querySelector:()=>node('page'),getElementById:node,querySelectorAll:()=>[]},setTimeout(){},clearTimeout(){},console};ctx.window=ctx;
-vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','utf8'),ctx);
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('static/workflow_recovery.js','utf8'),ctx);vm.runInContext(fs.readFileSync('static/show_detail.js','utf8'),ctx);
 (async()=>{
  ctx.jsonFetch=async url=>{
    assert.equal(url,'/api/shows/1');

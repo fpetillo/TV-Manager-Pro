@@ -9,6 +9,7 @@ import dbcore
 import tmdb_client
 import job_center
 import requests
+import show_folder
 
 BASE=app_paths.application_root()
 DB=BASE/"tvmanager.db"
@@ -192,7 +193,10 @@ def refresh_batch(limit=None, batch_size=None):
                                    COALESCE(m.last_refresh,'1900-01-01'),s.name
                           LIMIT ?""",(f"-{update_hours} hours",batch)).fetchall()
     results=[]
+    folder_issues=[]
     for row in rows:
+        issue=show_folder.for_show(DB,row['id'])
+        if issue:folder_issues.append(issue)
         try:
             results.append({"ok":True,**refresh_show(row["id"])})
         except Exception as ex:
@@ -204,7 +208,7 @@ def refresh_batch(limit=None, batch_size=None):
                           (row["id"],str(ex)[:1000]))
                 c.commit()
             results.append({"ok":False,"show_id":row["id"],"name":row["name"],"error":str(ex)})
-    return {"eligible_selected":len(rows),"batch_size":batch,"update_hours":update_hours,"results":results}
+    return {"eligible_selected":len(rows),"batch_size":batch,"update_hours":update_hours,"results":results,"folder_issues":folder_issues}
 
 # ---- v17.12 full-library metadata refresh jobs ----
 import threading
@@ -277,9 +281,12 @@ def _run_full_refresh_job(job_id, rows, delay_seconds):
     _set_job(job_id, status="running", stage="Refreshing metadata", percent=0, message="Starting full-library metadata refresh.")
     succeeded=skipped=failed=0
     errors=[]
+    folder_issues=[]
     for idx, (show_id, name) in enumerate(rows, start=1):
+        issue=show_folder.for_show(DB,show_id)
+        if issue:folder_issues.append(issue)
         _set_job(job_id, processed=idx-1, current_show=name, percent=int(((idx-1)/total)*100) if total else 100,
-                 message=f"Refreshing {name}")
+                 message=f"Refreshing {name}",folder_issues=list(folder_issues))
         try:
             refresh_show(show_id)
             succeeded+=1
@@ -347,7 +354,10 @@ def refresh_missing_metadata(limit=200, include_paused=False, delay_seconds=0.15
     total=len(rows)
     succeeded=failed=skipped=0
     errors=[]
+    folder_issues=[]
     for idx,row in enumerate(rows, start=1):
+        issue=show_folder.for_show(DB,row['id'])
+        if issue:folder_issues.append(issue)
         if progress_callback:
             progress_callback({"total":total,"processed":idx-1,"succeeded":succeeded,"failed":failed,"skipped":skipped,"percent":int(((idx-1)/total)*100) if total else 100,"current_show":row.get("name"),"message":f"Refreshing missing metadata for {row.get('name')}"})
         try:
@@ -361,15 +371,15 @@ def refresh_missing_metadata(limit=200, include_paused=False, delay_seconds=0.15
         if delay_seconds:
             time.sleep(max(0.0,min(float(delay_seconds),3.0)))
         if progress_callback:
-            progress_callback({"total":total,"processed":idx,"succeeded":succeeded,"failed":failed,"skipped":skipped,"percent":int((idx/total)*100) if total else 100,"current_show":row.get("name"),"errors":errors[-25:]})
-    return {"ok": True, "total": total, "processed": total, "succeeded": succeeded, "failed": failed, "skipped": skipped, "errors": errors[-50:]}
+            progress_callback({"total":total,"processed":idx,"succeeded":succeeded,"failed":failed,"skipped":skipped,"percent":int((idx/total)*100) if total else 100,"current_show":row.get("name"),"errors":errors[-25:],"folder_issues":list(folder_issues)})
+    return {"ok": True, "total": total, "processed": total, "succeeded": succeeded, "failed": failed, "skipped": skipped, "errors": errors[-50:],"folder_issues":folder_issues}
 
 
 def start_missing_metadata_refresh(limit=200, include_paused=False, delay_seconds=0.15):
     def worker(job_id):
         job_center.update_job(job_id, stage="Missing metadata", message="Refreshing shows with missing IDs, descriptions, episode titles, dates or art.", percent=1)
         def progress(evt):
-            updates={k:evt[k] for k in ("total","processed","succeeded","failed","skipped","percent","current_show","errors") if k in evt}
+            updates={k:evt[k] for k in ("total","processed","succeeded","failed","skipped","percent","current_show","errors","folder_issues") if k in evt}
             updates["stage"]="Missing metadata"
             updates["message"]=evt.get("message") or "Refreshing missing metadata."
             job_center.update_job(job_id, **updates)
