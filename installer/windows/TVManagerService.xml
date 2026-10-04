@@ -1,0 +1,22 @@
+<service>
+  <id>TVManagerPro</id>
+  <name>TV Manager Pro</name>
+  <description>TV Manager Pro library management and automation server.</description>
+  <executable>%BASE%\TVManager.exe</executable>
+  <startarguments>--service</startarguments>
+  <stopexecutable>%BASE%\TVManager.exe</stopexecutable>
+  <stoparguments>--stop-service</stoparguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <stoptimeout>180 sec</stoptimeout>
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <logpath>%BASE%\logs\service</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+  <env name="PYTHONUNBUFFERED" value="1" />
+</service>

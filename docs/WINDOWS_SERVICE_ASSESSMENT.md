@@ -1,4 +1,4 @@
-# Windows EXE and service assessment — 2026-10-04
+# Windows EXE and service assessment â€” 2026-10-04
 
 **Yes, a Windows service can use TV libraries on network shares.** Configure UNC paths such as `\\192.168.1.221\TV Shows`, and run the service under an account that the share accepts. Grant the account the share and filesystem permissions needed to read, create, rename and move episodes. For a NAS or workgroup server, verify its authentication against that account; access from an interactive desktop session does not prove access from the service. Microsoft recommends UNC paths for services because mapped drive letters belong to individual logon sessions: [Services and redirected drives](https://learn.microsoft.com/en-us/windows/win32/services/services-and-redirected-drives).
 

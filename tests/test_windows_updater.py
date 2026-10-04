@@ -13,7 +13,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'update-server.ps1'
-VERSION = '18.11.2'
+VERSION = '18.12.0'
 
 
 @pytest.fixture
@@ -159,6 +159,12 @@ def test_corrupt_database_blocks_update(updater, installation, tmp_path, monkeyp
 def test_downgrade_refused(updater, installation):
     with pytest.raises(ValueError, match='Downgrades'):
         updater.update(installation, '18.10.0')
+
+
+def test_source_updater_refuses_packaged_service(updater, installation):
+    (installation / 'TVManagerService.exe').write_bytes(b'fixture')
+    with pytest.raises(ValueError, match='packaged Windows service'):
+        updater.update(installation, VERSION)
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows updater/lease')

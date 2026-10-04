@@ -1,3 +1,9 @@
+## 18.12.0 — Windows service distribution
+
+Added a Windows x64 packaged application with a pinned WinSW service host, automatic delayed startup, failure recovery, rotating logs and install/start/stop/restart/status/uninstall commands. Select a Windows account for UNC library access; credentials go to Windows, not service XML. Existing login remains optional. Service stop blocks new work, stops scheduler dispatch and drains active jobs within a bounded timeout. The source updater refuses packaged-service installations to prevent falsely updating only unused source files.
+
+See [Windows service installation](docs/WINDOWS_SERVICE.md) and [release notes](docs/RELEASE_NOTES_v18.12.0.md). Destination service registration, reboot and real share acceptance require a Windows administrator on the target server.
+
 ## 18.11.2 — Optional administrator login on LAN
 
 Browser login is now optional regardless of the listening address. Settings -> Security can turn it off without changing the LAN address or restarting. Existing enabled settings and administrator credentials remain intact during updates; enabling login still requires a password and enforces authentication and CSRF. First-time password setup is available from the LAN when login is off. Network help and the Windows updater guide now describe the optional setting.

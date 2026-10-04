@@ -1757,8 +1757,10 @@ def scheduler_loop():
         with cx() as c:
             jobs = c.execute("SELECT * FROM scheduler_jobs WHERE enabled=1").fetchall()
         for r in jobs:
+            if _STOP.is_set():
+                break
             if _job_due(r):
-                threading.Thread(target=run_job,args=(r["name"],),daemon=True).start()
+                threading.Thread(target=run_job,args=(r["name"],),daemon=True,name=f"TVManagerJob-{r['name']}").start()
 
 def start_scheduler():
     if getattr(start_scheduler, "_started", False):

@@ -1652,7 +1652,7 @@ def start_sickchill_import_job():
         if error:return error
         job_id=uuid.uuid4().hex
         _set_import_job(job_id, status="queued", stage="queued", percent=0, message="Import queued", source_name=name, created_at=datetime.now().isoformat(timespec="seconds"))
-        thread=threading.Thread(target=_run_sickchill_import_job,args=(job_id,name,dest),daemon=True)
+        thread=threading.Thread(target=_run_sickchill_import_job,args=(job_id,name,dest),daemon=True,name=f"TVManagerImport-{job_id}")
         thread.start()
         return jsonify(ok=True,job_id=job_id,status_url=f"/api/import/sickchill/jobs/{job_id}")
     except Exception as exc:

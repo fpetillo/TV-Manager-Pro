@@ -1,5 +1,7 @@
 # Windows EXE Installer
 
+For automatic startup as a Windows service, use the v18.12.0 service distribution and [service installation guide](WINDOWS_SERVICE.md). The older build path below creates an interactive EXE package.
+
 TV Manager includes a Windows EXE packaging helper at:
 
 ```powershell

@@ -1,6 +1,12 @@
 from __future__ import annotations
 import os
 import sys
+if __name__=='__main__' and '--service' in sys.argv:
+    import service_runtime  # Record boot time before database initialization.
+if __name__=='__main__' and '--stop-service' in sys.argv:
+    import app_paths
+    import service_runtime
+    raise SystemExit(service_runtime.request_stop(app_paths.application_root()))
 # Archive workers must run before the app takes its installation lease.
 if __name__=='__main__' and len(sys.argv)>1 and sys.argv[1]=='--archive-worker':
     import archive_processing
@@ -28,4 +34,8 @@ if __name__=="__main__":
     engine.start_scheduler()
     print("Registered support routes: "+", ".join(sorted(required_routes)))
     print(f"TV Manager production server listening on http://{host}:{port} with {threads} threads")
+    if '--service' in sys.argv:
+        import app_paths
+        import service_runtime
+        raise SystemExit(service_runtime.serve(app, app_paths.application_root(), engine._STOP, host, port, threads))
     serve(app,host=host,port=port,threads=threads,channel_timeout=120)

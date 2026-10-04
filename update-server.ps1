@@ -8,7 +8,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1
 [CmdletBinding()]
 param(
     [string]$InstallDir = 'C:\Acuityware TV Manager',
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.11.2',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.12.0',
     [string]$ArchivePath = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -52,7 +52,7 @@ MAX_EXPANDED = 512 * 1024 * 1024
 
 def version_tuple(value):
     if not re.fullmatch(r'\d+\.\d+\.\d+', value):
-        raise ValueError('Version must have the form 18.11.2.')
+        raise ValueError('Version must have the form 18.12.0.')
     return tuple(map(int, value.split('.')))
 
 def digest(path):
@@ -219,6 +219,8 @@ def update(root, version, archive_path=''):
     for required in ['app.py', 'VERSION', 'tvmanager.db', 'runtime_guard.py', '.venv/Scripts/python.exe']:
         if not contained(root, required).is_file():
             raise ValueError('Not a supported existing source installation; missing ' + required)
+    if (root / 'TVManagerService.exe').exists():
+        raise ValueError('This installation contains the packaged Windows service. Use the service ZIP upgrade instructions; source updates do not replace the EXE.')
     old_version = (root / 'VERSION').read_text(encoding='utf-8-sig').strip()
     if version_tuple(version) < version_tuple(old_version):
         raise ValueError('Downgrades are not supported by this updater.')
