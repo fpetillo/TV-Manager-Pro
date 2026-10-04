@@ -1,3 +1,9 @@
+## 18.11.1 — Windows server updater
+
+Added a standalone PowerShell updater that downloads a tagged source release without Git, verifies a cold backup including the Python environment, preserves database/settings/runtime data, installs dependencies and copies source. Refuses running instances and unsafe/invalid releases. Caught dependency/copy failures attempt source/environment rollback; all runs leave startup to the operator and report errors accurately.
+
+[Server update instructions](docs/WINDOWS_SERVER_UPDATE.md) include download/run commands, backup/recovery details and LAN settings. Validation: 510 passed, two existing Windows privilege skips; 20 updater checks include an actual PowerShell 5.1 run. Python/JavaScript syntax and dependency checks passed. No target-server deployment or executable build is claimed.
+
 ## 18.11.0 — Configurable network access and installation readiness
 
 Settings → Network now saves an IP address and port for the normal, production and packaged launchers, with current/pending display and restart instructions. LAN access retains administrator/login checks; unavailable addresses are rejected. Imported web_host/web_port settings direct users to the working Network editor. Startup overrides support recovery.

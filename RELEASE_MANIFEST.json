@@ -1,32 +1,32 @@
 {
   "product": "TV Manager",
-  "version": "18.11.0",
-  "release_name": "Configurable Network Access and Installation Readiness",
-  "generated_at": "2026-10-04T21:11:37.466255+00:00",
+  "version": "18.11.1",
+  "release_name": "Windows Server Update Script",
+  "generated_at": "2026-10-04T21:24:14.503863+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Settings > Network saves the listening IP and port for both launchers",
-    "Shared LAN authentication checks, active/pending listener display and recovery overrides",
-    "Automatic health checks plus explicit operator verifications replace the capped readiness score",
-    "Full duplicate counts, correct health fields, path mapping and failed-scan reporting"
+    "Standalone PowerShell update from tagged GitHub source; no Git required",
+    "Verified cold backup including database, configuration and Python environment",
+    "Application lease, archive validation and source/environment rollback on caught failures",
+    "Clear restart, version verification and LAN configuration instructions"
   ],
   "validation": {
     "pytest": {
-      "passed": 490,
+      "passed": 510,
       "failed": 0,
       "skipped": 2,
-      "skip_reason": "Windows symbolic-link permission unavailable"
+      "skip_reason": "Existing Windows symbolic-link privilege checks"
     },
+    "windows_updater": "20 checks passed: real Windows PowerShell 5.1 and disposable venv/pip run; preserved settings/database/runtime files; verified backup and WAL rows; active-instance guard; archive/path/version rejection; low disk and damaged-backup refusal; dependency and source rollback",
     "python_parse": 71,
     "javascript_syntax": "43 passed",
     "dependency_consistency": "passed",
-    "powershell_launchers": "both parsed successfully",
-    "browser": "Isolated authenticated installation: unavailable address rejected; saved LAN IP/port remains pending until restart; Waitress activates the saved address; readiness records reach 100%, clearing a check produces 91% in both Launchpad and Setup Assistant; no console errors",
-    "live_downloads": "Not performed; no production integration or media actions",
-    "windows_executable": "No v18.11.0 executable or installer build claimed",
+    "powershell_updater": "parsed and executed successfully",
+    "production_deployment": "Not performed; updater left test installation stopped",
+    "windows_executable": "No executable or installer build claimed",
     "fully_green": false
   },
-  "activation": "Update source on the installed server, restart locally, configure Network and restart again. Production activation must be verified separately.",
+  "activation": "Run update-server.ps1 on the stopped Windows source installation, restart using the existing startup method, and verify About version 18.11.1.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -63,7 +63,9 @@
     "readiness.py",
     "static/network_settings.js",
     "static/readiness.js",
-    "configure_network.py"
+    "configure_network.py",
+    "update-server.ps1",
+    "docs/WINDOWS_SERVER_UPDATE.md"
   ],
   "sickchill_full_parity": false
 }
