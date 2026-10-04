@@ -1,30 +1,30 @@
 {
   "product": "TV Manager",
-  "version": "18.10.0",
-  "release_name": "Folder Recovery, Force Download and Episode Search Fixes",
-  "generated_at": "2026-10-02T11:37:17.249719+00:00",
+  "version": "18.10.1",
+  "release_name": "Search Title Punctuation and Accent Fallbacks",
+  "generated_at": "2026-10-04T00:52:18.112418+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Correct or create missing show storage folders during metadata refresh, then retry without leaving the workflow",
-    "Bulk metadata results link directly to folder correction; interactive Library Health page restored",
-    "Explicit reviewed force-download submission preserves earlier downloads and history",
-    "Apostrophes and other title punctuation no longer break Search buttons in either show screen",
-    "Search dialogs stay above navigation; download success feedback remains visible"
+    "Automatic bounded alternate spellings for episode and season-pack provider searches",
+    "Apostrophes, hyphens, periods, ampersands and common accents handled without renaming shows",
+    "Saved aliases retained; broader results checked against show and episode numbering",
+    "Retries stop on acceptable results or provider errors; earlier results retained and duplicates removed",
+    "Show Detail and classic Shows display the spelling that found the release"
   ],
   "validation": {
     "pytest": {
-      "passed": 437,
+      "passed": 461,
       "failed": 0,
       "skipped": 2,
       "skip_reason": "Windows symbolic-link permission unavailable"
     },
-    "python_parse": 67,
+    "python_parse": 68,
     "javascript_syntax": "41 passed",
     "dependency_consistency": "passed",
-    "clean_install_routes": "Real isolated Flask routes cover folder repair/retry, all Library Health aliases, duplicate recovery, signed force review/replay and CSRF",
-    "browser": "Isolated synthetic library: reproduced and fixed apostrophe search; both show screens; layering; folder cancel/create/add root/retry; bulk repair link; force cancel/confirm and preserved old record. No new browser errors after fix.",
-    "live_downloads": "Not performed; simulated downloader and acquisition fixtures only",
-    "windows_executable": "No v18.10.0 executable or Inno installer build claimed",
+    "clean_install_routes": "Existing isolated Flask route suite passes, including metadata folder and reviewed force-download recovery",
+    "browser": "Both show screens find the punctuation-free release using the third spelling while preserving the original Wonka title; matched spelling visible and no console errors",
+    "live_downloads": "Not performed; synthetic indexer and downloader fixtures only",
+    "windows_executable": "No v18.10.1 executable or Inno installer build claimed",
     "fully_green": false
   },
   "activation": "Update source on the server, restart normally and refresh browser pages. Production and 192.168.1.16 were not restarted or deployed to.",
@@ -58,7 +58,8 @@
     "static/show_resolution.js",
     "download_override.py",
     "show_folder.py",
-    "static/workflow_recovery.js"
+    "static/workflow_recovery.js",
+    "search_names.py"
   ],
   "sickchill_full_parity": false
 }

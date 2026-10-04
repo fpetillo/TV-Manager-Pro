@@ -660,20 +660,35 @@ def search_newznab(provider, show, episode, timeout=25):
 
 
 def search_generic_provider(provider, show, episode, timeout=25):
-    import indexer_client, show_preferences
-    params=show_preferences.search_parameters(show,episode)
-    found=indexer_client.search(provider,params,timeout)
+    import indexer_client, show_preferences, search_names
+    show=dict(show)
+    name=show.get('search_name') or show['name']
     torrent=provider.get('protocol')=='torznab'
-    out=[]
-    for item in found:
-        title=item['title']
-        score,rejected=score_release(title,dict(show))
-        if torrent and item['seeders']<int(provider.get('minimum_seeders') or 0):
-            score,rejected=-10000,f"Below minimum seeders ({provider.get('minimum_seeders')})"
-        out.append(dict(item,provider=provider['name'],protocol='torrent' if torrent else 'nzb',
-                        quality=infer_quality(title),score=score-(int(provider.get('priority') or 0)/1000),
-                        rejected_reason=rejected))
+    out=[];seen=set()
+    for attempt,query_name in enumerate(search_names.variants(name)):
+        params=show_preferences.search_parameters(dict(show,search_name=query_name),episode)
+        try:found=indexer_client.search(provider,params,timeout)
+        except Exception as error:
+            error.partial_results=out
+            raise
+        acceptable=False
+        for item in found:
+            title=item['title']
+            score,rejected=score_release(title,show)
+            match_error=search_names.release_rejection(title,name,show,episode) if attempt else None
+            if match_error:score,rejected=-10000,match_error
+            if torrent and item['seeders']<int(provider.get('minimum_seeders') or 0):
+                score,rejected=-10000,f"Below minimum seeders ({provider.get('minimum_seeders')})"
+            acceptable=acceptable or not rejected
+            key=item.get('guid') or item.get('url') or title
+            if key in seen:continue
+            seen.add(key)
+            out.append(dict(item,provider=provider['name'],protocol='torrent' if torrent else 'nzb',
+                            quality=infer_quality(title),score=score-(int(provider.get('priority') or 0)/1000),
+                            rejected_reason=rejected,search_match_error=match_error,search_name=query_name if attempt else None))
+        if acceptable:break
     return out
+
 
 
 
@@ -738,7 +753,7 @@ def _search_episode(episode_id, auto_grab=False, purpose="manual"):
                 queries.add(query)
                 try:results.extend(searcher(provider,search_show,variant))
                 except Exception as error:
-                    error.partial_results=results
+                    error.partial_results=results+getattr(error,'partial_results',[])
                     raise
         return results
     errors = [] if providers or custom else ["No enabled search providers are configured. Open Settings to configure one."]
@@ -773,7 +788,9 @@ def _search_episode(episode_id, auto_grab=False, purpose="manual"):
     if len(variants)>1:
         for item in all_results:
             item['rejected_reason']='Multiple scene episodes map to this episode. Review scene numbering before retrieving a single file.'
-    all_results=[ops.apply_rules(x) for x in all_results]
+    all_results=[dict(ops.apply_rules(x),search_match_error=x.get('search_match_error')) for x in all_results]
+    for item in all_results:
+        if item.get('search_match_error'):item['rejected_reason']=item['search_match_error']
     # Acceptance/scoring rules cannot override an explicitly selected resolution.
     if show.get('preferred_resolution'):
         import show_resolution

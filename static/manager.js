@@ -329,6 +329,7 @@ window.searchEpisode=async function(eid,showName,season,episode){
   body.innerHTML=d.results.map(x=>`<div class="result-card ${x.rejected_reason?"rejected":""}">
     <div class="result-top"><div class="result-title">${esc(x.title)}</div><div class="score">${Math.round(x.score)}</div></div>
     <div class="result-meta">${esc(x.provider)} • ${esc(x.quality)} • ${x.size?Math.round(x.size/1024/1024)+" MB":"size unknown"} ${x.rejected_reason?" • "+esc(x.rejected_reason):""}</div>
+    ${x.search_name&&!x.search_match_error?`<div class="muted">Matched using: ${esc(x.search_name)}</div>`:""}
     ${(x.decision_reasons||[]).length?`<div class="decision-reasons">${x.decision_reasons.map(r=>`<span>${esc(r)}</span>`).join("")}</div>`:""}
     ${x.rejected_reason?"":`<div class="actions"><button class="blue action-btn" onclick="grabSearchResult(${x.id},this)">Send to Downloader</button></div>`}
   </div>`).join("");

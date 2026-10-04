@@ -243,21 +243,33 @@ def season_pack_search(show_id,season):
     with cx() as c:
         show=c.execute("SELECT * FROM shows WHERE id=?",(show_id,)).fetchone()
     if not show:raise ValueError("Show not found")
-    import indexer_client
-    providers=[p for p in engine.parse_newznab() if p['enabled']]+advanced.provider_defs_raw()
-    found=[];errors=[]
+    import indexer_client, search_names, provider_manager
+    providers=[p for p in engine.parse_newznab()+advanced.provider_defs_raw() if provider_manager.eligible(p)]
+    names=list(dict.fromkeys([show['name'],*advanced.aliases(show_id)]))
+    found=[];errors=[];seen=set()
     for p in providers:
         if not engine.ops.provider_is_available(p['name']):
             errors.append(p['name']+': temporarily suspended after repeated failures');continue
         try:
-            items=indexer_client.search(p,{'t':'tvsearch','q':show['name'],'season':season})
-            for item in items:
-                title=item['title']
-                if not re.search(fr'(?i)\bS{season:02d}\b',title) or re.search(r'(?i)S\d{2}E\d{2}',title):continue
-                if p.get('protocol')=='torznab' and item['seeders']<int(p.get('minimum_seeders') or 0):continue
-                score,reject=engine.score_release(title,dict(show))
-                if reject:continue
-                found.append(dict(item,provider=p['name'],protocol='torrent' if p.get('protocol')=='torznab' else 'nzb',quality=engine.infer_quality(title),score=score))
+            searched=set()
+            for name in names:
+                for query_name in search_names.variants(name):
+                    if query_name.casefold() in searched:continue
+                    searched.add(query_name.casefold())
+                    items=indexer_client.search(p,{'t':'tvsearch','q':query_name,'season':season})
+                    acceptable=False
+                    for item in items:
+                        title=item['title']
+                        if search_names.release_rejection(title,name,season=season):continue
+                        if p.get('protocol')=='torznab' and item['seeders']<int(p.get('minimum_seeders') or 0):continue
+                        score,reject=engine.score_release(title,dict(show))
+                        if reject:continue
+                        acceptable=True
+                        key=(p['name'],item.get('guid') or item.get('url') or title)
+                        if key in seen:continue
+                        seen.add(key)
+                        found.append(dict(item,provider=p['name'],protocol='torrent' if p.get('protocol')=='torznab' else 'nzb',quality=engine.infer_quality(title),score=score,search_name=query_name))
+                    if acceptable:break
             engine.ops.provider_result(p['name'],True)
         except Exception as error:
             engine.ops.provider_result(p['name'],False,error=error)

@@ -1,3 +1,9 @@
+## 18.10.1 — Search title punctuation and accent fallbacks
+
+Episode and season-pack searches now try bounded alternate spellings when the original name finds no acceptable release, preserving the saved title and aliases. Handles apostrophes, hyphens, periods, ampersands and common accents. Broader results require the show/episode identity; rate limits stop retries and earlier results remain available. Both show search screens show the successful alternate spelling. Disabled custom providers are excluded from pack searches.
+
+Validation: 461 tests passed, two Windows symbolic-link permission checks skipped; 68 Python and 41 JavaScript syntax checks and dependency consistency passed. Browser verified both show screens with the original Wonka's The Golden Ticket title and a provider fixture that accepts only the punctuation-free query. No real downloads or target-server activation. See [release notes and update links](docs/RELEASE_NOTES_v18.10.1.md).
+
 ## 18.10.0 — Folder recovery, force download and episode search fixes
 
 Missing show storage folders now open an in-place correction/create dialog during metadata refresh; bulk results link to Fix Folder & Refresh. Duplicate-download errors offer an explicit signed Force Download review while preserving existing queue/history and unresolved-handoff protections. Fixed apostrophe titles such as Wonka's The Golden Ticket breaking Search in both show screens, sidebar overlap of search dialogs, and disappearing success feedback. Restored the interactive Library Health page behind its early support route.
