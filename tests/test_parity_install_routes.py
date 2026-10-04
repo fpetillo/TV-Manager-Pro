@@ -47,6 +47,26 @@ for route in ['/library-health','/library-health/','/library_health','/health/li
 
 with client.session_transaction() as session:csrf=session['csrf_token']
 headers={'X-CSRF-Token':csrf}
+assert client.get('/settings').status_code==200
+assert client.get('/api/settings/network').get_json()['config']['host']=='127.0.0.1'
+assert client.post('/api/settings/network',json={'host':'127.0.0.1','port':5054}).status_code==403
+network=client.post('/api/settings/network',json={'host':'127.0.0.1','port':5054},headers=headers)
+assert network.status_code==200 and network.get_json()['restart_required'],network.data
+assert client.post('/api/settings/network',json={'host':'http://bad','port':5050},headers=headers).status_code==400
+assert client.post('/api/settings/network',json=[],headers=headers).status_code==400
+assert client.patch('/api/settings/section/TVManager/listen_host',json={'value':'0.0.0.0'},headers=headers).status_code==400
+network=client.post('/api/settings/network',json={'host':'0.0.0.0','port':5054},headers=headers)
+assert network.status_code==200,network.data
+assert client.post('/api/security/browser-auth',json={'enabled':False},headers=headers).status_code==400
+assert client.post('/api/settings/network',json={'host':'127.0.0.1','port':5050},headers=headers).status_code==200
+checklist=client.get('/api/launchpad/summary').get_json()['readiness_checklist']
+assert checklist['score']<100 and len(checklist['checks'])==12
+review={'confirmed':True,'fingerprint':checklist['fingerprint'],'evidence':'Synthetic client fixture was verified in isolation.'}
+assert client.post('/api/readiness/search_download/verify',json=review).status_code==403
+assert client.post('/api/readiness/search_download/verify',json=review,headers=headers).status_code==200
+assert client.post('/api/readiness/files/verify',json=review,headers=headers).status_code==400
+assert client.delete('/api/readiness/search_download/verify').status_code==403
+assert client.delete('/api/readiness/search_download/verify',headers=headers).status_code==200
 assert client.post('/api/protection/restore/cancel').status_code==403
 assert client.get('/api/calendar?start=2026-09-01&end=2026-09-30').status_code==200
 assert client.get('/api/calendar?start=invalid').status_code==400

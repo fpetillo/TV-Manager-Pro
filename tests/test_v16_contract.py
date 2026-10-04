@@ -26,7 +26,7 @@ class V16ContractTests(unittest.TestCase):
     def test_lan_guard(self):
         server=(ROOT/"server.py").read_text(encoding="utf-8")
         self.assertIn("browser_auth_enabled",server)
-        self.assertIn("Refusing non-loopback HOST",server)
+        self.assertIn("network_settings.prepare",server)
 
     def test_metadata_scheduler_is_real(self):
         engine=(ROOT/"engine.py").read_text(encoding="utf-8")

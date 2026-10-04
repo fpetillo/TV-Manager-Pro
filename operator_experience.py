@@ -20,117 +20,40 @@ def _table_exists(cx: sqlite3.Connection, name: str) -> bool:
     return bool(row)
 
 
-def launchpad_summary(db: Path, version: str, health: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Return an operator-first product summary for the Launchpad screen.
-
-    This intentionally favors clear next actions over raw tables. It is defensive
-    so the screen works during first run, after partial imports, or on older DBs.
-    """
-    db = Path(db)
-    shows = episodes = import_runs = 0
-    latest_import = None
+def launchpad_summary(db: Path, version: str, health: dict[str, Any] | None = None, network=None) -> dict[str, Any]:
+    import dbcore
+    import readiness
+    health = dict(health or {})
+    counts = health.get('counts') or {}
+    imports = 0
+    latest = None
     try:
-        with sqlite3.connect(db) as cx:
-            cx.row_factory = sqlite3.Row
-            if _table_exists(cx, 'shows'):
-                shows = int(cx.execute('SELECT COUNT(*) FROM shows').fetchone()[0])
-            if _table_exists(cx, 'episodes'):
-                episodes = int(cx.execute('SELECT COUNT(*) FROM episodes').fetchone()[0])
+        with dbcore.connect(db, readonly=True, wal=False) as cx:
             if _table_exists(cx, 'import_runs'):
-                import_runs = int(cx.execute('SELECT COUNT(*) FROM import_runs').fetchone()[0])
+                imports = int(cx.execute('SELECT COUNT(*) FROM import_runs').fetchone()[0])
                 row = cx.execute('SELECT * FROM import_runs ORDER BY id DESC LIMIT 1').fetchone()
-                latest_import = dict(row) if row else None
-    except Exception as exc:
-        latest_import = {'error': str(exc)}
-
-    counts = (health or {}).get('counts', {}) if isinstance(health, dict) else {}
-    missing_files = int(counts.get('missing_files') or 0)
-    duplicate_groups = int(counts.get('duplicate_groups') or 0)
-    shows_without_location = int(counts.get('shows_without_location') or 0)
-    metadata_gaps = int(counts.get('metadata_gaps') or counts.get('shows_missing_ids') or 0)
-
-    actions = []
-    if not import_runs or shows == 0:
-        actions.append({
-            'priority': 'critical',
-            'title': 'Import SickChill library',
-            'detail': 'Start with Analyze, Preview, then Import so the replacement database has shows and episodes.',
-            'href': '/import',
-            'label': 'Open Import Center'
-        })
-    else:
-        actions.append({
-            'priority': 'good',
-            'title': 'Import complete',
-            'detail': f'{shows} shows and {episodes} episodes are visible in the active TV Manager database.',
-            'href': '/manager',
-            'label': 'Review Shows'
-        })
-
-    if missing_files or duplicate_groups or shows_without_location or metadata_gaps:
-        actions.append({
-            'priority': 'attention',
-            'title': 'Resolve Library Health findings',
-            'detail': f'{missing_files} missing files, {duplicate_groups} duplicate groups, {shows_without_location} shows without folders, {metadata_gaps} metadata gaps.',
-            'href': '/library-health',
-            'label': 'Open Library Health'
-        })
-    else:
-        actions.append({
-            'priority': 'good',
-            'title': 'Library Health is clean',
-            'detail': 'No major health findings were reported by the current health scan.',
-            'href': '/library-health',
-            'label': 'View Health'
-        })
-
-    actions.append({
-        'priority': 'next',
-        'title': 'Configure replacement automation',
-        'detail': 'Set download clients, providers, quality profiles, subtitles, naming, backups and notifications before cutover.',
-        'href': '/settings',
-        'label': 'Open Settings'
-    })
-    actions.append({
-        'priority': 'planned',
-        'title': 'Cut over from SickChill safely',
-        'detail': 'Run side-by-side first, validate imports, then stop SickChill only after TV Manager health checks are clean.',
-        'href': '/workflow',
-        'label': 'Open Workflow'
-    })
-
-    if shows == 0:
-        readiness = 'not_ready'
-        score = 15
-    elif missing_files or duplicate_groups or shows_without_location:
-        readiness = 'needs_attention'
-        score = max(45, 85 - min(40, missing_files + duplicate_groups * 5 + shows_without_location * 2))
-    else:
-        readiness = 'ready_for_operator_review'
-        score = 92 if import_runs else 70
-
+                latest = dict(row) if row else None
+    except Exception:
+        health['ok'] = False
+    checklist = readiness.summary(db, version, health, network)
     return {
-        'ok': True,
-        'version': version,
-        'database_exists': db.exists(),
-        'readiness': readiness,
-        'readiness_score': score,
-        'counts': {
-            'shows': shows,
-            'episodes': episodes,
-            'import_runs': import_runs,
-            'missing_files': missing_files,
-            'duplicate_groups': duplicate_groups,
-            'shows_without_location': shows_without_location,
-            'metadata_gaps': metadata_gaps,
-        },
-        'latest_import': latest_import,
-        'actions': actions,
+        'ok': True, 'version': version, 'database_exists': Path(db).exists(),
+        'readiness': 'verified' if checklist['score']==100 else 'needs_attention',
+        'readiness_score': checklist['score'], 'readiness_checklist': checklist,
+        'readiness_explanation': checklist['explanation'],
+        'counts': dict(shows=counts.get('shows',0), episodes=counts.get('episodes',0),
+            import_runs=imports, missing_files=counts.get('missing_episode_files',0),
+            duplicate_groups=counts.get('duplicate_groups',0),
+            shows_without_location=counts.get('shows_without_location',0),
+            metadata_gaps=counts.get('shows_missing_external_ids',0),
+            metadata_stale_or_missing=counts.get('metadata_stale_or_missing',0)),
+        'latest_import': latest,
+        'actions': [dict(priority='attention',title=item['title'],detail=item['detail'],href=item['href'],label='Open correction page')
+                    for item in checklist['checks'] if item['status']!='passed'],
     }
 
 
-
-def setup_assistant_summary(db: Path, base: Path, version: str, health: dict[str, Any] | None = None) -> dict[str, Any]:
+def setup_assistant_summary(db: Path, base: Path, version: str, health: dict[str, Any] | None = None, network=None) -> dict[str, Any]:
     """Return a guided setup/cutover checklist for operators.
 
     The goal is to make the product feel like an installed replacement system,
@@ -144,10 +67,13 @@ def setup_assistant_summary(db: Path, base: Path, version: str, health: dict[str
     shows = _scalar(db, 'SELECT COUNT(*) FROM shows') if db.exists() else 0
     episodes = _scalar(db, 'SELECT COUNT(*) FROM episodes') if db.exists() else 0
     imports = _scalar(db, 'SELECT COUNT(*) FROM import_runs') if db.exists() else 0
-    missing_files = int(counts.get('missing_files') or 0)
+    missing_files = int(counts.get('missing_episode_files') or 0)
     duplicate_groups = int(counts.get('duplicate_groups') or 0)
     folder_gaps = int(counts.get('shows_without_location') or 0)
-    metadata_gaps = int(counts.get('metadata_gaps') or counts.get('shows_missing_ids') or 0)
+    metadata_gaps = int(counts.get('shows_missing_external_ids') or counts.get('metadata_stale_or_missing') or 0)
+    import readiness
+    accepted = readiness.summary(db, version, health, network)
+    checked = {row['key']: row['status']=='passed' for row in accepted['checks']}
 
     files = {
         'version_file': (base / 'VERSION').exists(),
@@ -179,7 +105,7 @@ def setup_assistant_summary(db: Path, base: Path, version: str, health: dict[str
         {
             'id': 'health',
             'title': 'Clear Library Health findings',
-            'status': 'attention' if (missing_files or duplicate_groups or folder_gaps or metadata_gaps) else ('done' if shows else 'blocked'),
+            'status': 'done' if all(checked.get(key) for key in ['library','folders','files','duplicates','ids','metadata']) else 'attention',
             'detail': f'{missing_files} missing files, {duplicate_groups} duplicate groups, {folder_gaps} folder gaps, {metadata_gaps} metadata gaps.',
             'href': '/library-health',
             'action': 'Open Library Health'
@@ -187,7 +113,7 @@ def setup_assistant_summary(db: Path, base: Path, version: str, health: dict[str
         {
             'id': 'configure',
             'title': 'Configure automation and quality',
-            'status': 'next' if shows else 'blocked',
+            'status': 'done' if checked.get('search_download') and checked.get('processing') else ('next' if shows else 'blocked'),
             'detail': 'Review providers, download clients, quality profiles, naming, subtitles, backups and notifications.',
             'href': '/settings',
             'action': 'Open Settings'
@@ -195,24 +121,14 @@ def setup_assistant_summary(db: Path, base: Path, version: str, health: dict[str
         {
             'id': 'cutover',
             'title': 'Cut over from SickChill',
-            'status': 'ready' if shows and not (missing_files or duplicate_groups or folder_gaps) else 'blocked',
+            'status': 'done' if accepted['score']==100 else 'blocked',
             'detail': 'Stop SickChill only after import, health validation, and automation configuration are confirmed.',
-            'href': '/workflow',
-            'action': 'Open Workflow'
+            'href': '/launchpad',
+            'action': 'Review Readiness Checks'
         },
     ]
 
-    blockers = []
-    if not shows:
-        blockers.append('No shows are visible in TV Manager yet.')
-    if missing_files:
-        blockers.append(f'{missing_files} episode files are missing from disk.')
-    if duplicate_groups:
-        blockers.append(f'{duplicate_groups} duplicate groups need operator review.')
-    if folder_gaps:
-        blockers.append(f'{folder_gaps} shows have no folder path.')
-    if not files['server_runbook']:
-        blockers.append('Server replacement runbook is missing from the package.')
+    blockers = [item['title'] + ': ' + item['detail'] for item in accepted['checks'] if item['status']!='passed']
 
     return {
         'ok': True,
@@ -230,5 +146,7 @@ def setup_assistant_summary(db: Path, base: Path, version: str, health: dict[str
         'files': files,
         'stages': stages,
         'blockers': blockers,
-        'ready_for_cutover': bool(shows and not (missing_files or duplicate_groups or folder_gaps)),
+        'readiness_score': accepted['score'],
+        'ready_for_cutover': accepted['score']==100,
+        'readiness_url': '/launchpad',
     }

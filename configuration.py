@@ -10,6 +10,11 @@ RANGES={'recent_days':(1,90),'max_searches_per_run':(1,200),'metadata_missing_li
         'subtitle_scan_max_candidates':(1,10000),'email_port':(1,65535),'archive_max_bytes':(1048576,1099511627776),
         'archive_max_seconds':(1,3600),'archive_max_members':(1,100000)}
 EDITORS={('general','root_dirs'):('/library-storage','Edit Library Locations'),
+         ('general','web_host'):('/settings#network','Edit Network Settings'),
+         ('general','web_port'):('/settings#network','Edit Network Settings'),
+         ('tvmanager','listen_host'):('/settings#network','Edit Network Settings'),
+         ('tvmanager','listen_port'):('/settings#network','Edit Network Settings'),
+         ('tvmanager','browser_auth_enabled'):('/settings#security','Edit Browser Security'),
          ('newznab','newznab_data'):('/settings#providers','Edit Search Providers'),
          ('tvmanager','postprocess_scripts'):('/postprocess','Edit Processing Scripts'),
          ('tvmanager','calendar_token_hash'):('/upcoming','Manage Calendar Subscription')}

@@ -35,6 +35,8 @@ import job_center
 import sickchill_parity
 import help_content
 import episode_rules
+import network_settings
+import readiness
 
 BASE=app_paths.application_root()
 import runtime_guard
@@ -579,6 +581,10 @@ def api_security_password():
 def api_security_browser_auth():
     body=request.get_json(silent=True) or {}
     try:
+        if not body.get('enabled'):
+            active = app.config['TVMANAGER_NETWORK']
+            if not network_settings.is_local_only(active['host']) or not network_settings.is_local_only(network_settings.read(DB)['host']):
+                raise ValueError('Save a local-only address in Settings → Network and restart before turning off browser login.')
         security.set_browser_auth(bool(body.get("enabled")))
         return jsonify(ok=True,**security.status())
     except Exception as ex:
@@ -882,25 +888,42 @@ def setup_assistant_page(): return render_template("setup_assistant.html")
 @app.get("/api/launchpad/summary")
 def api_launchpad_summary():
     try:
-        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8)
+        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
         health_error = None
     except Exception as exc:
-        health = {"counts": {}, "recommendations": [str(exc)]}
+        health = {"ok": False, "counts": {}, "recommendations": [str(exc)]}
         health_error = str(exc)
-    payload = operator_experience.launchpad_summary(DB, APP_VERSION, health)
+    payload = operator_experience.launchpad_summary(DB, APP_VERSION, health, network_settings.status(DB, app.config['TVMANAGER_NETWORK']))
     payload["readiness_label"] = str(payload.get("readiness") or "unknown").replace("_", " ").title()
-    payload["readiness_explanation"] = "Replacement readiness is a launchpad score summarizing whether TV Manager has imported shows, library-health blockers, metadata gaps, downloader configuration, and operator actions still needing attention."
     if health_error:
         payload["health_warning"] = health_error
     return jsonify(payload)
 
+
+@app.post('/api/readiness/<key>/verify')
+def api_readiness_verify(key):
+    try:
+        readiness.record(DB, APP_VERSION, key, request.get_json(silent=True), str(session.get('admin_user') or 'Local operator'))
+        return jsonify(ok=True)
+    except ValueError as error:
+        return jsonify(error=str(error)),400
+
+
+@app.delete('/api/readiness/<key>/verify')
+def api_readiness_clear(key):
+    try:
+        readiness.clear(DB,key)
+        return jsonify(ok=True)
+    except ValueError as error:
+        return jsonify(error=str(error)),400
+
 @app.get("/api/setup/summary")
 def api_setup_summary():
     try:
-        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8)
+        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
     except Exception as exc:
-        health = {"counts": {}, "recommendations": [str(exc)]}
-    return jsonify(operator_experience.setup_assistant_summary(DB, BASE, APP_VERSION, health))
+        health = {"ok": False, "counts": {}, "recommendations": [str(exc)]}
+    return jsonify(operator_experience.setup_assistant_summary(DB, BASE, APP_VERSION, health, network_settings.status(DB, app.config['TVMANAGER_NETWORK'])))
 
 @app.get("/api/workflow/summary")
 def api_workflow_summary():
@@ -910,9 +933,9 @@ def api_workflow_summary():
     except Exception:
         dashboard_stats = {}
     try:
-        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8)
+        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
     except Exception as exc:
-        health = {"counts": {}, "recommendations": [f"Library Health needs attention: {exc}"]}
+        health = {"ok": False, "counts": {}, "recommendations": [f"Library Health needs attention: {exc}"]}
     try:
         verification = _active_import_verification()
     except Exception as exc:
@@ -931,7 +954,7 @@ def api_workflow_summary():
     steps = [
         {"id":"install","label":"Install TV Manager","status":"done","detail":"Application package is running and reporting version " + APP_VERSION},
         {"id":"import","label":"Import SickChill","status":"done" if import_runs else "next","detail":"Import history exists." if import_runs else "Use Import Center to analyze, preview, and import a copied sickbeard.db."},
-        {"id":"verify","label":"Validate Library Health","status":"attention" if any(int(counts.get(k,0) or 0) for k in ("missing_files","duplicate_groups","shows_without_location")) else "done", "detail":"Review missing files, duplicate groups, folder paths, and metadata gaps."},
+        {"id":"verify","label":"Validate Library Health","status":"attention" if not health.get("ok") or health.get("schema_warnings") or any(int(counts.get(k,0) or 0) for k in ("missing_episode_files","duplicate_groups","shows_without_location","shows_missing_external_ids","metadata_stale_or_missing")) else "done", "detail":"Review missing files, duplicate groups, folder paths, and metadata gaps."},
         {"id":"configure","label":"Configure automation","status":"next","detail":"Connect download clients, providers, metadata, subtitles, naming, and notifications."},
         {"id":"cutover","label":"Cut over from SickChill","status":"planned","detail":"Run both side-by-side first, stop SickChill only after imports and health checks are clean."},
     ]
@@ -1767,6 +1790,23 @@ def manage_page(): return render_template("manage.html")
 
 @app.get("/settings")
 def settings_page(): return render_template("settings.html")
+
+
+@app.get('/api/settings/network')
+def api_network_settings():
+    try:
+        return jsonify(ok=True, **network_settings.status(DB, app.config['TVMANAGER_NETWORK']))
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+
+
+@app.post('/api/settings/network')
+def api_network_settings_save():
+    try:
+        network_settings.save(DB, request.get_json(silent=True), security.admin_configured(), security.browser_auth_enabled())
+        return jsonify(ok=True, **network_settings.status(DB, app.config['TVMANAGER_NETWORK']))
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
 
 @app.get("/postprocess")
 def postprocess_page(): return render_template("postprocess.html")
@@ -2678,7 +2718,7 @@ def api_health():
 
 @app.get("/api/dashboard/full")
 def api_dashboard_full():
-    health_summary=library_maintenance.library_health_report(DB,duplicate_limit=5,sample_limit=5)
+    health_summary=library_maintenance.library_health_report(DB,duplicate_limit=5,sample_limit=5,path_mapper=ops.path_mapper_snapshot())
     return jsonify(stats=engine.dashboard_stats(),jobs=engine.jobs_public(),
                    activity=engine.activity(20),downloads=engine.downloads(20),
                    library_health=health_summary["counts"],recommendations=health_summary["recommendations"])
@@ -3074,6 +3114,7 @@ def api_library_health_report_v171():
             DB,
             duplicate_limit=max(1,min(duplicate_limit,100)),
             sample_limit=max(1,min(sample_limit,100)),
+            path_mapper=ops.path_mapper_snapshot(),
         ))
     except Exception as ex:
         # Library Health is an operations screen; return a renderable payload instead
@@ -3166,7 +3207,7 @@ def api_library_health_scan_start():
         if not db_status.get("ok"):
             raise RuntimeError("Database integrity check failed: " + str(db_status.get("error") or db_status.get("quick_check")))
         job_center.update_job(job_id, stage="Library scan", message="Scanning paths, metadata gaps, duplicates and missing files.", percent=35)
-        report=library_maintenance.library_health_report(DB, duplicate_limit=duplicate_limit, sample_limit=sample_limit)
+        report=library_maintenance.library_health_report(DB, duplicate_limit=duplicate_limit, sample_limit=sample_limit,path_mapper=ops.path_mapper_snapshot())
         job_center.update_job(job_id, stage="Protection check", message="Checking backup availability.", percent=75)
         protection=database_safety.scan_backups()
         report["database"] = db_status
@@ -3688,6 +3729,8 @@ lifecycle.init()
 integrity.init()
 scheduler_guard.init()
 security.init()
+readiness.init(DB)
+app.config['TVMANAGER_NETWORK'] = network_settings.read(DB)
 metadata_service.init()
 engine.normalize_statuses()
 if str(os.getenv('TVMANAGER_BUILDING_EXE','')).lower() not in {'1','true','yes','on'}:
@@ -3695,5 +3738,9 @@ if str(os.getenv('TVMANAGER_BUILDING_EXE','')).lower() not in {'1','true','yes',
     library_recovery.startup_complete(BASE)
 
 if __name__=="__main__":
+    try:
+        listener = network_settings.prepare(app.config['TVMANAGER_NETWORK'], security.admin_configured(), security.browser_auth_enabled())
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
     engine.start_scheduler()
-    app.run(host="127.0.0.1",port=int(os.getenv("PORT","5050")),debug=False,use_reloader=False,threaded=True)
+    app.run(host=listener['host'],port=listener['port'],debug=False,use_reloader=False,threaded=True)

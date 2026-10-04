@@ -17,9 +17,18 @@
 <button class="settings-tab" data-view="notifications">Notifications</button>
 <button class="settings-tab" data-view="naming">Naming</button>
 <button class="settings-tab" data-view="security">Security</button>
+<button class="settings-tab" data-view="network">Network</button>
 <button class="settings-tab" data-view="legacy">All Configurable Settings</button>
 </aside>
 <section class="panel settings-content">
+<div id="view-network" class="settings-view" hidden>
+<h2>Network access</h2><p>Choose where this installation listens. Save, then restart TV Manager for changes to take effect.</p>
+<div id="networkStatus" class="notice info" role="status">Loading network settings…</div>
+<div class="form-grid"><label>Listening IP address<input id="listenHost" list="localAddresses" placeholder="192.168.1.11" autocomplete="off"><datalist id="localAddresses"></datalist></label><label>Port<input id="listenPort" type="number" min="1" max="65535" value="5050"></label></div>
+<p class="muted">Use this server's IP, such as 192.168.1.11, for one interface. Use 0.0.0.0 for all IPv4 interfaces, or 127.0.0.1 for access only on this computer.</p>
+<p>LAN access requires an administrator password and browser login in <a href="/settings#security">Security</a>. If another computer cannot connect after restarting, allow this port through Windows Firewall on your private network.</p>
+<div class="actions"><button id="saveNetwork" class="blue" type="button">Save Network Settings</button></div><div id="networkMessage" role="status"></div>
+</div>
 <div id="view-automation" class="settings-view">
 <div class="toolbar"><div><h2>Automation</h2><p class="muted">Schedule recent search, backlog, downloader polling, missing metadata, episode artwork, library health, database protection and post-processing.</p></div><div class="spacer"></div><label class="switchline"><input id="automation" class="checkbox" type="checkbox"> Arm automation</label></div>
 <div id="automationNotice" class="notice warn"></div><div class="actions"><a class="btn secondary" href="/jobs">Open Active Jobs</a></div><div id="schedulerJobProgress"></div><div id="jobs"></div>
@@ -57,4 +66,4 @@
 </div>
 <div id="view-legacy" class="settings-view" hidden><div class="toolbar"><div><h2>All Configurable Settings</h2><p class="muted">Edit saved settings and application defaults by section. Imported options remain available; options from SickChill only take effect where TV Manager supports them. Secrets stay masked.</p></div><div class="spacer"></div><input id="sectionSearch" placeholder="Filter sections…"></div><div class="legacy-settings-layout"><div id="sections" class="section-list"></div><div id="sectionEditor"><div class="empty-state compact">Select a section.</div></div></div></div>
 </section></div>
-<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/settings-v5.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/settings-v5.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script><script src="/static/network_settings.js?v={{ app_version }}"></script></body></html>

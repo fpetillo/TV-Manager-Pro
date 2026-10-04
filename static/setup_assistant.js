@@ -9,7 +9,7 @@ async function loadSetupAssistant(){
     let d; try{d=JSON.parse(text)}catch(e){throw new Error(`Setup API returned ${r.status}: ${text.slice(0,180)}`)}
     if(!r.ok||d.ok===false) throw new Error(d.error||r.statusText);
     const c=d.counts||{};
-    const score=d.ready_for_cutover?100:(c.shows?65:25);
+    const score=Number(d.readiness_score||0);
     document.getElementById('setupReadyScore').textContent=score+'%';
     document.getElementById('setupReadyLabel').textContent=d.ready_for_cutover?'ready for cutover':(c.shows?'needs operator review':'import required');
     stats.innerHTML=[stat('Shows',c.shows),stat('Episodes',c.episodes),stat('Imports',c.imports),stat('Missing files',c.missing_files),stat('Duplicate groups',c.duplicate_groups),stat('Folder gaps',c.folder_gaps),stat('Metadata gaps',c.metadata_gaps),stat('Version',d.version)].join('');

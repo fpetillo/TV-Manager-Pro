@@ -1,33 +1,32 @@
 {
   "product": "TV Manager",
-  "version": "18.10.1",
-  "release_name": "Search Title Punctuation and Accent Fallbacks",
-  "generated_at": "2026-10-04T00:52:18.112418+00:00",
+  "version": "18.11.0",
+  "release_name": "Configurable Network Access and Installation Readiness",
+  "generated_at": "2026-10-04T21:11:37.466255+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Automatic bounded alternate spellings for episode and season-pack provider searches",
-    "Apostrophes, hyphens, periods, ampersands and common accents handled without renaming shows",
-    "Saved aliases retained; broader results checked against show and episode numbering",
-    "Retries stop on acceptable results or provider errors; earlier results retained and duplicates removed",
-    "Show Detail and classic Shows display the spelling that found the release"
+    "Settings > Network saves the listening IP and port for both launchers",
+    "Shared LAN authentication checks, active/pending listener display and recovery overrides",
+    "Automatic health checks plus explicit operator verifications replace the capped readiness score",
+    "Full duplicate counts, correct health fields, path mapping and failed-scan reporting"
   ],
   "validation": {
     "pytest": {
-      "passed": 461,
+      "passed": 490,
       "failed": 0,
       "skipped": 2,
       "skip_reason": "Windows symbolic-link permission unavailable"
     },
-    "python_parse": 68,
-    "javascript_syntax": "41 passed",
+    "python_parse": 71,
+    "javascript_syntax": "43 passed",
     "dependency_consistency": "passed",
-    "clean_install_routes": "Existing isolated Flask route suite passes, including metadata folder and reviewed force-download recovery",
-    "browser": "Both show screens find the punctuation-free release using the third spelling while preserving the original Wonka title; matched spelling visible and no console errors",
-    "live_downloads": "Not performed; synthetic indexer and downloader fixtures only",
-    "windows_executable": "No v18.10.1 executable or Inno installer build claimed",
+    "powershell_launchers": "both parsed successfully",
+    "browser": "Isolated authenticated installation: unavailable address rejected; saved LAN IP/port remains pending until restart; Waitress activates the saved address; readiness records reach 100%, clearing a check produces 91% in both Launchpad and Setup Assistant; no console errors",
+    "live_downloads": "Not performed; no production integration or media actions",
+    "windows_executable": "No v18.11.0 executable or installer build claimed",
     "fully_green": false
   },
-  "activation": "Update source on the server, restart normally and refresh browser pages. Production and 192.168.1.16 were not restarted or deployed to.",
+  "activation": "Update source on the installed server, restart locally, configure Network and restart again. Production activation must be verified separately.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -59,7 +58,12 @@
     "download_override.py",
     "show_folder.py",
     "static/workflow_recovery.js",
-    "search_names.py"
+    "search_names.py",
+    "network_settings.py",
+    "readiness.py",
+    "static/network_settings.js",
+    "static/readiness.js",
+    "configure_network.py"
   ],
   "sickchill_full_parity": false
 }

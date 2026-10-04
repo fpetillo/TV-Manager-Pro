@@ -1,3 +1,11 @@
+## 18.11.0 — Configurable network access and installation readiness
+
+Settings → Network now saves an IP address and port for the normal, production and packaged launchers, with current/pending display and restart instructions. LAN access retains administrator/login checks; unavailable addresses are rejected. Imported web_host/web_port settings direct users to the working Network editor. Startup overrides support recovery.
+
+Launchpad and Setup Assistant now share automatic health checks and explicitly recorded operator verification. All twelve checks must pass for 100%; missing/failed checks remain unverified. Corrected missing-file/metadata fields and full duplicate counts. Acceptance records invalidate on relevant configuration/release changes and after 90 days. Readiness measures this installation, separately from full SickChill feature parity.
+
+Validation: 490 passed / two Windows permission skips, 71 Python and 43 JavaScript checks, dependency consistency and launcher parsing passed. Isolated browser verified LAN restart, authentication and readiness scoring. No target-server deployment. [Release notes and update steps](docs/RELEASE_NOTES_v18.11.0.md).
+
 ## 18.10.1 — Search title punctuation and accent fallbacks
 
 Episode and season-pack searches now try bounded alternate spellings when the original name finds no acceptable release, preserving the saved title and aliases. Handles apostrophes, hyphens, periods, ampersands and common accents. Broader results require the show/episode identity; rate limits stop retries and earlier results remain available. Both show search screens show the successful alternate spelling. Disabled custom providers are excluded from pack searches.

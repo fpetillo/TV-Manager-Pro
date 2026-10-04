@@ -9,6 +9,7 @@ async function loadLaunchpad(){
     let d; try{ d=JSON.parse(text); }catch(e){ throw new Error(`Launchpad API returned ${r.status}: ${text.slice(0,160)}`); }
     if(!r.ok || d.ok===false) throw new Error(d.error||r.statusText);
     document.getElementById('readyScore').textContent=(d.readiness_score||0)+'%';
+    if(d.readiness_checklist && window.renderInstallationChecks)window.renderInstallationChecks(d.readiness_checklist);
     document.getElementById('readyLabel').textContent=d.readiness_label || (d.readiness||'unknown').replaceAll('_',' ');
     const explain=document.getElementById('readinessExplain');
     if(explain){explain.className='notice info';explain.textContent=d.readiness_explanation || 'Replacement readiness summarizes import, health, metadata, downloader setup, and cutover status.';}
@@ -21,6 +22,7 @@ async function loadLaunchpad(){
     const explain=document.getElementById('readinessExplain');
     if(explain){explain.className='notice error';explain.textContent='Replacement readiness could not load. Open /api/launchpad/summary or Logs to see the server-side issue.';}
     actions.innerHTML=`<div class="notice error">Launchpad failed: ${esc(e.message||e)}</div>`;
+    const checks=document.getElementById('installationChecks');if(checks)checks.textContent='Checks unavailable. Retry after resolving the reported error.';
   }
 }
 

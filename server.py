@@ -10,14 +10,15 @@ from waitress import serve
 from app import app
 import engine
 import security
+import network_settings
 
 if __name__=="__main__":
-    host=os.getenv("HOST","127.0.0.1")
-    port=int(os.getenv("PORT","5050"))
+    try:
+        listener=network_settings.prepare(app.config['TVMANAGER_NETWORK'], security.admin_configured(), security.browser_auth_enabled())
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
+    host,port=listener['host'],listener['port']
     threads=max(4,int(os.getenv("TVMANAGER_THREADS","8")))
-    if not security.is_loopback(host):
-        if not security.admin_configured() or not security.browser_auth_enabled():
-            raise SystemExit("Refusing non-loopback HOST without configured and enabled browser authentication. Start locally, visit /security/setup, then enable LAN binding.")
     # Required route check: fail fast if an old/partial app file is being served.
     required_routes={"/about","/library-health","/api/version","/api/about","/api/library/health-report"}
     registered={rule.rule for rule in app.url_map.iter_rules()}

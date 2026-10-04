@@ -1,4 +1,7 @@
+param([string]$ListenAddress, [int]$Port)
 $ErrorActionPreference="Stop"
+if ($PSBoundParameters.ContainsKey('ListenAddress')) { $env:TVMANAGER_BIND_HOST = $ListenAddress }
+if ($PSBoundParameters.ContainsKey('Port')) { $env:TVMANAGER_BIND_PORT = [string]$Port }
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 $Python = Join-Path $Root ".venv\Scripts\python.exe"

@@ -119,7 +119,7 @@ def ensure_maintenance_tables(db_path: str | Path) -> None:
         )
 
 
-def _episode_file_samples(conn, sample_limit: int) -> tuple[int, list[dict[str, Any]], int, list[dict[str, Any]]]:
+def _episode_file_samples(conn, sample_limit: int, path_mapper=None) -> tuple[int, list[dict[str, Any]], int, list[dict[str, Any]]]:
     """Return missing-on-disk and no-location episode counts/samples."""
     if not _has_columns(conn, "episodes", "id", "show_id", "season", "episode", "location"):
         return 0, [], 0, []
@@ -157,7 +157,7 @@ def _episode_file_samples(conn, sample_limit: int) -> tuple[int, list[dict[str, 
     missing_count = 0
     for row in rows_with_paths:
         path_text = str(row.get("location") or "")
-        if path_text and not Path(path_text).exists():
+        if path_text and not Path(path_mapper(path_text) if path_mapper else path_text).is_file():
             missing_count += 1
             if len(missing_rows) < sample_limit:
                 row["problem"] = "file_not_found"
@@ -165,7 +165,7 @@ def _episode_file_samples(conn, sample_limit: int) -> tuple[int, list[dict[str, 
     return missing_count, missing_rows, no_location_count, no_location_rows
 
 
-def library_health_report(db_path: str | Path, *, duplicate_limit: int = 25, sample_limit: int = 25) -> dict[str, Any]:
+def library_health_report(db_path: str | Path, *, duplicate_limit: int = 25, sample_limit: int = 25, path_mapper=None) -> dict[str, Any]:
     """Return an operator-focused health report for imports and library maintenance.
 
     This is intentionally defensive. The UI should render a useful report instead
@@ -233,7 +233,7 @@ def library_health_report(db_path: str | Path, *, duplicate_limit: int = 25, sam
             report["counts"]["episodes"] = _count(conn, "SELECT COUNT(*) FROM episodes")
             if "location" in ep_cols:
                 report["counts"]["downloaded_episodes"] = _count(conn, "SELECT COUNT(*) FROM episodes WHERE COALESCE(TRIM(location),'')<>''")
-                missing_count, missing_rows, no_location_count, no_location_rows = _episode_file_samples(conn, sample_limit)
+                missing_count, missing_rows, no_location_count, no_location_rows = _episode_file_samples(conn, sample_limit, path_mapper)
                 report["counts"]["missing_episode_files"] = missing_count
                 report["samples"]["missing_episode_files"] = missing_rows
                 report["counts"]["episodes_without_file_location"] = no_location_count
@@ -272,7 +272,11 @@ def library_health_report(db_path: str | Path, *, duplicate_limit: int = 25, sam
 
     duplicates = duplicate_candidates(db_path, limit=duplicate_limit)
     report["samples"]["duplicates"] = duplicates
-    report["counts"]["duplicate_groups"] = len(duplicates)
+    with dbcore.connect(db_path, readonly=True, wal=False) as conn:
+        if _has_columns(conn, 'media_fingerprints', 'fingerprint', 'file_size', 'path'):
+            report['counts']['duplicate_groups'] = _count(conn, '''SELECT COUNT(*) FROM (
+                SELECT fingerprint,file_size FROM media_fingerprints
+                GROUP BY fingerprint,file_size HAVING COUNT(*)>1)''')
 
     if report["counts"]["missing_episode_files"]:
         report["recommendations"].append("Some episode paths point to files that no longer exist. Review these before post-processing or cleanup.")
@@ -280,7 +284,7 @@ def library_health_report(db_path: str | Path, *, duplicate_limit: int = 25, sam
         report["recommendations"].append("Some episodes do not have a file location yet. This may be normal for wanted or unaired episodes.")
     if report["counts"]["shows_missing_external_ids"]:
         report["recommendations"].append("Refresh metadata for shows without IMDb/TMDb/TVDb identifiers.")
-    if duplicates:
+    if report['counts']['duplicate_groups']:
         report["recommendations"].append("Use duplicate cleanup preview before moving any file to managed trash.")
     if report["schema_warnings"]:
         report["recommendations"].append("Run database setup/migrations if this is an older or newly imported database.")

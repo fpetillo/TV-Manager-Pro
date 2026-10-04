@@ -293,12 +293,19 @@ def save_path_mapping(d):
                           (d["name"],d["remote_path"],d["local_path"],1 if d.get("enabled",True) else 0));mid=cur.lastrowid
         c.commit();return mid
 
+def path_mapper_snapshot():
+    mappings=path_mappings()
+    def apply(path):
+        p=str(path or "")
+        for m in mappings:
+            if m["enabled"] and p.lower().startswith(m["remote_path"].lower()):
+                return m["local_path"]+p[len(m["remote_path"]):]
+        return p
+    return apply
+
+
 def map_path(path):
-    p=str(path or "")
-    for m in path_mappings():
-        if m["enabled"] and p.lower().startswith(m["remote_path"].lower()):
-            return m["local_path"]+p[len(m["remote_path"]):]
-    return p
+    return path_mapper_snapshot()(path)
 
 def root_health():
     with cx() as c:rows=c.execute("""SELECT id,name,location FROM shows WHERE location IS NOT NULL AND trim(location)<>'' ORDER BY name""").fetchall()
