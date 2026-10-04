@@ -8,7 +8,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1
 [CmdletBinding()]
 param(
     [string]$InstallDir = 'C:\Acuityware TV Manager',
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.11.1',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.11.2',
     [string]$ArchivePath = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -52,7 +52,7 @@ MAX_EXPANDED = 512 * 1024 * 1024
 
 def version_tuple(value):
     if not re.fullmatch(r'\d+\.\d+\.\d+', value):
-        raise ValueError('Version must have the form 18.11.1.')
+        raise ValueError('Version must have the form 18.11.2.')
     return tuple(map(int, value.split('.')))
 
 def digest(path):

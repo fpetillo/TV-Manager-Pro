@@ -1,32 +1,30 @@
 {
   "product": "TV Manager",
-  "version": "18.11.1",
-  "release_name": "Windows Server Update Script",
-  "generated_at": "2026-10-04T21:24:14.503863+00:00",
+  "version": "18.11.2",
+  "release_name": "Optional Browser Login on LAN",
+  "generated_at": "2026-10-04T21:35:02.504209+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Standalone PowerShell update from tagged GitHub source; no Git required",
-    "Verified cold backup including database, configuration and Python environment",
-    "Application lease, archive validation and source/environment rollback on caught failures",
-    "Clear restart, version verification and LAN configuration instructions"
+    "Optional browser login independent of the listening address",
+    "Disable login from Security while keeping the configured LAN listener",
+    "Preserve existing login choices, passwords and authenticated CSRF checks",
+    "Updater defaults to v18.11.2"
   ],
   "validation": {
     "pytest": {
-      "passed": 510,
+      "passed": 511,
       "failed": 0,
-      "skipped": 2,
-      "skip_reason": "Existing Windows symbolic-link privilege checks"
+      "skipped": 2
     },
-    "windows_updater": "20 checks passed: real Windows PowerShell 5.1 and disposable venv/pip run; preserved settings/database/runtime files; verified backup and WAL rows; active-instance guard; archive/path/version rejection; low disk and damaged-backup refusal; dependency and source rollback",
     "python_parse": 71,
-    "javascript_syntax": "43 passed",
-    "dependency_consistency": "passed",
-    "powershell_updater": "parsed and executed successfully",
-    "production_deployment": "Not performed; updater left test installation stopped",
-    "windows_executable": "No executable or installer build claimed",
+    "changed_javascript_syntax": "passed",
+    "browser": "Isolated Waitress installation on LAN: Settings and Network accessible with no administrator/login; active 0.0.0.0:5056 listener and optional login explanation verified",
+    "routes": "Actual isolated LAN routes: enable login, password login, CSRF, disable on active LAN, anonymous access and reenable passed",
+    "production_deployment": "Not performed",
+    "windows_service": "Investigation only; implementation follows separately",
     "fully_green": false
   },
-  "activation": "Run update-server.ps1 on the stopped Windows source installation, restart using the existing startup method, and verify About version 18.11.1.",
+  "activation": "Update and restart; Settings > Security > Require browser login is optional. Existing enabled settings are preserved.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

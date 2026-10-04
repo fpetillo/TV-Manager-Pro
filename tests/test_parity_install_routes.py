@@ -57,7 +57,7 @@ assert client.post('/api/settings/network',json=[],headers=headers).status_code=
 assert client.patch('/api/settings/section/TVManager/listen_host',json={'value':'0.0.0.0'},headers=headers).status_code==400
 network=client.post('/api/settings/network',json={'host':'0.0.0.0','port':5054},headers=headers)
 assert network.status_code==200,network.data
-assert client.post('/api/security/browser-auth',json={'enabled':False},headers=headers).status_code==400
+assert client.post('/api/security/browser-auth',json={'enabled':False},headers=headers).status_code==200
 assert client.post('/api/settings/network',json={'host':'127.0.0.1','port':5050},headers=headers).status_code==200
 checklist=client.get('/api/launchpad/summary').get_json()['readiness_checklist']
 assert checklist['score']<100 and len(checklist['checks'])==12

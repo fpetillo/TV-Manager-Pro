@@ -35,12 +35,12 @@ def test_persistence_precedence_and_pending_restart(database, monkeypatch):
         assert c.execute("SELECT value FROM settings WHERE name='keep'").fetchone()[0]=='unchanged'
 
 
-@pytest.mark.parametrize('admin,auth',[(False,False),(True,False),(False,True)])
-def test_lan_requires_login_before_save_and_start(database,admin,auth):
+@pytest.mark.parametrize('admin,auth',[(False,False),(True,False),(True,True)])
+def test_lan_login_is_optional_before_save_and_start(database,admin,auth):
     config={'host':'0.0.0.0','port':5050}
-    with pytest.raises(ValueError,match='Security'):network.save(database, config, admin, auth, {})
-    with pytest.raises(ValueError,match='Security'):network.prepare(config, admin, auth)
-    assert network.read(database,{})['host']=='127.0.0.1'
+    assert network.save(database, config, admin, auth, environ={}) == config
+    assert network.prepare(config, admin, auth) == config
+    assert network.read(database,{}) == config
 
 
 def test_local_only_save_and_ipv6_urls(database):

@@ -412,7 +412,7 @@ def get_settings_grouped():
     for r in rows:
         grouped.setdefault(r["section"],[]).append({
             "name":r["name"],
-            "value":"••••••••" if r["is_secret"] and r["value"] else r["value"],
+            "value":"â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" if r["is_secret"] and r["value"] else r["value"],
             "is_secret":bool(r["is_secret"]),
             "source":r["source"]
         })
@@ -471,19 +471,10 @@ def enforce_security():
         return None
 
     remote=request.remote_addr or ""
-    if path=="/security/setup" and not security.admin_configured():
-        if security.is_loopback(remote):
-            return None
-        return jsonify(error="Administrator setup is only available from the TV Manager PC."),403
-
+    # Browser login is an operator choice, independent of the listening address.
     enabled=security.browser_auth_enabled()
-
-    # Local-first compatibility: localhost remains open until the user explicitly
-    # enables browser authentication. Remote clients are never allowed this bypass.
     if not enabled:
-        if security.is_loopback(remote):
-            return None
-        return jsonify(error="Remote/LAN access is blocked until browser authentication is configured and enabled."),403
+        return None
 
     if not session.get("admin_user"):
         if path.startswith("/api/"):
@@ -538,8 +529,6 @@ def logout():
 
 @app.route("/security/setup",methods=["GET","POST"])
 def security_setup():
-    if not security.is_loopback(request.remote_addr):
-        return jsonify(error="Administrator setup is only available from the TV Manager PC."),403
     error=None;message=None
     configured=security.admin_configured()
     if configured:
@@ -568,8 +557,6 @@ def api_security_status():
 def api_security_password():
     if security.admin_configured() and not session.get("admin_user"):
         return jsonify(error="Authentication required"),401
-    if not security.is_loopback(request.remote_addr) and not session.get("admin_user"):
-        return jsonify(error="Password setup requires local access"),403
     body=request.get_json(silent=True) or {}
     try:
         username=security.set_admin_password(body.get("username","admin"),body.get("password",""))
@@ -581,10 +568,6 @@ def api_security_password():
 def api_security_browser_auth():
     body=request.get_json(silent=True) or {}
     try:
-        if not body.get('enabled'):
-            active = app.config['TVMANAGER_NETWORK']
-            if not network_settings.is_local_only(active['host']) or not network_settings.is_local_only(network_settings.read(DB)['host']):
-                raise ValueError('Save a local-only address in Settings → Network and restart before turning off browser login.')
         security.set_browser_auth(bool(body.get("enabled")))
         return jsonify(ok=True,**security.status())
     except Exception as ex:
@@ -1131,7 +1114,7 @@ def shows():
 
     Large SickChill imports can create tens of thousands of show rows. Older
     builds returned every row in one JSON response, which made the Library view
-    appear stuck at "Showing…" while the browser tried to download/render the
+    appear stuck at "Showingâ€¦" while the browser tried to download/render the
     entire library. Keep the legacy response shape, but add total/limit/offset
     metadata and default to a bounded page.
     """

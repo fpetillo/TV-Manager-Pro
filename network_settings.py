@@ -49,11 +49,6 @@ def ensure_local_address(host):
         raise ValueError('This IP address is not available on this computer. Choose one of its local addresses or 0.0.0.0.') from None
 
 
-def require_auth(config, admin_configured, auth_enabled):
-    if not is_local_only(config['host']) and not (admin_configured and auth_enabled):
-        raise ValueError('Before enabling LAN access, open Settings → Security, set an administrator password and turn on Require browser login. Then return to Network.')
-
-
 def save(db, body, admin_configured, auth_enabled, environ=None):
     env = os.environ if environ is None else environ
     if env.get('TVMANAGER_BIND_HOST') or env.get('TVMANAGER_BIND_PORT'):
@@ -61,7 +56,6 @@ def save(db, body, admin_configured, auth_enabled, environ=None):
     if not isinstance(body, dict):
         raise ValueError('Network settings must include an address and port.')
     config = validate(body.get('host'), body.get('port'))
-    require_auth(config, admin_configured, auth_enabled)
     ensure_local_address(config['host'])
     with dbcore.connect(db) as c:
         c.execute('BEGIN IMMEDIATE')
@@ -100,6 +94,5 @@ def status(db, active, environ=None):
 
 
 def prepare(config, admin_configured, auth_enabled):
-    require_auth(config, admin_configured, auth_enabled)
     ensure_local_address(config['host'])
     return config

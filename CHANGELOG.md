@@ -1,3 +1,9 @@
+## 18.11.2 — Optional administrator login on LAN
+
+Browser login is now optional regardless of the listening address. Settings -> Security can turn it off without changing the LAN address or restarting. Existing enabled settings and administrator credentials remain intact during updates; enabling login still requires a password and enforces authentication and CSRF. First-time password setup is available from the LAN when login is off. Network help and the Windows updater guide now describe the optional setting.
+
+See [release notes](docs/RELEASE_NOTES_v18.11.2.md). Production activation requires updating and restarting the server.
+
 ## 18.11.1 — Windows server updater
 
 Added a standalone PowerShell updater that downloads a tagged source release without Git, verifies a cold backup including the Python environment, preserves database/settings/runtime data, installs dependencies and copies source. Refuses running instances and unsafe/invalid releases. Caught dependency/copy failures attempt source/environment rollback; all runs leave startup to the operator and report errors accurately.

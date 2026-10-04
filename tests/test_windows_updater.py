@@ -13,7 +13,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'update-server.ps1'
-VERSION = '18.11.1'
+VERSION = '18.11.2'
 
 
 @pytest.fixture

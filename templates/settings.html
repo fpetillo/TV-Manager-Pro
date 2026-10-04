@@ -3,9 +3,9 @@
 <header class="topbar"><div><p class="eyebrow">CONFIGURATION</p><h1>Settings</h1><p class="subtitle">A SickChill-style configuration center with imported settings, automation, providers, clients, notifications and advanced controls.</p></div></header>
 
 {% include "_nav.html" %}
-<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">âŒ˜ Search TV Manager <kbd>/</kbd></button></div>
 <div id="commandPalette" class="command-palette" hidden><div class="command-card">
-  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDsâ€¦">
   <div id="commandResults"></div>
 </div></div>
 
@@ -23,16 +23,16 @@
 <section class="panel settings-content">
 <div id="view-network" class="settings-view" hidden>
 <h2>Network access</h2><p>Choose where this installation listens. Save, then restart TV Manager for changes to take effect.</p>
-<div id="networkStatus" class="notice info" role="status">Loading network settings…</div>
+<div id="networkStatus" class="notice info" role="status">Loading network settingsâ€¦</div>
 <div class="form-grid"><label>Listening IP address<input id="listenHost" list="localAddresses" placeholder="192.168.1.11" autocomplete="off"><datalist id="localAddresses"></datalist></label><label>Port<input id="listenPort" type="number" min="1" max="65535" value="5050"></label></div>
 <p class="muted">Use this server's IP, such as 192.168.1.11, for one interface. Use 0.0.0.0 for all IPv4 interfaces, or 127.0.0.1 for access only on this computer.</p>
-<p>LAN access requires an administrator password and browser login in <a href="/settings#security">Security</a>. If another computer cannot connect after restarting, allow this port through Windows Firewall on your private network.</p>
+<p>Browser login is optional for local and LAN access. Turn it on or off in <a href="/settings#security">Security</a>. If another computer cannot connect after restarting, allow this port through Windows Firewall on your private network.</p>
 <div class="actions"><button id="saveNetwork" class="blue" type="button">Save Network Settings</button></div><div id="networkMessage" role="status"></div>
 </div>
 <div id="view-automation" class="settings-view">
 <div class="toolbar"><div><h2>Automation</h2><p class="muted">Schedule recent search, backlog, downloader polling, missing metadata, episode artwork, library health, database protection and post-processing.</p></div><div class="spacer"></div><label class="switchline"><input id="automation" class="checkbox" type="checkbox"> Arm automation</label></div>
 <div id="automationNotice" class="notice warn"></div><div class="actions"><a class="btn secondary" href="/jobs">Open Active Jobs</a></div><div id="schedulerJobProgress"></div><div id="jobs"></div>
-<hr><h3>Search defaults</h3><div class="form-grid compact-grid"><label>Recent window (days)<input id="recentDays" type="number" min="1" max="90"></label><label>Max searches/run<input id="maxSearches" type="number" min="1" max="200"></label><label>Missing metadata limit<input id="metadataMissingLimit" type="number" min="1" max="2000" value="200"></label><label>Artwork refresh limit<input id="artworkRefreshLimit" type="number" min="1" max="2000" value="200"></label><label class="checkline"><input id="autoGrab" type="checkbox"> Auto-grab best acceptable result</label></div><label class="switchline" style="margin-top:12px"><input id="refreshMedia" type="checkbox" class="checkbox"> Refresh configured media servers after post-processing</label><label class="switchline" style="margin-top:12px"><input id="simulationMode" type="checkbox" class="checkbox"> Simulation mode — search and score normally, but never send downloads automatically</label><label class="switchline" style="margin-top:12px"><input id="ignoreSeasonZeroCounts" type="checkbox" class="checkbox"> Ignore Season 00 / Specials in show counts, missing totals, and progress meters</label><div class="notice good">Season 00 episodes stay in the database. This option excludes Specials from totals, missing counts, queue sorting, and searches.</div><div class="actions"><button id="saveDefaults" class="secondary">Save defaults</button><button id="makeBackup" class="secondary">Create Backup</button></div><div id="backupMsg"></div>
+<hr><h3>Search defaults</h3><div class="form-grid compact-grid"><label>Recent window (days)<input id="recentDays" type="number" min="1" max="90"></label><label>Max searches/run<input id="maxSearches" type="number" min="1" max="200"></label><label>Missing metadata limit<input id="metadataMissingLimit" type="number" min="1" max="2000" value="200"></label><label>Artwork refresh limit<input id="artworkRefreshLimit" type="number" min="1" max="2000" value="200"></label><label class="checkline"><input id="autoGrab" type="checkbox"> Auto-grab best acceptable result</label></div><label class="switchline" style="margin-top:12px"><input id="refreshMedia" type="checkbox" class="checkbox"> Refresh configured media servers after post-processing</label><label class="switchline" style="margin-top:12px"><input id="simulationMode" type="checkbox" class="checkbox"> Simulation mode â€” search and score normally, but never send downloads automatically</label><label class="switchline" style="margin-top:12px"><input id="ignoreSeasonZeroCounts" type="checkbox" class="checkbox"> Ignore Season 00 / Specials in show counts, missing totals, and progress meters</label><div class="notice good">Season 00 episodes stay in the database. This option excludes Specials from totals, missing counts, queue sorting, and searches.</div><div class="actions"><button id="saveDefaults" class="secondary">Save defaults</button><button id="makeBackup" class="secondary">Create Backup</button></div><div id="backupMsg"></div>
 </div>
 <div id="view-downloaders" class="settings-view" hidden><div class="toolbar"><h2>Download Clients</h2><div class="spacer"></div><button id="pollClients" class="secondary">Poll Status</button><button id="testClients" class="blue">Test Clients</button></div><div class="toolbar wrap"><button class="secondary" onclick="openSection('General')">Choose Downloader Methods</button><button class="secondary" onclick="openSection('TORRENT')">Edit Torrent Connection</button><button class="secondary" onclick="openSection('SABnzbd')">Edit SABnzbd</button><button class="secondary" onclick="openSection('NZBGet')">Edit NZBGet</button><button class="secondary" onclick="openSection('Blackhole')">Edit Watch Folders</button></div><p class="muted">Supported torrent clients: qBittorrent, Transmission, Deluge Web, uTorrent WebUI, rTorrent HTTP XML-RPC and Synology Download Station. For rTorrent enter the full XML-RPC endpoint. Download Station uses the DSM address; its download path begins with a shared folder name.</p><div id="clients"></div><div id="clientTest"></div></div>
 <div id="view-providers" class="settings-view" hidden><div class="toolbar"><h2>Search Providers</h2><button type="button" id="addSearchProvider" class="blue">Add Search Provider</button></div><p class="muted">Edit imported or custom indexers here. Daily and backlog switches control automatic searches; enabled providers remain available for manual searches. Configure Usenet news servers in your downloader. For site-specific torrent indexers, a configured Jackett or Prowlarr Torznab endpoint can be added here.</p><div id="providerMessage" role="status"></div><div id="providerEdit"></div><div id="providers"></div></div>
@@ -46,24 +46,24 @@
 <label class="checkline"><input id="renameEpisodes" type="checkbox"> Rename episodes during post-processing</label>
 <label class="checkline"><input id="moveAssociated" type="checkbox"> Move/rename associated subtitles, NFO and artwork</label>
 </div>
-<div class="result-card"><strong>Multi-episode preview</strong><p id="namingPreview" class="queue-release"></p><small>Example Show, Season 1, Episodes 1–2</small></div>
+<div class="result-card"><strong>Multi-episode preview</strong><p id="namingPreview" class="queue-release"></p><small>Example Show, Season 1, Episodes 1â€“2</small></div>
 <div class="actions"><button id="previewNaming" class="secondary">Preview</button><button id="saveNaming" class="blue">Save Naming</button></div>
 <div id="namingMsg"></div>
 </div>
 
 <div id="view-security" class="settings-view" hidden>
-<div class="toolbar"><div><h2>Browser Security</h2><p class="muted">Protect TV Manager before allowing access from other PCs on your LAN.</p></div></div>
+<div class="toolbar"><div><h2>Browser Security</h2><p class="muted">Browser login is optional. When off, anyone who can reach TV Manager can use it without signing in.</p></div></div>
 <div id="securityStatus"></div>
 <div class="form-grid">
 <label>Administrator username<input id="securityUsername" value="admin" autocomplete="username"></label>
 <label>New password<input id="securityPassword" type="password" minlength="12" autocomplete="new-password" placeholder="12+ characters"></label>
 </div>
 <div class="actions"><button id="saveAdminPassword" class="secondary">Set / Change Password</button>
-<label class="switchline"><input id="browserAuthEnabled" class="checkbox" type="checkbox"> Require browser login</label></div>
+<label class="switchline"><input id="browserAuthEnabled" class="checkbox" type="checkbox"> Require browser login (optional)</label></div>
 <div id="securityMsg"></div>
 <hr><div class="toolbar"><h3>Recent Security Events</h3><div class="spacer"></div><button id="loadSecurityEvents" class="secondary">Refresh</button></div>
 <div id="securityEvents"></div>
 </div>
-<div id="view-legacy" class="settings-view" hidden><div class="toolbar"><div><h2>All Configurable Settings</h2><p class="muted">Edit saved settings and application defaults by section. Imported options remain available; options from SickChill only take effect where TV Manager supports them. Secrets stay masked.</p></div><div class="spacer"></div><input id="sectionSearch" placeholder="Filter sections…"></div><div class="legacy-settings-layout"><div id="sections" class="section-list"></div><div id="sectionEditor"><div class="empty-state compact">Select a section.</div></div></div></div>
+<div id="view-legacy" class="settings-view" hidden><div class="toolbar"><div><h2>All Configurable Settings</h2><p class="muted">Edit saved settings and application defaults by section. Imported options remain available; options from SickChill only take effect where TV Manager supports them. Secrets stay masked.</p></div><div class="spacer"></div><input id="sectionSearch" placeholder="Filter sectionsâ€¦"></div><div class="legacy-settings-layout"><div id="sections" class="section-list"></div><div id="sectionEditor"><div class="empty-state compact">Select a section.</div></div></div></div>
 </section></div>
 <footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/settings-v5.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script><script src="/static/network_settings.js?v={{ app_version }}"></script></body></html>
