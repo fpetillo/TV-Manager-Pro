@@ -1,3 +1,9 @@
+## 18.14.0 — Automatic deployment on the Windows server
+
+One-time install-auto-deploy.ps1 registers a boot-time "TV Manager Production" task (no sign-in, your Windows account for UNC shares) and a nightly "TV Manager Auto Update" task. Each night the updater installs a newer GitHub release tag: it waits for active jobs, stops gracefully, runs the verified-backup updater, restarts and confirms the new version, and restores source, .venv and database from the backup if the new version does not start. start-production.ps1 keeps run.ps1's database snapshot and check and refuses to start during maintenance. New token-gated /api/maintenance/activity endpoint for the local idle check. Results in logs/auto-update.log and .runtime/auto-update-status.json.
+
+Validation: 539 passed, 11 Windows-only skips on the Linux build host; end-to-end run against a real server process; PowerShell scripts parsed but not executed on Windows. See [setup guide](docs/AUTO_DEPLOY.md) and [release notes](docs/RELEASE_NOTES_v18.14.0.md).
+
 ## 18.13.0 — Show Queue scans, Post Processing shortcut, compact main pages, Trakt filters
 
 Show Queue rows now have a Scan button, and Scan Files for Selected scans every ticked show in one background job; both record files already on disk and refresh season/episode counts. A Post Processing button sits at the top of every page (pinned beside Menu on phones). Launchpad and Dashboard top cards are compact, cutting Launchpad height by about 40%. Trakt Discover can hide shows already in the library (ID or title+year match, filling the page from later Trakt pages), filter by first-aired year range and load more results; choices are remembered in the browser. New databases no longer fail background jobs before the settings table exists.

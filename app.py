@@ -3222,6 +3222,29 @@ def jobs_page():
 def api_jobs():
     return jsonify(ok=True, jobs=job_center.list_jobs(request.args.get("kind") or None))
 
+MAINTENANCE_TOKEN_FILE=".runtime/maintenance.token"
+PUBLIC_PATHS.add("/api/maintenance/activity")
+
+@app.get("/api/maintenance/activity")
+def api_maintenance_activity():
+    """Idle check for the local auto-updater.
+
+    Answers only when the caller presents the token the updater wrote into this
+    installation's .runtime folder, so it works whether or not browser login is on
+    and whatever address the server listens on. Returns counts only."""
+    import hmac
+    token_path=os.path.join(app_paths.application_root(),*MAINTENANCE_TOKEN_FILE.split("/"))
+    try:
+        with open(token_path,encoding="utf-8") as handle: expected=handle.read().strip()
+    except OSError:
+        expected=""
+    supplied=request.headers.get("X-TVManager-Maintenance","").strip()
+    if len(expected)<32 or not supplied or not hmac.compare_digest(expected,supplied):
+        return jsonify(error="Not found"),404
+    active=[j for j in job_center.list_jobs(limit=200) if j.get("status") not in job_center.TERMINAL_STATUSES]
+    workers=[t.name for t in threading.enumerate() if t.is_alive() and t.name.startswith(("TVManagerJob-","TVManagerImport-"))]
+    return jsonify(ok=True,version=APP_VERSION,active_jobs=len(active),active_kinds=sorted({str(j.get("kind")) for j in active}),busy_workers=len(workers))
+
 @app.post("/api/jobs/<job_id>/cancel")
 def api_cancel_job(job_id):
     try:

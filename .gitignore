@@ -34,3 +34,7 @@ rename-journals/
 .runtime/
 recovery/
 archive-staging/
+
+# Local runtime state and auto-update settings (never published)
+.runtime/
+auto_update.json

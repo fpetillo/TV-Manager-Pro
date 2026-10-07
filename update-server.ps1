@@ -8,7 +8,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1
 [CmdletBinding()]
 param(
     [string]$InstallDir = 'C:\Acuityware TV Manager',
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.13.0',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.14.0',
     [string]$ArchivePath = ''
 )
 $ErrorActionPreference = 'Stop'
