@@ -130,7 +130,8 @@ def worker_limit():
     try:
         import engine
         return max(1, min(16, int(engine.get_setting('TVManager', 'background_worker_limit', '4'))))
-    except (ValueError, TypeError):
+    except Exception:
+        # A brand-new database may not have the settings table yet; use the default.
         return 4
 
 

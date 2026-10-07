@@ -1,6 +1,6 @@
 # Update an existing Windows server
 
-Use `update-server.ps1` for an existing **source installation** with a working `.venv` Python environment. Git is not required. It defaults to `C:\Acuityware TV Manager` and release **18.12.0**. Run it on the server being updated, using an account with access to the installation and its parent folder. This does not update a packaged `TVManager.exe` installation.
+Use `update-server.ps1` for an existing **source installation** with a working `.venv` Python environment. Git is not required. It defaults to `C:\Acuityware TV Manager` and release **18.13.0**. Run it on the server being updated, using an account with access to the installation and its parent folder. This does not update a packaged `TVManager.exe` installation.
 
 ## Run the update
 
@@ -11,20 +11,20 @@ Use `update-server.ps1` for an existing **source installation** with a working `
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $Updater = Join-Path $env:USERPROFILE 'Downloads\Update-TVManager.ps1'
-Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.12.0/update-server.ps1' -OutFile $Updater
+Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.13.0/update-server.ps1' -OutFile $Updater
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Updater -InstallDir 'C:\Acuityware TV Manager'
 ```
 
 Change only `-InstallDir` if your installation is elsewhere. Execution-policy bypass applies only to this PowerShell process. The script downloads the tagged official source ZIP and reports errors instead of continuing a failed update.
 
-3. Wait for **Updated source to v18.12.0. TV Manager remains stopped.** If it reports any error, keep TV Manager stopped and review the error and recovery folder before retrying.
+3. Wait for **Updated source to v18.13.0. TV Manager remains stopped.** If it reports any error, keep TV Manager stopped and review the error and recovery folder before retrying.
 4. Restart with your existing task/service, or run the following for a manual production session. Use one startup method:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Acuityware TV Manager\run-prod.ps1'
 ```
 
-5. Open TV Manager, verify **18.12.0** in About, and press **Ctrl+F5**. Source installation and successful server startup are separate checks.
+5. Open TV Manager, verify **18.13.0** in About, and press **Ctrl+F5**. Source installation and successful server startup are separate checks.
 
 If Downloads does not exist under your Windows account, save the script to another folder and change `$Updater` accordingly. If permissions block the installation or backup folder, use an account permitted to maintain that installation.
 
@@ -53,7 +53,7 @@ Keep the backup folder private: it contains your existing settings and credentia
 For an already downloaded **official tagged source ZIP**, use:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-TVManager.ps1 -InstallDir 'C:\Acuityware TV Manager' -Version '18.12.0' -ArchivePath 'C:\Downloads\TV-Manager-Pro-18.12.0.zip'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-TVManager.ps1 -InstallDir 'C:\Acuityware TV Manager' -Version '18.13.0' -ArchivePath 'C:\Downloads\TV-Manager-Pro-18.13.0.zip'
 ```
 
 Dependencies may still need an internet connection. `-Version` can select a newer tagged release; downgrades are refused. Archive hashes in the backup journal identify the downloaded file, not an independently signed release.

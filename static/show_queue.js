@@ -45,14 +45,14 @@ async function load(){
       const meterClass=totalEpisodes===0?'empty':(downloaded>=totalEpisodes?'complete':(downloaded>0?'partial':'empty'));
       const seasonText=(r.season_progress||[]).map(s=>`S${String(s.season).padStart(2,'0')}: ${s.aired_count-s.downloaded_count}/${s.aired_count} aired missing`).join(' · ');
       const missingText=esc(r.missing_display||r.missing_episode_numbers||(missing?`${missing} missing`:'Complete'));
-      return `<tr data-show-id="${esc(r.id)}"><td class="resolution-select-cell"></td><td>${esc(fmtDate(r.next_ep))}</td><td>${esc(fmtDate(r.prev_ep))}</td><td><a class="show-open-link" data-show-name="${esc(r.name)}" href="/show/${r.id}"><strong>${esc(r.name)}</strong></a><div class="muted tiny">Missing: ${missingText}</div><div class="muted tiny">${esc(seasonText)}</div></td><td>${esc(r.network||'')}</td><td><span class="quality-badge">${esc(r.quality||'HD')}</span></td><td class="downloads-cell" title="${downloaded} downloaded, ${missing} missing, ${totalEpisodes} aired${ignoreS00?' (S00 ignored)':''}"><div class="download-meter ${meterClass}"><span style="width:${Math.max(0,Math.min(100,pp))}%"></span><strong>${downloaded}/${totalEpisodes}</strong></div><small>${missing} missing · aired only${ignoreS00?' · no S00':''}</small></td><td class="num-cell">${esc(fmtSize(r.size_bytes))}</td><td class="center-cell">${r.active_flag?'✓':'—'}</td><td><span class="status-pill ${esc(r.status)}">${esc(r.status)}</span></td></tr>`
-    }).join(''):'<tr><td colspan="10">No shows match this filter.</td></tr>';
+      return `<tr data-show-id="${esc(r.id)}"><td class="resolution-select-cell"></td><td>${esc(fmtDate(r.next_ep))}</td><td>${esc(fmtDate(r.prev_ep))}</td><td><a class="show-open-link" data-show-name="${esc(r.name)}" href="/show/${r.id}"><strong>${esc(r.name)}</strong></a><div class="muted tiny">Missing: ${missingText}</div><div class="muted tiny">${esc(seasonText)}</div></td><td>${esc(r.network||'')}</td><td><span class="quality-badge">${esc(r.quality||'HD')}</span></td><td class="downloads-cell" title="${downloaded} downloaded, ${missing} missing, ${totalEpisodes} aired${ignoreS00?' (S00 ignored)':''}"><div class="download-meter ${meterClass}"><span style="width:${Math.max(0,Math.min(100,pp))}%"></span><strong>${downloaded}/${totalEpisodes}</strong></div><small>${missing} missing · aired only${ignoreS00?' · no S00':''}</small></td><td class="num-cell">${esc(fmtSize(r.size_bytes))}</td><td class="center-cell">${r.active_flag?'✓':'—'}</td><td><span class="status-pill ${esc(r.status)}">${esc(r.status)}</span></td><td class="center-cell"><button type="button" class="secondary small-btn scan-show-files" data-show-id="${esc(r.id)}" data-show-name="${esc(r.name)}" title="Scan this show folder for files already on disk">Scan</button></td></tr>`
+    }).join(''):'<tr><td colspan="11">No shows match this filter.</td></tr>';
     for(const r of rows){const cell=showQueueBody.querySelector(`tr[data-show-id="${r.id}"] .resolution-select-cell`);if(cell)cell.append(resolutionControls.checkbox(r.id,r.name));}
     showQueuePrev.disabled=offset<=0;
     showQueueNext.disabled=!d.has_more;
   }catch(e){
     showQueueSummary.textContent='Show queue load error';
-    showQueueBody.innerHTML='<tr><td colspan="10">Could not load show queue.</td></tr>';
+    showQueueBody.innerHTML='<tr><td colspan="11">Could not load show queue.</td></tr>';
     showQueueMessage.className='message error';
     showQueueMessage.textContent=e.message;
   }
@@ -63,3 +63,48 @@ const priorityButton=document.createElement('button');priorityButton.className='
 load();
 
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('.show-open-link');if(a){showQueueNavigationLoading(a.dataset.showName||a.textContent||'show');}});
+
+/* v18.13.0 — Scan existing files from the Show Queue (single show or selection). */
+let scanRunning=false;
+function scanStatus(html,kind){const box=document.getElementById('showQueueScanStatus');box.hidden=false;box.className='queue-scan-status message '+(kind||'');box.innerHTML=html;}
+function scanProgress(job){const done=Math.max(0,Math.min(100,Number(job.percent||0)));return `<div class="import-progress"><div class="progress-head"><strong>${esc(job.stage||'Scanning')}</strong><span>${done}%</span></div><div class="progress-track"><div class="progress-fill" style="width:${done}%"></div></div><p class="muted">${esc(job.message||'')}</p></div>`;}
+async function waitForJob(jobId){
+  for(;;){
+    await new Promise(r=>setTimeout(r,800));
+    const d=await jsonFetch('/api/jobs/'+encodeURIComponent(jobId));
+    const job=d.job||{};
+    if(['complete','error','cancelled'].includes(job.status))return job;
+    scanStatus(scanProgress(job));
+  }
+}
+function setScanButtons(disabled){document.querySelectorAll('.scan-show-files,#showQueueScanSelected').forEach(b=>{b.disabled=disabled;});}
+async function startScan(url,body,label){
+  if(scanRunning)return;
+  scanRunning=true;setScanButtons(true);
+  scanStatus(scanProgress({stage:'Queued',percent:0,message:`${label} queued. You can leave this page and follow it in Active Jobs.`}));
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+    let d={};try{d=await r.json()}catch{}
+    if(!r.ok)throw new Error(d.error||`Scan could not start (HTTP ${r.status})`);
+    const job=await waitForJob(d.job.job_id);
+    const res=job.result||{};
+    if(job.status==='complete'){
+      const problems=(res.shows||[]).filter(x=>!x.ok);
+      scanStatus(`<strong>${esc(job.message||'Scan complete.')}</strong>`+(problems.length?`<ul>${problems.map(x=>`<li>${esc(x.name)}: ${esc(x.error)}</li>`).join('')}</ul>`:'')+' <a href="/jobs">Active Jobs</a>',problems.length?'warn':'success');
+    }else{
+      scanStatus(`<strong>${esc(job.status==='cancelled'?'Scan stopped':'Scan failed')}:</strong> ${esc(job.message||'')}`,'error');
+    }
+    await load();
+  }catch(e){scanStatus(esc(e.message||'Scan failed'),'error');}
+  finally{scanRunning=false;setScanButtons(false);}
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('.scan-show-files');
+  if(!b||b.disabled)return;
+  startScan(`/api/shows/${encodeURIComponent(b.dataset.showId)}/scan-library/start`,{},`Scan Existing Files for ${b.dataset.showName}`);
+});
+document.getElementById('showQueueScanSelected').onclick=()=>{
+  const ids=[...resolutionControls.selected];
+  if(!ids.length){scanStatus('Select one or more shows with the checkboxes (or <em>Select Visible</em>) first, then choose Scan Files for Selected.','warn');return;}
+  startScan('/api/shows/scan-library/start',{show_ids:ids},`Scan Existing Files for ${ids.length} show${ids.length===1?'':'s'}`);
+};

@@ -12,7 +12,7 @@ import tmdb_client
 import sickchill_importer
 import library_maintenance
 import import_recovery
-import configparser, json, os, shutil, sqlite3, io, zipfile, threading, uuid, traceback, sys
+import configparser, json, os, re, shutil, sqlite3, io, zipfile, threading, uuid, traceback, sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import requests
@@ -603,28 +603,65 @@ def api_trakt_settings():
         engine.set_setting("Trakt","access_token",access_token,is_secret=1,source="tvmanager")
     return jsonify(ok=True, status=trakt_client.status())
 
+TRAKT_HIDE_LIBRARY_MAX_PAGES=6
+
+def _trakt_title_key(name):
+    return re.sub(r"[^a-z0-9]+","",str(name or "").lower())
+
+def _trakt_library_index():
+    """Identifiers of shows already in the library, used to flag or hide Trakt results."""
+    index={"trakt":set(),"imdb":set(),"tmdb":set(),"tvdb":set(),"title_year":set()}
+    with cx() as c:
+        for r in c.execute("SELECT trakt_id, imdb_id, tmdb_id, tvdb_id, name, first_air_date FROM shows").fetchall():
+            for key,col in (("trakt","trakt_id"),("imdb","imdb_id"),("tmdb","tmdb_id"),("tvdb","tvdb_id")):
+                value=str(r[col] or "").strip().lower()
+                if value and value not in ("0","none"): index[key].add(value)
+            year=str(r["first_air_date"] or "")[:4]
+            if year.isdigit() and r["name"]: index["title_year"].add((_trakt_title_key(r["name"]),year))
+    return index
+
+def _trakt_in_library(row,index):
+    for key,field in (("trakt","trakt_id"),("imdb","imdb_id"),("tmdb","tmdb_id"),("tvdb","tvdb_id")):
+        value=str(row.get(field) or "").strip().lower()
+        if value and value in index[key]: return True
+    year=str(row.get("year") or "")
+    return bool(year and (_trakt_title_key(row.get("name")),year) in index["title_year"])
+
 @app.get("/api/trakt/shows")
 def api_trakt_shows():
     category=(request.args.get("category") or "trending").strip().lower()
     query=(request.args.get("q") or "").strip()
-    limit=int(request.args.get("limit") or 50)
-    page=int(request.args.get("page") or 1)
+    hide_library=str(request.args.get("hide_library") or "").lower() in ("1","true","yes","on")
     try:
-        rows=trakt_client.search_shows(query,limit) if query else trakt_client.discover(category,page,limit)
-        with cx() as c:
-            existing={
-                (r["trakt_id"], r["imdb_id"], r["tmdb_id"], r["tvdb_id"])
-                for r in c.execute("SELECT trakt_id, imdb_id, tmdb_id, tvdb_id FROM shows").fetchall()
-            }
-        for row in rows:
-            row["saved"] = any(
-                (row.get("trakt_id") and row.get("trakt_id")==e[0]) or
-                (row.get("imdb_id") and row.get("imdb_id")==e[1]) or
-                (row.get("tmdb_id") and row.get("tmdb_id")==e[2]) or
-                (row.get("tvdb_id") and row.get("tvdb_id")==e[3])
-                for e in existing
-            )
-        return jsonify(ok=True,results=rows,count=len(rows),category=category,page=page,limit=limit,status=trakt_client.status())
+        limit=max(1,min(int(request.args.get("limit") or 50),100))
+        page=max(1,int(request.args.get("page") or 1))
+        years=trakt_client.years_filter(request.args.get("year_from"),request.args.get("year_to"))
+    except ValueError as e:
+        return jsonify(error=str(e),status=trakt_client.status()),400
+    try:
+        index=_trakt_library_index()
+        def fetch(page_number):
+            if query:
+                return trakt_client.search_shows(query,min(limit,50),page_number,years)
+            return trakt_client.discover(category,page_number,limit,years)
+        rows=[];hidden=0;seen=set();pages_checked=0;exhausted=False;current=page
+        max_pages=TRAKT_HIDE_LIBRARY_MAX_PAGES if hide_library else 1
+        while pages_checked<max_pages and len(rows)<limit:
+            batch=fetch(current);pages_checked+=1;current+=1
+            if not batch:
+                exhausted=True;break
+            for row in batch:
+                ident=row.get("trakt_id") or (row.get("name"),row.get("year"))
+                if ident in seen: continue
+                seen.add(ident)
+                row["saved"]=_trakt_in_library(row,index)
+                if hide_library and row["saved"]:
+                    hidden+=1;continue
+                if len(rows)<limit: rows.append(row)
+            if len(batch)<(min(limit,50) if query else limit):
+                exhausted=True;break
+        return jsonify(ok=True,results=rows,count=len(rows),category=category,page=page,next_page=None if exhausted else current,limit=limit,
+                       hide_library=hide_library,hidden_in_library=hidden,pages_checked=pages_checked,years=years,status=trakt_client.status())
     except Exception as e:
         return jsonify(error=str(e),status=trakt_client.status()),400
 
@@ -2686,6 +2723,53 @@ def api_scan_show_library_start(sid):
         job_center.update_job(job_id, status="complete", stage="Scan complete", message=f"Scanned {result.get('files',0)} files and matched {result.get('matched',0)} episodes.", percent=100, result=result, processed=result.get("files",0), succeeded=result.get("matched",0), failed=len(result.get("unmatched") or []), total=result.get("files",0))
         return result
     return jsonify(ok=True, job=job_center.run_background("show_folder_scan", worker, stage="Queued", message="Show folder scan queued. You can switch screens and monitor it from Active Jobs.", meta={"show_id":sid}))
+
+MAX_BULK_SCAN_SHOWS=500
+
+@app.post("/api/shows/scan-library/start")
+def api_scan_shows_library_start():
+    """Scan existing files for several shows (Show Queue selection) in one background job."""
+    body=request.get_json(silent=True) or {}
+    raw=body.get("show_ids") or []
+    if not isinstance(raw,list):
+        return jsonify(error="show_ids must be a list of show ids."),400
+    ids=[]
+    for value in raw:
+        try: sid=int(value)
+        except (TypeError, ValueError): return jsonify(error="show_ids must contain numeric show ids."),400
+        if sid>0 and sid not in ids: ids.append(sid)
+    if not ids:
+        return jsonify(error="Select at least one show to scan."),400
+    if len(ids)>MAX_BULK_SCAN_SHOWS:
+        return jsonify(error=f"Scan at most {MAX_BULK_SCAN_SHOWS} shows at a time."),400
+    with cx() as c:
+        marks=",".join("?"*len(ids))
+        names={r["id"]:r["name"] for r in c.execute(f"SELECT id,name FROM shows WHERE id IN ({marks})",ids).fetchall()}
+    ids=[sid for sid in ids if sid in names]
+    if not ids:
+        return jsonify(error="None of the selected shows exist any longer."),404
+    def worker(job_id):
+        shows=[];files=matched=0
+        total=len(ids)
+        for index,sid in enumerate(ids):
+            if job_center.cancel_requested(job_id):
+                job_center.update_job(job_id, status="cancelled", stage="Stopped", message=f"Stopped after {index} of {total} shows.", result={"shows":shows,"files":files,"matched":matched})
+                return {"shows":shows,"files":files,"matched":matched}
+            name=names[sid]
+            job_center.update_job(job_id, stage="Scanning existing files", message=f"{name} ({index+1} of {total})", percent=int(index/total*100), processed=index, total=total, current_show=name)
+            try:
+                result=_scan_show_library_impl(sid)
+                files+=result.get("files",0);matched+=result.get("matched",0)
+                shows.append({"id":sid,"name":name,"ok":True,"files":result.get("files",0),"matched":result.get("matched",0),"unmatched":len(result.get("unmatched") or [])})
+            except Exception as ex:
+                shows.append({"id":sid,"name":name,"ok":False,"error":str(ex)})
+        failed=sum(1 for s in shows if not s["ok"])
+        result={"shows":shows,"files":files,"matched":matched,"failed":failed}
+        plural=lambda n,word:f"{n} {word}{'' if n==1 else 's'}"
+        message=f"Scanned {plural(len(shows),'show')}: {plural(files,'file')} found, {plural(matched,'episode')} matched"+(f"; {plural(failed,'show')} could not be scanned." if failed else ".")
+        job_center.update_job(job_id, status="complete", stage="Scan complete", message=message, percent=100, result=result, processed=len(shows), succeeded=len(shows)-failed, failed=failed, total=total)
+        return result
+    return jsonify(ok=True, job=job_center.run_background("show_folder_scan", worker, stage="Queued", message=f"Existing-file scan queued for {len(ids)} shows.", total=len(ids), meta={"show_ids":ids}))
 
 @app.get("/api/health")
 def api_health():

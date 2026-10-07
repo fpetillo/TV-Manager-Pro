@@ -27,7 +27,7 @@ def register_support_routes(app, base_path, version_getter):
 <body><main class="shell manager-shell">
 <header class="topbar"><div><p class="eyebrow">{eyebrow}</p><h1>{title}</h1><p class="subtitle">TV Manager v{v}</p></div></header>
 <nav class="appnav professional-nav">
-<a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/library-health"{current('/library-health')}>Library Health</a><a href="/about"{current('/about')}>About</a><a href="/routes"{current('/routes')}>Routes</a><a href="/system">System</a><a href="/import">Migration</a>
+<a class="btn blue" href="/postprocess">Post Processing</a><a href="/dashboard">Dashboard</a><a href="/manager">Shows</a><a href="/library-health"{current('/library-health')}>Library Health</a><a href="/about"{current('/about')}>About</a><a href="/routes"{current('/routes')}>Routes</a><a href="/system">System</a><a href="/import">Migration</a>
 </nav>
 {body}
 <footer class="app-version-footer"><span>TV Manager</span><strong>v{v}</strong><a href="/about">About</a><a href="/routes">Routes</a></footer>

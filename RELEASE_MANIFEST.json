@@ -1,34 +1,32 @@
 {
   "product": "TV Manager",
-  "version": "18.12.0",
-  "release_name": "Windows Service Distribution",
-  "generated_at": "2026-10-04T21:41:07.765255+00:00",
+  "version": "18.13.0",
+  "release_name": "Show Queue scans and Trakt filters",
+  "generated_at": "2026-10-07T20:36:54.315656+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Windows x64 EXE distribution with pinned WinSW service wrapper",
-    "Service install/start/stop/restart/status/uninstall with selected Windows account",
-    "Local stop control, scheduler pause and bounded drain of active jobs",
-    "Optional browser login retained; UNC libraries use service account permissions"
+    "Show Queue Scan button per show and Scan Files for Selected bulk job refresh season/episode counts",
+    "Post Processing button at the top of every page",
+    "Compact Launchpad and Dashboard top cards (Launchpad about 40% shorter)",
+    "Trakt Discover: hide shows already in library, first-aired year range, Load More"
   ],
   "validation": {
     "pytest": {
-      "passed": 518,
+      "passed": 524,
       "failed": 0,
-      "skipped": 2,
-      "skip_reason": "Existing Windows symbolic-link privilege checks"
+      "skipped": 11,
+      "skip_reason": "Windows-only PowerShell, updater lease and service checks not runnable on the Linux build host"
     },
     "python_parse": 72,
     "javascript_syntax": "43 passed",
-    "powershell": "Build, management and updater scripts parsed; LSA helper compiled under Windows PowerShell 5.1",
-    "dependency_consistency": "passed",
-    "service_runtime": "Real Waitress shutdown drains an active fixture job before exit; new requests blocked during drain; startup stop request supported",
-    "packaged_exe": "Built Windows x64 onedir package. Actual EXE served version 18.12.0 and optional-login Settings, preserved settings/session key across restart and exited successfully using --stop-service twice",
-    "wrapper": "Official WinSW 2.12.0 binary/license SHA256 verified; wrapper parses bundled configuration and reports NonExistent before installation",
-    "service_registration": "Not performed: workstation process lacks Windows administrative rights. Elevation refusal tested. Actual SCM registration/account rights/reboot/share acceptance remains required on destination",
-    "production_deployment": "Not performed; all QA applications stopped",
+    "postprocess_ui_script": "tests/verify_postprocess_ui.cjs fails identically on unmodified v18.12.0 (document.createElement missing from its fake DOM); post-processing code unchanged",
+    "browser_qa": "Disposable copy with synthetic data: row and selected scans updated counts; shortcut on Show Queue/Jobs/Help/Trakt/Post Processing and at top on 390px width; Launchpad/Dashboard compact at desktop and phone widths; Trakt controls, remembered choices and year validation. Live Trakt results not loaded (no credentials)",
+    "powershell": "Not executed for this release; only default version strings changed",
+    "packaged_exe": "Not rebuilt; v18.12.0 service ZIP does not include these changes",
+    "production_deployment": "Not performed",
     "fully_green": false
   },
-  "activation": "Extract service ZIP into stopped backed-up installation; run Manage-Service.ps1 -Action Install as Windows administrator, choose a share-capable account, start and verify URL. Retire old logon task.",
+  "activation": "Run update-server.ps1 (defaults to 18.13.0) on the stopped source installation, restart, verify 18.13.0 in About and press Ctrl+F5. Rebuild the service package on Windows before installing as a service.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

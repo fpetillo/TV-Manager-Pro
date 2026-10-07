@@ -1,3 +1,9 @@
+## 18.13.0 — Show Queue scans, Post Processing shortcut, compact main pages, Trakt filters
+
+Show Queue rows now have a Scan button, and Scan Files for Selected scans every ticked show in one background job; both record files already on disk and refresh season/episode counts. A Post Processing button sits at the top of every page (pinned beside Menu on phones). Launchpad and Dashboard top cards are compact, cutting Launchpad height by about 40%. Trakt Discover can hide shows already in the library (ID or title+year match, filling the page from later Trakt pages), filter by first-aired year range and load more results; choices are remembered in the browser. New databases no longer fail background jobs before the settings table exists.
+
+Validation: 524 passed, 11 Windows-only skips on the Linux build host; 72 Python and 43 JavaScript checks passed; browser QA on a disposable copy. Source release only; rebuild the service package on Windows before service installation. See [release notes](docs/RELEASE_NOTES_v18.13.0.md).
+
 ## 18.12.0 — Windows service distribution
 
 Added a Windows x64 packaged application with a pinned WinSW service host, automatic delayed startup, failure recovery, rotating logs and install/start/stop/restart/status/uninstall commands. Select a Windows account for UNC library access; credentials go to Windows, not service XML. Existing login remains optional. Service stop blocks new work, stops scheduler dispatch and drains active jobs within a bounded timeout. The source updater refuses packaged-service installations to prevent falsely updating only unused source files.

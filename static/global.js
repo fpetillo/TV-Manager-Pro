@@ -276,3 +276,22 @@ let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{cons
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
+
+/* v18.13.0 — Post Processing shortcut at the top of every page. */
+;(()=>{
+  function addPostProcessingShortcut(){
+    if(document.querySelector('.global-postprocess-link'))return;
+    const shell=document.querySelector('main.shell');
+    if(!shell||!document.querySelector('.appnav'))return;
+    let dock=document.querySelector('.command-dock');
+    if(!dock){dock=document.createElement('div');dock.className='command-dock';const header=shell.querySelector('header.topbar');header?header.after(dock):shell.prepend(dock);}
+    dock.classList.add('global-action-dock');
+    const link=document.createElement('a');
+    link.href='/postprocess';link.className='btn blue global-postprocess-link';
+    link.title='Open Post Processing to preview and process completed downloads';
+    link.innerHTML='<span aria-hidden="true">⇪</span> Post Processing';
+    if((location.pathname.replace(/\/$/,'')||'/')==='/postprocess')link.setAttribute('aria-current','page');
+    dock.prepend(link);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addPostProcessingShortcut,{once:true});else addPostProcessingShortcut();
+})();

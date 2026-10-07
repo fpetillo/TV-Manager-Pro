@@ -135,7 +135,31 @@ def _normalize_show(item: dict[str, Any], category: str) -> dict[str, Any]:
     }
 
 
-def discover(category: str = "trending", page: int = 1, limit: int = 50) -> list[dict[str, Any]]:
+def years_filter(year_from: Any = None, year_to: Any = None) -> str:
+    """Build Trakt's ``years`` filter ("2024" or "2018-2024"); empty string means no filter."""
+    def parse(value: Any) -> int | None:
+        text = str(value if value is not None else "").strip()
+        if not text:
+            return None
+        if not text.isdigit() or len(text) != 4:
+            raise ValueError("Years must be four-digit numbers such as 2024.")
+        year = int(text)
+        if year < 1900 or year > 2100:
+            raise ValueError("Years must be between 1900 and 2100.")
+        return year
+    start, end = parse(year_from), parse(year_to)
+    if start is None and end is None:
+        return ""
+    if start is None:
+        start = 1900
+    if end is None:
+        end = 2100
+    if start > end:
+        raise ValueError("The From year must not be later than the To year.")
+    return str(start) if start == end else f"{start}-{end}"
+
+
+def discover(category: str = "trending", page: int = 1, limit: int = 50, years: str = "") -> list[dict[str, Any]]:
     category = (category or "trending").lower().strip()
     limit = max(1, min(int(limit or 50), 100))
     page = max(1, int(page or 1))
@@ -149,17 +173,23 @@ def discover(category: str = "trending", page: int = 1, limit: int = 50) -> list
     path = endpoint_map.get(category)
     if not path:
         raise ValueError("Unsupported Trakt category. Use trending, popular, anticipated, watched, or played.")
-    data = get(path, {"page": page, "limit": limit, "extended": "full"})
+    params: dict[str, Any] = {"page": page, "limit": limit, "extended": "full"}
+    if years:
+        params["years"] = years
+    data = get(path, params)
     if not isinstance(data, list):
         return []
     return [_normalize_show(x, category) for x in data]
 
 
-def search_shows(query: str, limit: int = 25) -> list[dict[str, Any]]:
+def search_shows(query: str, limit: int = 25, page: int = 1, years: str = "") -> list[dict[str, Any]]:
     query = (query or "").strip()
     if not query:
         return []
-    data = get("/search/show", {"query": query, "limit": max(1, min(int(limit or 25), 50)), "extended": "full"})
+    params: dict[str, Any] = {"query": query, "limit": max(1, min(int(limit or 25), 50)), "page": max(1, int(page or 1)), "extended": "full"}
+    if years:
+        params["years"] = years
+    data = get("/search/show", params)
     out=[]
     for item in data if isinstance(data, list) else []:
         row=_normalize_show(item, "search")

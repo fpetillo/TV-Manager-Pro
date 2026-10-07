@@ -13,7 +13,7 @@ window.createShowResolutionControls = function(host, onSaved) {
   button('Clear Selection',()=>{selected.clear();sync();});
   bar.append(status);panel.append(message);host.append(panel);
   function sync(){document.querySelectorAll('.resolution-show-check').forEach(c=>c.checked=selected.has(Number(c.value)));status.textContent=`${selected.size} selected (kept across pages and filters)`;}
-  function checkbox(id,name){const c=document.createElement('input');c.type='checkbox';c.className='resolution-show-check';c.value=id;c.checked=selected.has(Number(id));c.setAttribute('aria-label','Select '+name+' for resolution');c.onchange=()=>{c.checked?selected.add(Number(id)):selected.delete(Number(id));sync();};return c;}
+  function checkbox(id,name){const c=document.createElement('input');c.type='checkbox';c.className='resolution-show-check';c.value=id;c.checked=selected.has(Number(id));c.setAttribute('aria-label','Select '+name);c.onchange=()=>{c.checked?selected.add(Number(id)):selected.delete(Number(id));sync();};return c;}
   async function request(url,body){const response=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});let result;try{result=await response.json();}catch{throw new Error('Could not load resolution controls. Restart TV Manager after updating, then refresh.');}if(!response.ok)throw new Error(result.error||'Resolution request failed');return result;}
   async function open(){
     edit.disabled=true;message.textContent='';
