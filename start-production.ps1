@@ -40,19 +40,55 @@ if (!(Test-Path -LiteralPath $Python)) {
 $Version = (Get-Content -LiteralPath (Join-Path $Root 'VERSION') -ErrorAction SilentlyContinue | Select-Object -First 1)
 Write-StartupLog "Starting TV Manager $Version from $Root"
 
-Get-ChildItem -LiteralPath $Root -Directory -Recurse -Filter '__pycache__' -ErrorAction SilentlyContinue |
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+function Stop-ProcessTree([int]$Id) {
+    # The .venv python.exe is a launcher that starts the real interpreter as a child.
+    try {
+        Get-CimInstance Win32_Process -Filter "ParentProcessId=$Id" -ErrorAction Stop |
+            ForEach-Object { Stop-ProcessTree $_.ProcessId }
+    } catch { }
+    Stop-Process -Id $Id -Force -ErrorAction SilentlyContinue
+}
 
-$ErrorActionPreference = 'Continue'
-& $Python protect_db.py --startup --reason "startup-v$Version" *> $null
-if ($LASTEXITCODE -ne 0) { Write-StartupLog 'Startup snapshot could not be verified; continuing to the database check.' }
-$DoctorOutput = & $Python db_doctor.py 2>&1 | Out-String
-$DoctorExit = $LASTEXITCODE
-$ErrorActionPreference = 'Stop'
-if ($DoctorExit -ne 0) {
-    @{ blocked_at = (Get-Date).ToString('o'); exit_code = $DoctorExit; output = $DoctorOutput.Trim() } |
+function Invoke-StartupStep([string]$Name, [string[]]$Arguments, [int]$TimeoutMinutes) {
+    # Output goes straight to files: capturing it through a PowerShell pipeline stalled
+    # db_doctor.py under the scheduled task (no CPU use, never finished).
+    $out = Join-Path $Logs "$Name.out.log"
+    $err = Join-Path $Logs "$Name.err.log"
+    $started = Get-Date
+    $process = Start-Process -FilePath $Python -ArgumentList $Arguments -WorkingDirectory $Root -NoNewWindow -PassThru `
+        -RedirectStandardOutput $out -RedirectStandardError $err
+    $null = $process.Handle  # keeps ExitCode available after the process ends
+    if (!$process.WaitForExit($TimeoutMinutes * 60 * 1000)) {
+        Stop-ProcessTree $process.Id
+        Write-StartupLog "$Name did not finish within $TimeoutMinutes minutes and was stopped. See logs\$Name.*.log."
+        return @{ TimedOut = $true; ExitCode = $null; Output = '' }
+    }
+    $process.WaitForExit()
+    $seconds = [int]((Get-Date) - $started).TotalSeconds
+    $text = ((Get-Content -LiteralPath $out, $err -Raw -ErrorAction SilentlyContinue) -join "`n").Trim()
+    Write-StartupLog "$Name finished in $seconds s (exit $($process.ExitCode))."
+    return @{ TimedOut = $false; ExitCode = $process.ExitCode; Output = $text }
+}
+
+# Clear stale bytecode in TV Manager's own folders only (not .venv, backups or imports).
+foreach ($Folder in @($Root, (Join-Path $Root 'tests'), (Join-Path $Root 'scripts'))) {
+    $Cache = Join-Path $Folder '__pycache__'
+    if (Test-Path -LiteralPath $Cache) { Remove-Item -LiteralPath $Cache -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+$Snapshot = Invoke-StartupStep 'protect_db' @('protect_db.py', '--startup', '--reason', "startup-v$Version") 10
+if ($Snapshot.TimedOut -or $Snapshot.ExitCode -ne 0) {
+    Write-StartupLog 'Startup snapshot could not be verified; continuing to the database check.'
+}
+$Doctor = Invoke-StartupStep 'db_doctor' @('db_doctor.py') 10
+if ($Doctor.TimedOut) {
+    # A stuck check is not a damaged database: fail this start so the task retries.
+    exit 1
+}
+if ($Doctor.ExitCode -ne 0) {
+    @{ blocked_at = (Get-Date).ToString('o'); exit_code = $Doctor.ExitCode; output = $Doctor.Output } |
         ConvertTo-Json | Set-Content -LiteralPath $Blocked -Encoding UTF8
-    Write-StartupLog "Database check failed (exit $DoctorExit). Startup blocked until reviewed:`n$DoctorOutput"
+    Write-StartupLog "Database check failed (exit $($Doctor.ExitCode)). Startup blocked until reviewed:`n$($Doctor.Output)"
     exit 1
 }
 

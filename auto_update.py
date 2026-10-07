@@ -40,7 +40,7 @@ DEFAULTS = {
     "max_wait_minutes": 120,
     "busy_poll_minutes": 5,
     "stop_timeout_seconds": 240,
-    "start_timeout_seconds": 300,
+    "start_timeout_seconds": 1500,  # snapshot + database check (10 min limit each) + server start
     "keep_backups": 5,
 }
 VERSION_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")

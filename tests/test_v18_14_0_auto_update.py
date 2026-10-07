@@ -321,3 +321,35 @@ def test_no_script_uses_its_own_path_inside_param_defaults():
     offenders = [str(path.relative_to(ROOT)) for path in ROOT.rglob("*.ps1")
                  if ".git" not in path.parts and "MyInvocation" in _param_block(path.read_text(encoding="utf-8"))]
     assert offenders == []
+
+
+def test_inline_python_commands_avoid_double_quotes():
+    # Windows PowerShell 5.1 strips " from arguments passed to programs, turning
+    # acquire(".") into acquire(.) (a SyntaxError that looked like "TV Manager is running").
+    import re
+    offenders = []
+    for path in ROOT.rglob("*.ps1"):
+        if ".git" in path.parts:
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for code in re.findall(r"-c\s+'((?:[^']|'')*)'", line):
+                if '"' in code:
+                    offenders.append(f"{path.relative_to(ROOT)}:{number}")
+    assert offenders == []
+
+
+def test_install_auto_deploy_only_reports_running_when_tv_manager_says_so():
+    setup = (ROOT / "install-auto-deploy.ps1").read_text(encoding="utf-8")
+    assert "runtime_guard.acquire(os.getcwd())" in setup and "-match 'already running'" in setup
+    assert "already running" in (ROOT / "runtime_guard.py").read_text(encoding="utf-8")
+
+
+def test_startup_steps_write_to_log_files_with_time_limits():
+    # Capturing db_doctor.py output through a PowerShell pipeline stalled it under the
+    # scheduled task (no CPU, never finished); each step now writes to files with a limit.
+    start = (ROOT / "start-production.ps1").read_text(encoding="utf-8")
+    assert "| Out-String" not in start and "*> $null" not in start
+    assert "-RedirectStandardOutput $out" in start and "WaitForExit($TimeoutMinutes * 60 * 1000)" in start
+    assert "Invoke-StartupStep 'protect_db'" in start and "Invoke-StartupStep 'db_doctor'" in start
+    assert auto_update.DEFAULTS["start_timeout_seconds"] >= 1500
+    assert "start_timeout_seconds = 1500" in (ROOT / "install-auto-deploy.ps1").read_text(encoding="utf-8")

@@ -71,13 +71,17 @@ try {
     & $Python -c 'import waitress' *> $null
     $WaitressOk = ($LASTEXITCODE -eq 0)
     # Taking the one-instance lease fails if TV Manager is already running from this folder.
-    & $Python -c 'import runtime_guard; runtime_guard.acquire(".")' *> $null
-    $NotRunning = ($LASTEXITCODE -eq 0)
+    # No quotes inside the Python code: Windows PowerShell 5.1 strips them when calling programs.
+    $LeaseOutput = & $Python -c 'import os, runtime_guard; runtime_guard.acquire(os.getcwd())' 2>&1 | Out-String
+    $LeaseExit = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
 } finally { Pop-Location }
 if (!$WaitressOk) { throw 'Waitress is not installed in .venv. Run setup.ps1, then try again.' }
-if (!$NotRunning) {
-    throw 'TV Manager is running from this folder. Close its window (Ctrl+C in the run.ps1 window) and wait for it to exit, then run this again. The startup task will run it from now on.'
+if ($LeaseExit -ne 0) {
+    if ($LeaseOutput -match 'already running') {
+        throw 'TV Manager is running from this folder. Close its window (Ctrl+C in the run.ps1 window) and wait for it to exit, then run this again. The startup task will run it from now on.'
+    }
+    throw "Could not check whether TV Manager is running:`n$($LeaseOutput.Trim())"
 }
 
 # ---------------------------------------------------------------- account
@@ -132,7 +136,7 @@ if (!(Test-Path -LiteralPath $Config)) {
     [ordered]@{
         enabled = $true; repository = 'fpetillo/TV-Manager-Pro'; production_task = $ProductionTask
         max_wait_minutes = 120; busy_poll_minutes = 5; stop_timeout_seconds = 240
-        start_timeout_seconds = 300; keep_backups = 5
+        start_timeout_seconds = 1500; keep_backups = 5
     } | ConvertTo-Json | Set-Content -LiteralPath $Config -Encoding UTF8
     Write-Host "Wrote default settings to $Config (set enabled to false to pause updates)."
 }
@@ -140,12 +144,16 @@ if (!(Test-Path -LiteralPath $Config)) {
 # ---------------------------------------------------------------- start and confirm
 Remove-Item -LiteralPath (Join-Path $Root '.runtime\maintenance.json') -ErrorAction SilentlyContinue
 Start-ScheduledTask -TaskName $ProductionTask
-Write-Host 'Starting TV Manager through the startup task...'
+Write-Host 'Starting TV Manager through the startup task (database snapshot and check run first; this can take a few minutes)...'
 $State = Join-Path $Root '.runtime\service.json'
-$Deadline = (Get-Date).AddMinutes(3)
+$StartupLog = Join-Path $Root 'logs\startup.log'
+$Seen = @(Get-Content -LiteralPath $StartupLog -ErrorAction SilentlyContinue).Count
+$Deadline = (Get-Date).AddMinutes(25)
 $Answered = $null
 while ((Get-Date) -lt $Deadline -and !$Answered) {
     Start-Sleep -Seconds 5
+    $Lines = @(Get-Content -LiteralPath $StartupLog -ErrorAction SilentlyContinue)
+    if ($Lines.Count -gt $Seen) { $Lines[$Seen..($Lines.Count - 1)] | ForEach-Object { Write-Host "  $_" }; $Seen = $Lines.Count }
     try {
         $Service = Get-Content -LiteralPath $State -Raw -ErrorAction Stop | ConvertFrom-Json
         $HostName = if ($Service.host -in @('0.0.0.0', '::', '')) { '127.0.0.1' } else { $Service.host }
@@ -156,7 +164,7 @@ while ((Get-Date) -lt $Deadline -and !$Answered) {
 if ($Answered) {
     Write-Host "TV Manager $($Answered.version) is running at $Url" -ForegroundColor Green
 } else {
-    Write-Host 'TV Manager did not answer within 3 minutes. Check logs\startup.log and logs\server.err.log.' -ForegroundColor Red
+    Write-Host 'TV Manager did not answer within 25 minutes. Check logs\startup.log, logs\db_doctor.*.log and logs\server.err.log.' -ForegroundColor Red
 }
 
 if (!$NoAutoUpdate) {

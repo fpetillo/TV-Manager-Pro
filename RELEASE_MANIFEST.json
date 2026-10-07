@@ -1,18 +1,17 @@
 {
   "product": "TV Manager",
-  "version": "18.14.0",
-  "release_name": "Automatic deployment",
-  "generated_at": "2026-10-07T21:12:17.073267+00:00",
+  "version": "18.14.1",
+  "release_name": "Auto-deploy fixes found on the server",
+  "generated_at": "2026-10-07T22:07:55.888096+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "install-auto-deploy.ps1: boot-time startup task and nightly auto-update task under a chosen Windows account",
-    "auto_update.py: idle wait, graceful stop, verified-backup update, start verification and automatic rollback",
-    "start-production.ps1: unattended start with database snapshot/check and maintenance flag",
-    "Token-gated /api/maintenance/activity for the local idle check"
+    "install-auto-deploy.ps1 no longer reports TV Manager as running when it is stopped (Windows PowerShell 5.1 quote stripping)",
+    "start-production.ps1 runs the snapshot and database check with log files and time limits instead of a PowerShell pipeline that stalled under the scheduled task",
+    "Auto-updater and setup wait up to 25 minutes for startup"
   ],
   "validation": {
     "pytest": {
-      "passed": 539,
+      "passed": 542,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lease and service checks not runnable on the Linux build host"
@@ -20,10 +19,11 @@
     "python_parse": 73,
     "javascript_syntax": "43 passed",
     "auto_update_end_to_end": "Real TV Manager process on Linux with Task Scheduler and PowerShell updater substituted: token idle check, graceful stop, update, restart, version confirmed, status updated",
-    "powershell": "start-production.ps1, auto-update.ps1, install-auto-deploy.ps1 and update-server.ps1 parse under PowerShell 7.5; not executed on Windows",
+    "powershell": "All scripts parse under PowerShell 7.5; running check reproduced and verified with Windows PowerShell 5.1 argument passing (Legacy mode)",
     "windows_activation": "Not performed: scheduled-task registration, boot start, account rights and share access must be confirmed on the server",
     "production_deployment": "Not performed",
-    "fully_green": false
+    "fully_green": false,
+    "startup_script": "Executed with PowerShell against a stub install: normal start, hung check stopped at limit, failed check blocks startup"
   },
   "activation": "See docs/AUTO_DEPLOY.md: install 18.14.0 with update-server.ps1 while stopped, then run install-auto-deploy.ps1 as Administrator.",
   "sickchill_replacement_server_runbook": true,

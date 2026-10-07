@@ -17,13 +17,13 @@ Task Scheduler only.
 
 ## One-time setup on 192.168.1.11
 
-1. **Get 18.14.0 onto the server.** Close the TV Manager window (Ctrl+C in the
+1. **Get 18.14.1 onto the server.** Close the TV Manager window (Ctrl+C in the
    `run.ps1` window) and wait for it to exit. In PowerShell:
 
    ```powershell
    $Updater = "$env:TEMP\Update-TVManager.ps1"
-   Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.14.0/update-server.ps1' -OutFile $Updater
-   powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Updater -InstallDir 'C:\Acuityware TV Manager' -Version '18.14.0'
+   Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.14.1/update-server.ps1' -OutFile $Updater
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Updater -InstallDir 'C:\Acuityware TV Manager' -Version '18.14.1'
    ```
 
    Do not start TV Manager afterwards; the next step does that.
@@ -40,7 +40,7 @@ Task Scheduler only.
    task `TV Manager` if present. It then starts TV Manager through the startup task,
    confirms it answers, and checks GitHub once without changing anything.
 
-3. **Confirm.** Open `http://192.168.1.11:5050`, check About shows 18.14.0, then reboot
+3. **Confirm.** Open `http://192.168.1.11:5050`, check About shows 18.14.1, then reboot
    the server once and confirm TV Manager comes back before anyone signs in.
 
 Use `-UpdateTime 02:00` to pick another check time, `-NoAutoUpdate` for unattended
@@ -58,8 +58,8 @@ startup only, and `-Uninstall` to remove both tasks.
 4. Runs `update-server.ps1` for that version. It verifies the release archive, makes a
    full recovery backup (source, database, settings, `.venv`), installs dependencies and
    source, and restores everything itself if any of that fails.
-5. Starts the task and waits up to 5 minutes for `/api/version` to report the new
-   version.
+5. Starts the task and waits up to 25 minutes (startup runs the database snapshot and
+   check first) for `/api/version` to report the new version.
 6. If the new version does not come up, it stops it and restores source, `.venv` and the
    database from the recovery backup. The new version's database and files are kept in
    the backup's `failed-start` folder for review. It then starts the previous version
@@ -88,7 +88,7 @@ output is in `logs\server.out.log` / `server.err.log`.
 
 `auto_update.json` settings: `enabled`, `repository`, `production_task`,
 `max_wait_minutes` (120), `busy_poll_minutes` (5), `stop_timeout_seconds` (240),
-`start_timeout_seconds` (300), `keep_backups` (5).
+`start_timeout_seconds` (1500), `keep_backups` (5).
 
 ## Things to know
 
