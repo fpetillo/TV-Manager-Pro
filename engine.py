@@ -1832,6 +1832,71 @@ def _show_match_names(show):
             seen.add(norm)
     return out
 
+_APOSTROPHES_RE = re.compile("['\u2018\u2019\u201b\u02bc`\u00b4]")
+_SHOW_QUALIFIER_RE = re.compile(r"\s+(?:(?:19|20)\d\d|us|uk|au|nz|ca)$")
+
+
+def _title_tokens(value):
+    """Tokens for comparing a show title with a release name the user does not control.
+
+    Accents are dropped (Pokémon/Pokemon); apostrophes are removed without a gap
+    (Grey's/Greys); & and + become "and" (Law & Order/Law.and.Order); every other
+    punctuation mark, dash or dot is a separator; runs of single letters are joined
+    so S.H.I.E.L.D. and SHIELD agree.
+    """
+    import unicodedata
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch)).lower()
+    text = _APOSTROPHES_RE.sub("", text)
+    text = re.sub(r"\s*[&+]\s*", " and ", text)
+    tokens = re.sub(r"[^a-z0-9]+", " ", text).split()
+    out, letters = [], []
+    for tok in tokens:
+        if len(tok) == 1 and tok.isalpha():
+            letters.append(tok); continue
+        if letters:
+            out.append("".join(letters)); letters = []
+        out.append(tok)
+    if letters:
+        out.append("".join(letters))
+    return out
+
+
+def _title_variants(value, show_title=False):
+    """Comparison keys for a title, each with a tier (higher = closer match).
+
+    Release names may drop a leading "The", run words together (Spiderman, 911)
+    or, for show titles only, omit a trailing year or country (Doctor Who (2005),
+    The Office (US)).
+    """
+    variants = {}
+    def add(key, tier):
+        if key and tier > variants.get(key, 0):
+            variants[key] = tier
+    exact = _normalize_release_title(value)
+    add(exact, 10000)
+    base = " ".join(_title_tokens(value))
+    forms = [(base, 0)]
+    if show_title:
+        stripped = _SHOW_QUALIFIER_RE.sub("", base)
+        if stripped != base and stripped:
+            forms.append((stripped, 1000))
+    for text, penalty in forms:
+        add(text, 9900 - penalty)
+        add(text.replace(" ", ""), 9800 - penalty)
+        if text.startswith("the ") and len(text) > 4:
+            add(text[4:], 9500 - penalty)
+            add(text[4:].replace(" ", ""), 9450 - penalty)
+    return variants
+
+
+def _is_title_plus_qualifier(prefix_loose, title_loose):
+    if not prefix_loose.startswith(title_loose + " "):
+        return False
+    rest = prefix_loose[len(title_loose) + 1:].split()
+    return bool(rest) and all(re.fullmatch(r"(?:19|20)\d\d|us|uk|au|nz|ca", tok) for tok in rest)
+
+
 def _score_postprocess_show_match(show, path):
     prefixes = _release_prefixes_for_match(path)
     if not prefixes:
@@ -1841,23 +1906,33 @@ def _score_postprocess_show_match(show, path):
         norm = name["normalized"]
         one_token = name["token_count"] == 1
         short_title = one_token or name["char_count"] <= 5
+        show_variants = _title_variants(name["raw"], show_title=True)
+        loose = " ".join(_title_tokens(name["raw"]))
         for prefix in prefixes:
             pnorm = prefix["normalized"]
             score = None
             reason = None
             confidence = None
-            if pnorm == norm:
-                score = 10000 + name["char_count"]
-                reason = f"exact {prefix['source']} title prefix"
+            prefix_variants = _title_variants(prefix["raw"])
+            # Whole-title matches: the release prefix and the show title are the same
+            # title once punctuation, apostrophes, &/and, a leading "The" and spacing
+            # are set aside. Safe for short titles too, because the whole prefix must agree.
+            tier = max((min(t, prefix_variants[k]) for k, t in show_variants.items() if k in prefix_variants), default=0)
+            if tier:
+                score = tier + name["char_count"]
                 confidence = "high"
-            elif not short_title and pnorm.startswith(norm + " "):
+                reason = (f"exact {prefix['source']} title prefix" if tier >= 10000 else
+                          f"{prefix['source']} title prefix matches the show title apart from punctuation, spacing or a leading The" if tier >= 9400 else
+                          f"{prefix['source']} title prefix matches the show title without its year or country")
+            elif (not short_title and pnorm.startswith(norm + " ")) or _is_title_plus_qualifier(" ".join(_title_tokens(prefix["raw"])), loose):
                 # Longer multi-word titles may have release qualifiers after the
-                # show name, such as country/year tags. This remains lower than
-                # exact so a better title wins.
+                # show name, such as country/year tags. Only those qualifiers count:
+                # "Law and Order SVU" is a different show, not "Law & Order" plus a tag.
+                # This remains lower than exact so a better title wins.
                 score = 7000 + name["char_count"]
                 reason = f"{prefix['source']} title prefix starts with show name"
                 confidence = "medium"
-            elif not short_title and (" " + norm + " ") in (" " + pnorm + " "):
+            elif not short_title and (" " + loose + " ") in (" " + " ".join(_title_tokens(prefix["raw"])) + " "):
                 # Last-resort for longer aliases only. Never use substring-only
                 # matching for one-word shows like FROM, ER, YOU, or IT.
                 score = 5200 + name["char_count"]

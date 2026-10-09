@@ -1,3 +1,7 @@
+## 18.18.0 — Flexible show-name matching in Post Processing
+
+Post Processing now matches release names to shows despite apostrophes (Greys/Grey's), & versus "and", dashes and spacing (Spiderman, 911), dotted initials (SHIELD), accents, a missing leading "The", and a year or country present on only one side. Exact matches still win, equal matches are blocked as ambiguous, short titles still need the whole title, and extra words other than a year or country are not accepted. See [release notes](docs/RELEASE_NOTES_v18.18.0.md).
+
 ## 18.17.0 — Scan Show Folder on the show page
 
 The show page (from the Show Queue) has a Scan Show Folder button beside Refresh; it scans the show's library folder in the background and reloads the episode list with your filters. Show folder scans, including the Show Queue Scan buttons, now also mark episodes whose recorded file is gone as missing again (path cleared, Downloaded to Wanted), only after the show folder is confirmed reachable. See [release notes](docs/RELEASE_NOTES_v18.17.0.md).
