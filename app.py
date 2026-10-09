@@ -2607,14 +2607,15 @@ def api_postprocess_run_start():
     limit=max(1,min(1000,int(body.get("limit",300))))
     root=body.get("root") or None
     method=body.get("process_method") or None
+    force=body.get("force_replace_sources") or None
     def worker(job_id):
         job_center.update_job(job_id, stage="Post-processing", message="Processing approved files.", percent=10)
-        result=engine.scan_postprocess(dry_run=False,root_override=root,limit=limit,selected_sources=selected,process_method_override=method,progress_callback=lambda u: job_center.update_job(job_id, **u))
+        result=engine.scan_postprocess(dry_run=False,root_override=root,limit=limit,selected_sources=selected,process_method_override=method,progress_callback=lambda u: job_center.update_job(job_id, **u),force_replace_sources=force)
         processed=int(result.get('processed_count',0));errors=result.get('errors') or []
         for error in errors:job_center.append_error(job_id,error)
         job_center.update_job(job_id, status='error' if errors else 'complete', stage='Finished', message=f'{processed} files processed; {len(errors)} errors.', percent=100, result=result, processed=processed, succeeded=processed,failed=len(errors))
         return result
-    return jsonify(ok=True, job=job_center.run_background("post_processing", worker, stage="Queued", message="Post-processing queued.", meta={"root":root,"limit":limit,"method":method}))
+    return jsonify(ok=True, job=job_center.run_background("post_processing", worker, stage="Queued", message="Post-processing queued.", meta={"root":root,"limit":limit,"method":method,"force_replace":len(force or [])}))
 
 @app.post("/api/postprocess/run")
 def api_postprocess_run():
@@ -2624,7 +2625,8 @@ def api_postprocess_run():
         limit=max(1,min(1000,int(body.get("limit",300))))
         root=body.get("root") or None
         method=body.get("process_method") or None
-        return jsonify(engine.scan_postprocess(dry_run=False,root_override=root,limit=limit,selected_sources=selected,process_method_override=method))
+        force=body.get("force_replace_sources") or None
+        return jsonify(engine.scan_postprocess(dry_run=False,root_override=root,limit=limit,selected_sources=selected,process_method_override=method,force_replace_sources=force))
     except Exception as e:
         return jsonify(error=str(e)),400
 

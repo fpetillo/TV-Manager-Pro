@@ -1,3 +1,7 @@
+## 18.15.0 — Post Processing "Replace anyway"
+
+Rows blocked by the upgrade rule ("Replacement is not higher quality or a corrective release", "Would downgrade quality") now have a Replace anyway checkbox in the Post Processing preview, for replacing a wrong or bad library file with the correct one. Ticked files are processed with the selection; the confirmation states how many will replace an existing file. The existing file goes to managed trash and can be restored from Upgrades, and each override is logged as replacement_override. Automatic processing and unticked files keep the safe upgrade rules. The run API accepts force_replace_sources. See [release notes](docs/RELEASE_NOTES_v18.15.0.md).
+
 ## 18.14.1 — Auto-deploy fixes found on the server
 
 install-auto-deploy.ps1's running check passed Python code containing double quotes, which Windows PowerShell 5.1 strips, so the check failed with a syntax error that was reported as "TV Manager is running". The check now uses quote-free code, reports "running" only on TV Manager's own message, and shows any other error. Tests now reject double quotes in inline Python commands in the PowerShell scripts. Startup no longer stalls on the database check under the scheduled task: the snapshot and check now write to log files with a 10-minute limit each and timings in startup.log, and the auto-updater waits up to 25 minutes for a new version to start (existing auto_update.json: set start_timeout_seconds to 1500). See [release notes](docs/RELEASE_NOTES_v18.14.1.md).

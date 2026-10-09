@@ -15,12 +15,14 @@ let busy=false;
 function updateSelection(){
   const approved=lastPreview.filter(x=>!x.blocked).length;
   const selected=selectedSources().length;
+  const overrides=overrideSources().length;
   const valid=previewRoot && previewRoot===activeRoot();
-  $("runSelected").disabled=busy||!valid||!selected;
-  $("runAll").disabled=busy||!valid||!approved;
+  $("runSelected").disabled=busy||!valid||!(selected+overrides);
+  $("runAll").disabled=busy||!valid||!(approved+overrides);
   $("scan").disabled=busy;
+  const overrideText=overrides?` ${overrides} blocked file${overrides===1?"":"s"} marked Replace anyway.`:"";
   $("selectionSummary").textContent=valid
-    ? approved ? selected+" of "+approved+" approved files selected. Review the show, episode and final path, then confirm processing." : "Nothing can be approved yet. Review the blocked and unmatched reasons below."
+    ? (approved||overrides) ? selected+" of "+approved+" approved files selected."+overrideText+" Review the show, episode and final path, then confirm processing." : "Nothing can be approved yet. Review the blocked reasons below, or tick Replace anyway on a blocked file to replace the existing one."
     : "Preview a folder to review and confirm episode matches.";
 }
 
@@ -31,6 +33,7 @@ async function readJsonResponse(resp){
 }
 function activeRoot(){return ($("overrideDir")?.value||"").trim() || ($("defaultDir")?.value||"").trim();}
 function selectedSources(){return [...document.querySelectorAll(".pp-select:checked")].map(x=>x.value);}
+function overrideSources(){return [...document.querySelectorAll(".pp-override:checked")].map(x=>x.value);}
 function setMessage(text,kind=""){$("message").className=`message ${kind}`.trim();$("message").textContent=text||"";}
 function progressHtml(job){const pct=Math.max(0,Math.min(100,Number(job?.percent||0)));return `<div class="import-progress"><div class="progress-head"><strong>${esc(job?.stage||job?.status||"Working")}</strong><span>${pct}%</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div><p class="muted">${esc(job?.message||"Working in the background…")}</p></div>`}
 async function pollPostprocessJob(jobId){for(;;){const r=await fetch(`/api/jobs/${encodeURIComponent(jobId)}`),d=await readJsonResponse(r),j=d.job||{};if(!r.ok||!j.status)throw new Error(d.error||"Could not read job progress. Check Active Jobs before retrying.");$("message").className="message info";$("message").innerHTML=progressHtml(j);if(["complete","error","cancelled"].includes(String(j.status||"")))return j;await new Promise(x=>setTimeout(x,900));}}
@@ -58,18 +61,19 @@ function render(d){
   $("actions").innerHTML=lastPreview.length?`<table class="compact-table postprocess-table"><tr>
     <th><input id="selectAll" type="checkbox" checked title="Select all approved"></th><th>Show / Episode</th><th>Quality</th><th>Source</th><th>Final library path</th><th>Decision</th>
   </tr>${lastPreview.map((x,i)=>`<tr class="${x.blocked?"blocked-row":""}">
-    <td>${x.blocked?"":`<input class="pp-select" type="checkbox" value="${esc(x.source)}" checked>`}</td>
+    <td>${x.blocked?(x.can_override?`<input class="pp-override" type="checkbox" value="${esc(x.source)}" title="Replace the existing library file anyway" aria-label="Replace anyway: ${esc(x.show)}">`:""):`<input class="pp-select" type="checkbox" value="${esc(x.source)}" checked>`}</td>
     <td><strong>${esc(x.show)}</strong><br>S${String(x.season).padStart(2,"0")}${epLabel(x)}</td>
     <td>${esc(x.quality||"Unknown")}</td>
     <td><code>${esc(x.source)}</code></td>
     <td>${x.renamed?'<span class="status-pill Downloaded">Renamed</span> ':''}<code>${esc(x.destination)}</code></td>
-    <td>${x.blocked?`<span class="status-pill Failed">Blocked</span><br>${esc(x.blocked)}`:`<span class="status-pill Downloaded">Approved</span>${x.match_confidence?`<br><small>Match: ${esc(x.match_confidence)} — ${esc(x.match_reason||"")}</small>`:""}${x.review_note?`<br><span class="notice warn inline-note">${esc(x.review_note)}</span>`:""}${x.naming_pattern?`<br><small>${esc(x.naming_pattern)}</small>`:""}`}</td>
+    <td>${x.blocked?`<span class="status-pill Failed">Blocked</span><br>${esc(x.blocked)}${x.can_override?`<br><small>Tick the box to <strong>Replace anyway</strong>, for example when the existing file is the wrong show or episode. The existing file${(x.existing_files||[]).length>1?"s go":" goes"} to managed trash and can be restored from Upgrades.</small>${(x.existing_files||[]).map(f=>`<br><small>Existing: <code>${esc(f)}</code></small>`).join("")}`:""}`:`<span class="status-pill Downloaded">Approved</span>${x.match_confidence?`<br><small>Match: ${esc(x.match_confidence)} — ${esc(x.match_reason||"")}</small>`:""}${x.review_note?`<br><span class="notice warn inline-note">${esc(x.review_note)}</span>`:""}${x.naming_pattern?`<br><small>${esc(x.naming_pattern)}</small>`:""}`}</td>
   </tr>`).join("")}</table>`:'<div class="empty-state compact"><p>No approvable episodes. Review the unmatched files below.</p></div>';
   if(d.unmatched) $("actions").innerHTML+=`<h3>Unmatched files — ${Number(d.unmatched)}</h3><table class="compact-table postprocess-table"><tr><th>Source file</th><th>Why it cannot be approved</th></tr>${(d.unmatched_details||[]).map(x=>`<tr><td><code>${esc(x.source)}</code></td><td>${esc(x.reason)}</td></tr>`).join("")}</table>${(d.unmatched_details||[]).length<d.unmatched?'<p>Some reasons were not returned by this server. Restart TV Manager with the updated code and preview again.</p>':''}`;
   if(d.errors?.length)$("actions").innerHTML+='<h3>Processing errors</h3>'+d.errors.map(e=>`<div class="notice warn">${esc(e.file)}: ${esc(e.error)}</div>`).join('');
   const all=$("selectAll");
   if(all) all.onchange=()=>{document.querySelectorAll(".pp-select").forEach(cb=>cb.checked=all.checked);updateSelection();};
   document.querySelectorAll(".pp-select").forEach(cb=>cb.onchange=updateSelection);
+  document.querySelectorAll(".pp-override").forEach(cb=>cb.onchange=()=>{cb.closest("tr")?.classList.toggle("override-row",cb.checked);updateSelection();});
   updateSelection();
 }
 
@@ -103,16 +107,19 @@ async function processFiles(mode){
   const root=activeRoot();
   if(busy)return;
   if(!previewRoot || previewRoot!==root){setMessage("Preview this folder before processing.","error");return;}
-  const selected=mode==="selected"?selectedSources():lastPreview.filter(x=>!x.blocked).map(x=>x.source);
+  const overrides=overrideSources();
+  const selected=(mode==="selected"?selectedSources():lastPreview.filter(x=>!x.blocked).map(x=>x.source)).concat(overrides);
   if(!root){setMessage("Enter a completed TV downloads folder first.","error");return;}
   if(!selected.length){setMessage("Select at least one approved file to process.","error");return;}
   const count=selected.length+" confirmed files";
-  if(!await confirmProcessing(`Process ${count} using ${$("method").value}? Existing replacements stay protected by the safe upgrade rules.`))return;
+  const overrideNote=overrides.length?` ${overrides.length} of them will REPLACE the existing library file even though it is not an upgrade; each replaced file goes to managed trash and can be restored from Upgrades.`:" Existing replacements stay protected by the safe upgrade rules.";
+  if(!await confirmProcessing(`Process ${count} using ${$("method").value}?${overrideNote}`))return;
   setMessage("Processing approved files…");
   busy=true;updateSelection();
   try{
     const body={root,limit:$("limit").value||300,process_method:$("method").value};
     body.selected_sources=selected;
+    if(overrides.length)body.force_replace_sources=overrides;
     const r=await fetch("/api/postprocess/run/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const d=await readJsonResponse(r);
     if(!r.ok)throw new Error(d.error||"Processing failed");

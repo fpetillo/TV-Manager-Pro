@@ -406,3 +406,5 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 .trakt-filters .year-range input{width:112px}
 @media(max-width:860px){.global-postprocess-link{position:fixed;top:12px;right:14px;z-index:120;padding:9px 12px}}
 @media(max-width:760px){.compact-home header.topbar.product-branded-header{grid-template-columns:1fr}}
+
+.blocked-row.override-row{opacity:1;outline:2px solid #d9a441;outline-offset:-2px}

@@ -1,31 +1,32 @@
 {
   "product": "TV Manager",
-  "version": "18.14.1",
-  "release_name": "Auto-deploy fixes found on the server",
-  "generated_at": "2026-10-07T22:07:55.888096+00:00",
+  "version": "18.15.0",
+  "release_name": "Post Processing Replace anyway",
+  "generated_at": "2026-10-09T13:19:50.979758+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "install-auto-deploy.ps1 no longer reports TV Manager as running when it is stopped (Windows PowerShell 5.1 quote stripping)",
-    "start-production.ps1 runs the snapshot and database check with log files and time limits instead of a PowerShell pipeline that stalled under the scheduled task",
-    "Auto-updater and setup wait up to 25 minutes for startup"
+    "Post Processing preview: Replace anyway on rows blocked by the upgrade rule, so a wrong or bad library file can be replaced with the correct one",
+    "Replaced files go to managed trash and can be restored from Upgrades; overrides are logged as replacement_override",
+    "Run API accepts force_replace_sources; automatic processing keeps the safe upgrade rules"
   ],
   "validation": {
     "pytest": {
-      "passed": 542,
+      "passed": 546,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lease and service checks not runnable on the Linux build host"
     },
-    "python_parse": 73,
+    "python_parse": 181,
     "javascript_syntax": "43 passed",
     "auto_update_end_to_end": "Real TV Manager process on Linux with Task Scheduler and PowerShell updater substituted: token idle check, graceful stop, update, restart, version confirmed, status updated",
     "powershell": "All scripts parse under PowerShell 7.5; running check reproduced and verified with Windows PowerShell 5.1 argument passing (Legacy mode)",
     "windows_activation": "Not performed: scheduled-task registration, boot start, account rights and share access must be confirmed on the server",
     "production_deployment": "Not performed",
     "fully_green": false,
-    "startup_script": "Executed with PowerShell against a stub install: normal start, hung check stopped at limit, failed check blocks startup"
+    "startup_script": "Executed with PowerShell against a stub install: normal start, hung check stopped at limit, failed check blocks startup",
+    "browser_qa": "Disposable copy: Replace anyway offered on blocked row only, summary and confirmation updated, file replaced, original in managed trash, second episode imported, no page errors"
   },
-  "activation": "See docs/AUTO_DEPLOY.md: install 18.14.0 with update-server.ps1 while stopped, then run install-auto-deploy.ps1 as Administrator.",
+  "activation": "Stop TV Manager, install 18.15.0 with update-server.ps1 (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [

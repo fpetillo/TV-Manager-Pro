@@ -1883,9 +1883,9 @@ def _choose_postprocess_show(shows, path):
         return None, f"Ambiguous show match blocked between {best['show'].get('name')} and {matches[1]['show'].get('name')}."
     return best, None
 
-def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None):
+def scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None, force_replace_sources=None):
     import media_operations
-    args=(dry_run,limit,root_override,selected_sources,process_method_override,progress_callback)
+    args=(dry_run,limit,root_override,selected_sources,process_method_override,progress_callback,force_replace_sources)
     if dry_run:return _scan_postprocess(*args)
     with media_operations.exclusive(BASE):return _scan_postprocess(*args)
 
@@ -1909,7 +1909,7 @@ def _refresh_processed_shows(show_ids):
     return results
 
 
-def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None):
+def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sources=None, process_method_override=None, progress_callback=None, force_replace_sources=None):
     """Scan/process completed TV downloads.
 
     root_override lets an operator temporarily process another completed-downloads
@@ -1922,6 +1922,8 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
     if not dry_run:media_transfer.check_links(BASE,method)
     root = ops.map_path(root_override or get_setting("General","tv_download_dir","") or "")
     selected_sources = set(str(x) for x in (selected_sources or []) if str(x).strip())
+    # Files the operator chose to "Replace anyway": skip the quality rule for these only.
+    force_replace_sources = set(str(x) for x in (force_replace_sources or []) if str(x).strip())
     result = {"root":root,"dry_run":dry_run,"files":0,"matched":0,"unmatched":0,
               "blocked":0,"upgrades":0,"actions":[],"media_refresh":[],"unmatched_details":[],
               "selected_sources":len(selected_sources)}
@@ -2039,6 +2041,9 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
                                                              incoming_quality,new_release)
                 if not allowed:
                     blocked_reason=reason;break
+        force_replace=bool(blocked_reason) and str(p) in force_replace_sources
+        override_reason=blocked_reason if force_replace else None
+        if force_replace:blocked_reason=None
 
         rename_enabled=as_bool(get_setting("General","rename_episodes","1"),True)
         naming_pattern=get_setting("General","naming_pattern","Season %0S/%SN - S%0SE%0E - %EN")
@@ -2059,9 +2064,15 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
                 "release_prefix":match.get("release_prefix")}
         if match.get("confidence") != "high":
             action["review_note"] = "Review this match before processing."
+        if force_replace:
+            action["replace_override"]=True
+            action["override_reason"]=override_reason
 
         if blocked_reason:
             action["blocked"]=blocked_reason
+            # A quality-rule block can be overridden by the operator from Post Processing.
+            action["can_override"]=True
+            action["existing_files"]=[e["location"] for e in episode_rows if e["location"] and Path(e["location"]).exists()]
             result["actions"].append(action);result["blocked"]+=1
             for e in episode_rows:
                 d=acquisitions.get(e["id"])
@@ -2087,7 +2098,7 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
                 if old.exists() and old.is_file():
                     d=acquisitions.get(e["id"])
                     new_release=d["release_name"] if d else p.stem
-                    staged=lifecycle.stage_replacement(e,p,new_release,incoming_quality)
+                    staged=lifecycle.stage_replacement(e,p,new_release,incoming_quality,force=force_replace)
                     if not staged.get("allowed"):
                         raise ValueError(staged.get("reason") or "Replacement blocked")
                     if staged.get("replacement_id"):
@@ -2104,6 +2115,13 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
             move_associated=as_bool(get_setting("General","move_associated_files","1"),True)
             sidecars=naming.associated_destinations(p,dest) if move_associated else []
             dest_dir.mkdir(parents=True,exist_ok=True)
+            if force_replace and dest.exists() and dest.is_file() and dest.resolve()!=p.resolve():
+                # Operator chose "Replace anyway": a file already at the final path (for example a
+                # wrong file the database no longer points at) goes to managed trash, never deleted.
+                first=dict(episode_rows[0]);first["location"]=str(dest)
+                staged=lifecycle.stage_replacement(first,p,p.stem,incoming_quality,force=True)
+                if staged.get("replacement_id"):
+                    replacement_ids.append(staged["replacement_id"]);result["upgrades"]+=1
             if dest.exists() and dest.resolve()!=p.resolve():
                 # The current file should already have been staged. Never silently overwrite an unrelated file.
                 raise FileExistsError(f"Destination already exists: {dest}")
@@ -2139,6 +2157,10 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
 
             database_committed=True
             for rid in replacement_ids:lifecycle.complete_replacement(rid,dest)
+            if force_replace:
+                log("replacement_override",f'{show["name"]}: replaced existing file by operator override ({override_reason})',
+                    "warning",show_id=show["id"],data={"source":str(p),"destination":str(dest),"reason":override_reason,
+                                                       "replacement_ids":replacement_ids})
             action["associated_files"]=associated_moved
             try:
                 action["fingerprint"]=integrity.cache_fingerprint(dest,episode_rows[0]["id"])["fingerprint"]

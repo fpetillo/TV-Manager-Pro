@@ -17,13 +17,13 @@ Task Scheduler only.
 
 ## One-time setup on 192.168.1.11
 
-1. **Get 18.14.1 onto the server.** Close the TV Manager window (Ctrl+C in the
+1. **Get 18.15.0 onto the server.** Close the TV Manager window (Ctrl+C in the
    `run.ps1` window) and wait for it to exit. In PowerShell:
 
    ```powershell
    $Updater = "$env:TEMP\Update-TVManager.ps1"
-   Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.14.1/update-server.ps1' -OutFile $Updater
-   powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Updater -InstallDir 'C:\Acuityware TV Manager' -Version '18.14.1'
+   Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.15.0/update-server.ps1' -OutFile $Updater
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Updater -InstallDir 'C:\Acuityware TV Manager' -Version '18.15.0'
    ```
 
    Do not start TV Manager afterwards; the next step does that.
@@ -40,7 +40,7 @@ Task Scheduler only.
    task `TV Manager` if present. It then starts TV Manager through the startup task,
    confirms it answers, and checks GitHub once without changing anything.
 
-3. **Confirm.** Open `http://192.168.1.11:5050`, check About shows 18.14.1, then reboot
+3. **Confirm.** Open `http://192.168.1.11:5050`, check About shows 18.15.0, then reboot
    the server once and confirm TV Manager comes back before anyone signs in.
 
 Use `-UpdateTime 02:00` to pick another check time, `-NoAutoUpdate` for unattended

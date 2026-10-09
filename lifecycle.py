@@ -136,13 +136,21 @@ def replacement_allowed(old_quality,old_release,new_quality,new_release):
         if not corrective:return False,"Replacement is not higher quality or a corrective release"
     return True,"Upgrade accepted"
 
-def stage_replacement(episode, incoming_path, new_release=None, new_quality=None):
+def stage_replacement(episode, incoming_path, new_release=None, new_quality=None, force=False):
+    """Move the current file to managed trash before it is replaced.
+
+    force=True is the operator's explicit "Replace anyway" from Post Processing: it skips
+    the quality rule (for example, to replace a wrong or bad file with the correct one) but
+    still keeps the original in managed trash so it can be rolled back from Upgrades.
+    """
     old_path=Path(episode["location"]) if episode["location"] else None
     if not old_path or not old_path.exists() or not old_path.is_file():
         return {"allowed":True,"replacement_id":None,"trash_path":None}
     allowed,reason=replacement_allowed(episode["quality"],episode["release_name"],new_quality,new_release)
-    if not allowed:
+    if not allowed and not force:
         return {"allowed":False,"reason":reason}
+    if not allowed:
+        reason=f"Manual override: {reason}"
     stamp=datetime.now().strftime("%Y%m%d-%H%M%S")
     target_dir=TRASH/stamp
     target_dir.mkdir(parents=True,exist_ok=True)
