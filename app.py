@@ -2707,8 +2707,22 @@ def _scan_show_library_impl(sid, progress_callback=None):
             except Exception: pass
         elif len(unmatched)<30:
             unmatched.append(str(f))
-    engine.log("library_scan",f'{show["name"]}: scanned {files} files, matched {matched}',show_id=sid)
-    return {"ok":True,"files":files,"matched":matched,"unmatched":unmatched,"show":show["name"]}
+    # Refresh: episodes whose recorded file is gone are missing again. Only done here,
+    # after the show folder itself was confirmed reachable, so an offline share never
+    # wipes the library.
+    cleared=[]
+    with cx() as c:
+        for e in c.execute("SELECT id,season,episode,location FROM episodes WHERE show_id=? AND location IS NOT NULL AND trim(location)<>''",(sid,)).fetchall():
+            try:gone=not Path(e["location"]).is_file()
+            except OSError:gone=False
+            if gone:
+                c.execute("UPDATE episodes SET location=NULL,file_size=NULL,status=CASE WHEN status='Downloaded' THEN 'Wanted' ELSE status END WHERE id=?",(e["id"],))
+                cleared.append(f"S{int(e['season']):02d}E{int(e['episode']):02d}")
+        c.commit()
+    if cleared:
+        engine.log("library_scan_missing",f'{show["name"]}: {len(cleared)} recorded file(s) no longer on disk; marked missing',"warning",show_id=sid,data={"episodes":cleared[:200]})
+    engine.log("library_scan",f'{show["name"]}: scanned {files} files, matched {matched}, cleared {len(cleared)} missing',show_id=sid)
+    return {"ok":True,"files":files,"matched":matched,"unmatched":unmatched,"cleared":len(cleared),"cleared_episodes":cleared[:200],"show":show["name"]}
 
 @app.post("/api/shows/<int:sid>/scan-library")
 def api_scan_show_library(sid):
@@ -2723,7 +2737,8 @@ def api_scan_show_library(sid):
 def api_scan_show_library_start(sid):
     def worker(job_id):
         result=_scan_show_library_impl(sid, progress_callback=lambda u: job_center.update_job(job_id, **u))
-        job_center.update_job(job_id, status="complete", stage="Scan complete", message=f"Scanned {result.get('files',0)} files and matched {result.get('matched',0)} episodes.", percent=100, result=result, processed=result.get("files",0), succeeded=result.get("matched",0), failed=len(result.get("unmatched") or []), total=result.get("files",0))
+        cleared=result.get('cleared',0)
+        job_center.update_job(job_id, status="complete", stage="Scan complete", message=f"Scanned {result.get('files',0)} files and matched {result.get('matched',0)} episodes."+(f" {cleared} recorded file(s) were no longer on disk and are missing again." if cleared else ""), percent=100, result=result, processed=result.get("files",0), succeeded=result.get("matched",0), failed=len(result.get("unmatched") or []), total=result.get("files",0))
         return result
     return jsonify(ok=True, job=job_center.run_background("show_folder_scan", worker, stage="Queued", message="Show folder scan queued. You can switch screens and monitor it from Active Jobs.", meta={"show_id":sid}))
 
@@ -2752,7 +2767,7 @@ def api_scan_shows_library_start():
     if not ids:
         return jsonify(error="None of the selected shows exist any longer."),404
     def worker(job_id):
-        shows=[];files=matched=0
+        shows=[];files=matched=cleared=0
         total=len(ids)
         for index,sid in enumerate(ids):
             if job_center.cancel_requested(job_id):
@@ -2762,14 +2777,14 @@ def api_scan_shows_library_start():
             job_center.update_job(job_id, stage="Scanning existing files", message=f"{name} ({index+1} of {total})", percent=int(index/total*100), processed=index, total=total, current_show=name)
             try:
                 result=_scan_show_library_impl(sid)
-                files+=result.get("files",0);matched+=result.get("matched",0)
-                shows.append({"id":sid,"name":name,"ok":True,"files":result.get("files",0),"matched":result.get("matched",0),"unmatched":len(result.get("unmatched") or [])})
+                files+=result.get("files",0);matched+=result.get("matched",0);cleared+=result.get("cleared",0)
+                shows.append({"id":sid,"name":name,"ok":True,"files":result.get("files",0),"matched":result.get("matched",0),"cleared":result.get("cleared",0),"unmatched":len(result.get("unmatched") or [])})
             except Exception as ex:
                 shows.append({"id":sid,"name":name,"ok":False,"error":str(ex)})
         failed=sum(1 for s in shows if not s["ok"])
-        result={"shows":shows,"files":files,"matched":matched,"failed":failed}
+        result={"shows":shows,"files":files,"matched":matched,"cleared":cleared,"failed":failed}
         plural=lambda n,word:f"{n} {word}{'' if n==1 else 's'}"
-        message=f"Scanned {plural(len(shows),'show')}: {plural(files,'file')} found, {plural(matched,'episode')} matched"+(f"; {plural(failed,'show')} could not be scanned." if failed else ".")
+        message=f"Scanned {plural(len(shows),'show')}: {plural(files,'file')} found, {plural(matched,'episode')} matched"+(f", {cleared} no longer on disk" if cleared else "")+(f"; {plural(failed,'show')} could not be scanned." if failed else ".")
         job_center.update_job(job_id, status="complete", stage="Scan complete", message=message, percent=100, result=result, processed=len(shows), succeeded=len(shows)-failed, failed=failed, total=total)
         return result
     return jsonify(ok=True, job=job_center.run_background("show_folder_scan", worker, stage="Queued", message=f"Existing-file scan queued for {len(ids)} shows.", total=len(ids), meta={"show_ids":ids}))

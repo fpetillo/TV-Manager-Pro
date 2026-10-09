@@ -12,7 +12,9 @@
     <select id="episodeStatus"><option value="">All statuses</option><option>Wanted</option><option>Snatched</option><option>Downloaded</option><option>Failed</option><option>Skipped</option><option>Ignored</option><option>Archived</option><option>Unaired</option></select>
     <select id="episodeLimit"><option>50</option><option selected>100</option><option>250</option><option>500</option></select>
     <button id="episodeRefresh" class="secondary">Refresh</button>
+    <button id="scanShowFolder" class="blue" type="button" title="Scan this show's library folder: record episode files found on disk and mark episodes whose recorded file is gone as missing">Scan Show Folder</button>
   </div>
+  <div id="scanShowFolderStatus" class="message" role="status" aria-live="polite" hidden></div>
   <div class="list-heading"><strong id="episodeSummary">Loading…</strong><span class="muted">Select episodes or whole seasons to mark ignored/not considered, wanted, downloaded, or unmonitored.</span></div>
   <div class="bulk-episode-panel">
     <div class="toolbar wrap">

@@ -1,17 +1,16 @@
 {
   "product": "TV Manager",
-  "version": "18.16.0",
-  "release_name": "Delete download folders after moving",
-  "generated_at": "2026-10-09T13:23:20.936263+00:00",
+  "version": "18.17.0",
+  "release_name": "Scan Show Folder on the show page",
+  "generated_at": "2026-10-09T16:51:49.693666+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Post Processing setting to delete each release folder after its videos are moved, including leftover files",
-    "Folders with an unprocessed video are kept; the downloads folder itself is never deleted; Move method only",
-    "Includes v18.15.0 Replace anyway for files blocked by the upgrade rule"
+    "Show page: Scan Show Folder button beside Refresh, reloads the episode list with current filters",
+    "Show folder scans mark episodes whose recorded file is gone as missing again, only when the show folder is reachable"
   ],
   "validation": {
     "pytest": {
-      "passed": 550,
+      "passed": 553,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lease and service checks not runnable on the Linux build host"
@@ -24,7 +23,7 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Executed with PowerShell against a stub install: normal start, hung check stopped at limit, failed check blocks startup",
-    "browser_qa": "Disposable copy: setting saves and reloads; Move run removed the finished release folder and listed it; Replace anyway (18.15.0) checked in the same build; no page errors"
+    "browser_qa": "Disposable copy: Show Queue to show page, Wanted filter, Scan Show Folder; file recorded, vanished file marked missing, no page errors"
   },
   "activation": "Stop TV Manager, install 18.15.0 with update-server.ps1 (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1.",
   "sickchill_replacement_server_runbook": true,

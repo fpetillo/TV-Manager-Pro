@@ -231,3 +231,35 @@ window.grabSearchResult = window.grabResult;
 // loadShow().then no-block marker
 
 // legacy endpoint marker: /api/shows/${showId}/episodes?
+
+/* v18.17.0 — Scan this show's folder from the show page (also reached from the Show Queue). */
+(function(){
+  const button=document.getElementById('scanShowFolder');
+  const box=document.getElementById('scanShowFolderStatus');
+  if(!button||!box)return;
+  const show=(html,cls)=>{box.hidden=false;box.className='message '+(cls||'');box.innerHTML=html;};
+  button.onclick=async()=>{
+    if(button.disabled)return;
+    button.disabled=true;
+    show(progressBox({stage:'Queued',percent:0,message:'Show folder scan queued. You can leave this page and follow it in Active Jobs.'}));
+    try{
+      const started=await jsonFetch(`/api/shows/${showId}/scan-library/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeout:15000});
+      const job=await pollJob(started.job.job_id,j=>show(progressBox(j)));
+      if(job.status==='complete'){
+        const r=job.result||{};
+        const unmatched=(r.unmatched||[]);
+        const cleared=(r.cleared_episodes||[]);
+        show(`<strong>${esc(job.message||'Scan complete.')}</strong>`+
+          (cleared.length?`<div class="muted tiny">Missing again: ${esc(cleared.join(', '))}</div>`:'')+
+          (unmatched.length?`<details><summary>${unmatched.length} file(s) not matched to an episode</summary><ul>${unmatched.map(f=>`<li><code>${esc(f)}</code></li>`).join('')}</ul></details>`:''),
+          unmatched.length?'warn':'success');
+        await loadShow();
+        if(typeof loadShowCountsFast==='function')loadShowCountsFast();
+        await loadEpisodes();
+      }else{
+        show(`<strong>${esc(job.status==='cancelled'?'Scan stopped':'Scan failed')}:</strong> ${esc(job.message||job.error||'')}`,'error');
+      }
+    }catch(e){show(esc(e.message||'Scan failed'),'error');}
+    finally{button.disabled=false;}
+  };
+})();

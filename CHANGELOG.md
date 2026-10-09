@@ -1,3 +1,7 @@
+## 18.17.0 — Scan Show Folder on the show page
+
+The show page (from the Show Queue) has a Scan Show Folder button beside Refresh; it scans the show's library folder in the background and reloads the episode list with your filters. Show folder scans, including the Show Queue Scan buttons, now also mark episodes whose recorded file is gone as missing again (path cleared, Downloaded to Wanted), only after the show folder is confirmed reachable. See [release notes](docs/RELEASE_NOTES_v18.17.0.md).
+
 ## 18.16.0 — Delete download folders after moving
 
 New Post Processing setting (off by default): after a Move run, delete each release folder inside the completed-downloads folder whose videos were all moved, including leftover .nfo, .txt and sample files. Folders that still hold an unprocessed video are kept; the downloads folder itself is never deleted; Copy, Hardlink and link methods never delete. Removed and kept folders are shown after processing and logged. See [release notes](docs/RELEASE_NOTES_v18.16.0.md).
