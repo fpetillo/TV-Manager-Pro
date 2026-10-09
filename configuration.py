@@ -1,7 +1,7 @@
 """Typed controls and validation for supported operational settings."""
 from urllib.parse import urlparse
 
-BOOL_NAMES=set("rename_episodes move_associated_files process_automatically randomize_providers use_nzbs use_torrents unpack ignore_season_zero_counts automation_enabled auto_grab simulation_mode subtitle_scan_network_paths refresh_media_servers_after_process sab_forced torrent_paused email_tls api_auth_enabled".split())
+BOOL_NAMES=set("rename_episodes move_associated_files delete_source_folder process_automatically randomize_providers use_nzbs use_torrents unpack ignore_season_zero_counts automation_enabled auto_grab simulation_mode subtitle_scan_network_paths refresh_media_servers_after_process sab_forced torrent_paused email_tls api_auth_enabled".split())
 CHOICES={('general','nzb_method'):['','sabnzbd','nzbget','blackhole'],
          ('general','torrent_method'):['','qbittorrent','transmission','deluge','deluged','utorrent','rtorrent','download_station','putio','blackhole'],
          ('general','process_method'):['move','copy','hardlink','symlink','symlink_reversed']}

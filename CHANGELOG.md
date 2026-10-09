@@ -1,3 +1,7 @@
+## 18.16.0 — Delete download folders after moving
+
+New Post Processing setting (off by default): after a Move run, delete each release folder inside the completed-downloads folder whose videos were all moved, including leftover .nfo, .txt and sample files. Folders that still hold an unprocessed video are kept; the downloads folder itself is never deleted; Copy, Hardlink and link methods never delete. Removed and kept folders are shown after processing and logged. See [release notes](docs/RELEASE_NOTES_v18.16.0.md).
+
 ## 18.15.0 — Post Processing "Replace anyway"
 
 Rows blocked by the upgrade rule ("Replacement is not higher quality or a corrective release", "Would downgrade quality") now have a Replace anyway checkbox in the Post Processing preview, for replacing a wrong or bad library file with the correct one. Ticked files are processed with the selection; the confirmation states how many will replace an existing file. The existing file goes to managed trash and can be restored from Upgrades, and each override is logged as replacement_override. Automatic processing and unticked files keep the safe upgrade rules. The run API accepts force_replace_sources. See [release notes](docs/RELEASE_NOTES_v18.15.0.md).

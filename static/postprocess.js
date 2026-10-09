@@ -45,6 +45,7 @@ async function loadConfig(){
     $("defaultDir").value=d.tv_download_dir||"";
     $("method").value=d.process_method||"move";
     if($("unpackArchives"))$("unpackArchives").checked=!!d.unpack;
+    if($("deleteSourceFolder"))$("deleteSourceFolder").checked=!!d.delete_source_folder;
   }catch(e){setMessage(`Could not load post-processing settings: ${e.message}`,"error");}
 }
 
@@ -69,6 +70,8 @@ function render(d){
     <td>${x.blocked?`<span class="status-pill Failed">Blocked</span><br>${esc(x.blocked)}${x.can_override?`<br><small>Tick the box to <strong>Replace anyway</strong>, for example when the existing file is the wrong show or episode. The existing file${(x.existing_files||[]).length>1?"s go":" goes"} to managed trash and can be restored from Upgrades.</small>${(x.existing_files||[]).map(f=>`<br><small>Existing: <code>${esc(f)}</code></small>`).join("")}`:""}`:`<span class="status-pill Downloaded">Approved</span>${x.match_confidence?`<br><small>Match: ${esc(x.match_confidence)} — ${esc(x.match_reason||"")}</small>`:""}${x.review_note?`<br><span class="notice warn inline-note">${esc(x.review_note)}</span>`:""}${x.naming_pattern?`<br><small>${esc(x.naming_pattern)}</small>`:""}`}</td>
   </tr>`).join("")}</table>`:'<div class="empty-state compact"><p>No approvable episodes. Review the unmatched files below.</p></div>';
   if(d.unmatched) $("actions").innerHTML+=`<h3>Unmatched files — ${Number(d.unmatched)}</h3><table class="compact-table postprocess-table"><tr><th>Source file</th><th>Why it cannot be approved</th></tr>${(d.unmatched_details||[]).map(x=>`<tr><td><code>${esc(x.source)}</code></td><td>${esc(x.reason)}</td></tr>`).join("")}</table>${(d.unmatched_details||[]).length<d.unmatched?'<p>Some reasons were not returned by this server. Restart TV Manager with the updated code and preview again.</p>':''}`;
+  if(d.removed_folders?.length)$("actions").innerHTML+=`<h3>Download folders removed — ${d.removed_folders.length}</h3>`+d.removed_folders.map(f=>`<div class="notice"><code>${esc(f.folder)}</code>${f.leftover_files?` (${Number(f.leftover_files)} leftover file${f.leftover_files===1?"":"s"} deleted)`:""}</div>`).join("");
+  if(d.kept_folders?.length)$("actions").innerHTML+=`<h3>Download folders kept — ${d.kept_folders.length}</h3>`+d.kept_folders.map(f=>`<div class="notice warn"><code>${esc(f.folder)}</code>: ${esc(f.reason)}</div>`).join("");
   if(d.errors?.length)$("actions").innerHTML+='<h3>Processing errors</h3>'+d.errors.map(e=>`<div class="notice warn">${esc(e.file)}: ${esc(e.error)}</div>`).join('');
   const all=$("selectAll");
   if(all) all.onchange=()=>{document.querySelectorAll(".pp-select").forEach(cb=>cb.checked=all.checked);updateSelection();};
@@ -97,9 +100,9 @@ async function scanFolder(){
 
 async function saveConfig(){
   try{
-    const r=await fetch("/api/postprocess/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tv_download_dir:$("defaultDir").value,process_method:$("method").value,unpack:$("unpackArchives")?.checked?1:0})});
+    const r=await fetch("/api/postprocess/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tv_download_dir:$("defaultDir").value,process_method:$("method").value,unpack:$("unpackArchives")?.checked?1:0,delete_source_folder:$("deleteSourceFolder")?.checked?1:0})});
     const d=await readJsonResponse(r);
-    setMessage(r.ok?"Default post-processing folder saved.":(d.error||"Save failed"),r.ok?"success":"error");
+    setMessage(r.ok?"Post-processing settings saved.":(d.error||"Save failed"),r.ok?"success":"error");
   }catch(e){setMessage(e.message,"error");}
 }
 

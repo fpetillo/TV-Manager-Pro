@@ -2221,4 +2221,54 @@ def _scan_postprocess(dry_run=True, limit=300, root_override=None, selected_sour
 
     if not dry_run and touched_shows and as_bool(get_setting("TVManager","refresh_media_servers_after_process","1")):
         result["media_refresh"].extend(_refresh_processed_shows(touched_shows))
+    if not dry_run and method=="move" and as_bool(get_setting("General","delete_source_folder","0")):
+        _remove_processed_download_folders(Path(root),result)
     return result
+
+
+def _is_sample(path):
+    return bool(re.search(r'(?i)(^|[\s._\-\[\(])sample([\s._\-\]\)]|$)',path.stem)) or any(part.lower()=='sample' for part in path.parts[:-1])
+
+
+def _remove_processed_download_folders(root,result):
+    """After a Move run, delete each download folder whose episodes were all moved.
+
+    Only the release folder directly inside the completed-downloads folder is removed,
+    never the downloads folder itself. Leftover non-video files and sample videos are
+    deleted with it. A folder is kept when it still holds a video that was not
+    processed, so an episode is never lost.
+    """
+    import shutil
+    removed=result.setdefault("removed_folders",[]);kept=result.setdefault("kept_folders",[])
+    try:root=root.resolve()
+    except OSError:return
+    folders={}
+    for action in result.get("actions",[]):
+        if not action.get("processed"):continue
+        src=Path(action["source"])
+        try:rel=src.parent.resolve().relative_to(root)
+        except (OSError,ValueError):continue   # file sat directly in the root, or came from archive staging
+        if not rel.parts:continue
+        folders.setdefault(root/rel.parts[0],[]).append(src)
+    for folder in sorted(folders):
+        try:
+            if folder.is_symlink() or not folder.is_dir() or folder.resolve()==root:continue
+            remaining=[f for f in folder.rglob("*") if f.is_file() and f.suffix.lower() in MEDIA_EXTS and not _is_sample(f.relative_to(folder))]
+            if remaining:
+                reason=f"{len(remaining)} video file(s) in it were not processed"
+                kept.append({"folder":str(folder),"reason":reason})
+                log("download_folder_kept",f"{folder}: {reason}","info",data={"folder":str(folder),"remaining":[str(f) for f in remaining[:20]]})
+                continue
+            leftovers=[str(f.relative_to(folder)) for f in folder.rglob("*") if f.is_file()]
+            def _clear_readonly(func,path,_exc):
+                # Windows marks some downloaded files read-only; clear the flag and retry once.
+                import stat
+                os.chmod(path,stat.S_IWRITE);func(path)
+            shutil.rmtree(folder,onerror=_clear_readonly)
+            removed.append({"folder":str(folder),"leftover_files":len(leftovers)})
+            log("download_folder_removed",f"{folder} removed after its episodes were moved ({len(leftovers)} leftover file(s) deleted)",
+                "info",data={"folder":str(folder),"leftover_files":leftovers[:50]})
+        except Exception as ex:
+            message=f"Episodes were moved, but the download folder could not be removed: {ex}"
+            result.setdefault("errors",[]).append({"file":str(folder),"error":message})
+            log("download_folder_remove_error",f"{folder}: {ex}","warning",data={"folder":str(folder)})

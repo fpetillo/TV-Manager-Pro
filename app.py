@@ -2568,13 +2568,14 @@ def api_postprocess_config():
         process_automatically=engine.as_bool(engine.get_setting("General","process_automatically","0"),False),
         rename_episodes=engine.as_bool(engine.get_setting("General","rename_episodes","1"),True),
         move_associated_files=engine.as_bool(engine.get_setting("General","move_associated_files","1"),True),
+        delete_source_folder=engine.as_bool(engine.get_setting("General","delete_source_folder","0"),False),
         simulation_mode=engine.as_bool(engine.get_setting("TVManager","simulation_mode","0"),False),
     )
 
 @app.post("/api/postprocess/config")
 def api_postprocess_config_save():
     body=request.get_json(silent=True) or {}
-    allowed={"tv_download_dir","process_method","process_automatically","rename_episodes","move_associated_files","unpack"}
+    allowed={"tv_download_dir","process_method","process_automatically","rename_episodes","move_associated_files","unpack","delete_source_folder"}
     import configuration
     try:values={k:configuration.validate('General',k,v) for k,v in body.items() if k in allowed}
     except ValueError as exc:return jsonify(error=str(exc)),400

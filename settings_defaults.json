@@ -4,6 +4,7 @@
     "root_dirs": "",
     "rename_episodes": "1",
     "move_associated_files": "1",
+    "delete_source_folder": "0",
     "tv_download_dir": "",
     "process_method": "move",
     "process_automatically": "0",
