@@ -1,31 +1,32 @@
 {
   "product": "TV Manager",
-  "version": "18.18.0",
-  "release_name": "Flexible show-name matching in Post Processing",
-  "generated_at": "2026-10-09T23:55:51.984156+00:00",
+  "version": "18.19.0",
+  "release_name": "Episode search finds the right show",
+  "generated_at": "2026-10-13T21:20:11.953668+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Post Processing matches show titles despite apostrophes, &/and, dashes, spacing, dotted initials, accents, a missing The, or a year/country on one side",
-    "Exact matches still win; equal matches are blocked as ambiguous; short titles still need the whole title"
+    "Episode and season-pack search results must be this show followed by the episode number; Band of Brothers is no longer accepted for Brothers",
+    "Per-show Release title matching (Strict/Loose), Extra search names, and TVDB/IMDb/TMDB ID search first when the indexer supports it"
   ],
   "validation": {
     "pytest": {
-      "passed": 558,
+      "passed": 579,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lease and service checks not runnable on the Linux build host"
     },
-    "python_parse": 181,
+    "python_parse": 185,
     "javascript_syntax": "43 passed",
-    "auto_update_end_to_end": "Real TV Manager process on Linux with Task Scheduler and PowerShell updater substituted: token idle check, graceful stop, update, restart, version confirmed, status updated",
-    "powershell": "All scripts parse under PowerShell 7.5; running check reproduced and verified with Windows PowerShell 5.1 argument passing (Legacy mode)",
+    "auto_update_end_to_end": "Not re-run (updater unchanged)",
+    "powershell": "Not re-run (scripts unchanged apart from the default version)",
     "windows_activation": "Not performed: scheduled-task registration, boot start, account rights and share access must be confirmed on the server",
     "production_deployment": "Not performed",
     "fully_green": false,
-    "startup_script": "Executed with PowerShell against a stub install: normal start, hung check stopped at limit, failed check blocks startup",
-    "browser_qa": "Not applicable (matching logic); end-to-end processing run on a disposable copy matched and moved three punctuated show names"
+    "startup_script": "Not re-run (unchanged)",
+    "browser_qa": "Disposable copy: show settings dialog shows Release title matching, Extra search names and ID search; values saved; no page errors",
+    "indexer_end_to_end": "Stand-in Newznab indexer over HTTP: other shows rejected, tvdbid search sent without the name"
   },
-  "activation": "Stop TV Manager, install 18.15.0 with update-server.ps1 (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1.",
+  "activation": "Stop TV Manager, install 18.19.0 with update-server.ps1 (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -73,7 +74,12 @@
     "static/workflow_recovery.js",
     "templates/metadata_change.html",
     "torrent_metadata.py",
-    "update-server.ps1"
+    "update-server.ps1",
+    "show_preferences.py",
+    "static/show_preferences.js",
+    "production.py",
+    "engine.py",
+    "docs/RELEASE_NOTES_v18.19.0.md"
   ],
   "sickchill_full_parity": false
 }

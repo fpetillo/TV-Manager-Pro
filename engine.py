@@ -660,22 +660,43 @@ def search_newznab(provider, show, episode, timeout=25):
 
 
 def search_generic_provider(provider, show, episode, timeout=25):
+    """Search one provider for an episode and check every title belongs to the show.
+
+    Order: the show's TVDB/IMDb/TMDB ID (when the indexer supports it and the
+    show allows it), then the name and its punctuation variants, stopping at the
+    first query that produced an acceptable release. Results whose title is a
+    different show (Band of Brothers for Brothers) are kept but rejected, unless
+    the show's title matching is set to loose.
+    """
     import indexer_client, show_preferences, search_names
     show=dict(show)
     name=show.get('search_name') or show['name']
+    accepted_names=list(dict.fromkeys([name,show['name'],*(show.get('match_names') or [])]))
+    loose=str(show.get('search_title_match') or 'strict')=='loose'
     torrent=provider.get('protocol')=='torznab'
-    out=[];seen=set()
+    queries=[]
+    if not show.get('skip_id_search') and as_bool(show.get('search_by_id'),True) and not (show.get('air_by_date') or show.get('sports') or show.get('anime')):
+        ids=indexer_client.id_parameters(provider,show)
+        if ids:
+            params=show_preferences.search_parameters(dict(show,search_name=name),episode)
+            params.pop('q',None);params.update(ids)
+            queries.append(('id',params))
     for attempt,query_name in enumerate(search_names.variants(name)):
-        params=show_preferences.search_parameters(dict(show,search_name=query_name),episode)
+        queries.append(('name' if attempt==0 else 'variant',show_preferences.search_parameters(dict(show,search_name=query_name),episode)))
+    out=[];seen=set()
+    for kind,params in queries:
         try:found=indexer_client.search(provider,params,timeout)
         except Exception as error:
+            if kind=='id' and isinstance(error,indexer_client.IndexerError) and error.code not in {429,500,100,101,102}:
+                continue
             error.partial_results=out
             raise
         acceptable=False
         for item in found:
             title=item['title']
             score,rejected=score_release(title,show)
-            match_error=search_names.release_rejection(title,name,show,episode) if attempt else None
+            check=not (kind=='name' and loose)
+            match_error=search_names.release_rejection(title,name,show,episode,names=accepted_names) if check else None
             if match_error:score,rejected=-10000,match_error
             if torrent and item['seeders']<int(provider.get('minimum_seeders') or 0):
                 score,rejected=-10000,f"Below minimum seeders ({provider.get('minimum_seeders')})"
@@ -685,7 +706,9 @@ def search_generic_provider(provider, show, episode, timeout=25):
             seen.add(key)
             out.append(dict(item,provider=provider['name'],protocol='torrent' if torrent else 'nzb',
                             quality=infer_quality(title),score=score-(int(provider.get('priority') or 0)/1000),
-                            rejected_reason=rejected,search_match_error=match_error,search_name=query_name if attempt else None))
+                            rejected_reason=rejected,search_match_error=match_error,
+                            search_name=params.get('q') if kind=='variant' else None,
+                            search_by='id' if kind=='id' else 'name'))
         if acceptable:break
     return out
 
@@ -728,7 +751,14 @@ def _search_episode(episode_id, auto_grab=False, purpose="manual"):
         "ignored_words": ctx["ignored_words"], "quality": ctx["show_quality"], "quality_profile_id": ctx["quality_profile_id"],
         "preferred_resolution": ctx.get("preferred_resolution") or "",
     }
-    names=list(dict.fromkeys([show['name'],*advanced.aliases(ctx['show_id'])]))
+    import search_names
+    with cx() as c:
+        show_row=dict(c.execute("SELECT * FROM shows WHERE id=?",(ctx["show_id"],)).fetchone() or {})
+    for key in ("tvdb_id","imdb_id","tmdb_id","first_air_date","search_title_match","search_by_id"):
+        show[key]=show_row.get(key)
+    extra=search_names.extra_names(show_row.get("search_aliases"))
+    names=list(dict.fromkeys([show['name'],*advanced.aliases(ctx['show_id']),*extra]))
+    show["match_names"]=names
     episode = dict(ctx)
     variants=[episode]
     if ctx.get("scene_numbering"):
@@ -746,8 +776,8 @@ def _search_episode(episode_id, auto_grab=False, purpose="manual"):
         import show_preferences
         results=[];queries=set()
         for variant in variants:
-            for name in names:
-                search_show=dict(show,search_name=name)
+            for position,name in enumerate(names):
+                search_show=dict(show,search_name=name,skip_id_search=position>0)
                 query=tuple(sorted(show_preferences.search_parameters(search_show,variant).items()))
                 if query in queries:continue
                 queries.add(query)

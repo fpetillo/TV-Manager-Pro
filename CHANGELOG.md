@@ -1,3 +1,7 @@
+## 18.19.0 — Episode search finds the right show
+
+Every episode and season-pack search result is now checked against the show: the title must be the show's name followed by the episode number, so a search for Brothers no longer accepts Band of Brothers, Brothers & Sisters or The Brothers Sun. Rejected results stay visible as "Not this show or episode". A release may add the show's first-air year (Brothers.2009). New per-show settings: Release title matching (Strict/Loose), Extra search names, and search by TVDB/IMDb/TMDB ID first when the indexer supports it. See [release notes](docs/RELEASE_NOTES_v18.19.0.md).
+
 ## 18.18.0 — Flexible show-name matching in Post Processing
 
 Post Processing now matches release names to shows despite apostrophes (Greys/Grey's), & versus "and", dashes and spacing (Spiderman, 911), dotted initials (SHIELD), accents, a missing leading "The", and a year or country present on only one side. Exact matches still win, equal matches are blocked as ambiguous, short titles still need the whole title, and extra words other than a year or country are not accepted. See [release notes](docs/RELEASE_NOTES_v18.18.0.md).

@@ -245,7 +245,8 @@ def season_pack_search(show_id,season):
     if not show:raise ValueError("Show not found")
     import indexer_client, search_names, provider_manager
     providers=[p for p in engine.parse_newznab()+advanced.provider_defs_raw() if provider_manager.eligible(p)]
-    names=list(dict.fromkeys([show['name'],*advanced.aliases(show_id)]))
+    names=list(dict.fromkeys([show['name'],*advanced.aliases(show_id),*search_names.extra_names(dict(show).get('search_aliases'))]))
+    loose=str(dict(show).get('search_title_match') or 'strict')=='loose'
     found=[];errors=[];seen=set()
     for p in providers:
         if not engine.ops.provider_is_available(p['name']):
@@ -260,7 +261,7 @@ def season_pack_search(show_id,season):
                     acceptable=False
                     for item in items:
                         title=item['title']
-                        if search_names.release_rejection(title,name,season=season):continue
+                        if search_names.release_rejection(title,name,dict(show),season=season,names=names if not loose else None):continue
                         if p.get('protocol')=='torznab' and item['seeders']<int(p.get('minimum_seeders') or 0):continue
                         score,reject=engine.score_release(title,dict(show))
                         if reject:continue

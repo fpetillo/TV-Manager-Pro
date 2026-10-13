@@ -144,6 +144,23 @@ def capabilities(provider, force=False):
     return result
 
 
+ID_PARAMS=('tvdbid','imdbid','tmdbid')
+
+
+def id_parameters(provider,show):
+    """TVDB/IMDb/TMDB IDs this indexer can search an episode by, or {} if none apply."""
+    show=dict(show or {})
+    values={'tvdbid':show.get('tvdb_id'),'tmdbid':show.get('tmdb_id'),
+            'imdbid':str(show.get('imdb_id') or '').strip().lower().removeprefix('tt')}
+    values={k:str(int(str(v).strip())) for k,v in values.items() if str(v or '').strip().isdigit() and int(str(v).strip())>0}
+    if not values:return {}
+    try:caps=capabilities(provider)
+    except Exception:return {}
+    supported=caps['modes'].get('tvsearch')
+    if supported is None or not {'season','ep'}<=set(supported):return {}
+    return {k:v for k,v in values.items() if k in supported}
+
+
 def text_query(params):
     query = params.get('q', '')
     if params.get('season') is not None:
@@ -157,7 +174,9 @@ def search(provider, params, timeout=25):
     caps = capabilities(provider)
     params = dict(params)
     mode = params['t']
-    if mode == 'tvsearch' and (mode not in caps['modes'] or any(k not in caps['modes'][mode] for k in ('q', 'season', 'ep') if k in params)):
+    if mode == 'tvsearch' and (mode not in caps['modes'] or any(k not in caps['modes'][mode] for k in ('q', 'season', 'ep', *ID_PARAMS) if k in params)):
+        if not params.get('q'):
+            raise IndexerError('Indexer does not support searching this show by ID.')
         params = text_query(params)
     if params['t'] not in caps['modes']:
         raise IndexerError('Indexer does not support the search required for this show numbering.')
@@ -170,7 +189,7 @@ def search(provider, params, timeout=25):
         try:
             root = request_xml(provider, params, timeout)
         except IndexerError as error:
-            if page == 0 and params['t'] == 'tvsearch' and error.code in {202, 203} and 'search' in caps['modes']:
+            if page == 0 and params['t'] == 'tvsearch' and error.code in {202, 203} and 'search' in caps['modes'] and params.get('q'):
                 params = dict(params, **text_query(params))
                 params.pop('season', None)
                 params.pop('ep', None)

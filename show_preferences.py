@@ -1,8 +1,8 @@
 """Validated per-show behavior shared by search, metadata and subtitles."""
 import re
 
-COLUMNS={'preferred_resolution':"TEXT DEFAULT ''",'name_override':'TEXT','metadata_provider':"TEXT DEFAULT 'tmdb'",'episode_order':"TEXT DEFAULT 'official'",'metadata_language':"TEXT DEFAULT 'en-US'",'past_episode_status':"TEXT DEFAULT 'Wanted'",'future_episode_status':"TEXT DEFAULT 'Wanted'",'subtitles_enabled':'INTEGER DEFAULT 1'}
-BOOLS={'paused','monitor_new','search_enabled','season_folders','scene_numbering','air_by_date','sports','metadata_enabled','favorite','anime','subtitles_enabled'}
+COLUMNS={'preferred_resolution':"TEXT DEFAULT ''",'name_override':'TEXT','metadata_provider':"TEXT DEFAULT 'tmdb'",'episode_order':"TEXT DEFAULT 'official'",'metadata_language':"TEXT DEFAULT 'en-US'",'past_episode_status':"TEXT DEFAULT 'Wanted'",'future_episode_status':"TEXT DEFAULT 'Wanted'",'subtitles_enabled':'INTEGER DEFAULT 1','search_title_match':"TEXT DEFAULT 'strict'",'search_aliases':"TEXT DEFAULT ''",'search_by_id':'INTEGER DEFAULT 1'}
+BOOLS={'paused','monitor_new','search_enabled','season_folders','scene_numbering','air_by_date','sports','metadata_enabled','favorite','anime','subtitles_enabled','search_by_id'}
 IDS={'quality_profile_id','retention_policy_id'}
 TEXT={'preferred_words','required_words','ignored_words','metadata_language','past_episode_status','future_episode_status'}
 
@@ -24,6 +24,14 @@ def options(body,allow_name=False):
             value=value.strip()
             if not value or len(value)>250 or any(ord(ch)<32 for ch in value):raise ValueError('Enter a show name between 1 and 250 characters without control characters')
             result['name']=value;result['name_override']=value
+        elif key=='search_title_match':
+            value=str(value or 'strict').strip().lower()
+            if value not in ('strict','loose'):raise ValueError('Title matching must be strict or loose.')
+            result[key]=value
+        elif key=='search_aliases':
+            from search_names import extra_names
+            if len(str(value or ''))>2000:raise ValueError('Extra search names are limited to 2000 characters.')
+            result[key]='\n'.join(extra_names(value))
         elif key in BOOLS:
             if value not in (True,False,0,1,'0','1','true','false'):raise ValueError(f'Invalid switch: {key}')
             result[key]=int(value in (True,1,'1','true'))
@@ -75,6 +83,7 @@ def defaults(c):
 def save_defaults(c,body):
     import json
     values=options(body)
+    values.pop('search_aliases',None)  # names belong to one show, never to new-show defaults
     for field,table in (('quality_profile_id','quality_profiles'),('retention_policy_id','retention_policies')):
         if values.get(field) and not c.execute(f'SELECT id FROM {table} WHERE id=?',(values[field],)).fetchone():raise ValueError('Selected profile no longer exists')
     c.execute("""INSERT INTO settings(section,name,value,is_secret,source,updated_at)
