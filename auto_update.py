@@ -138,7 +138,8 @@ class Environment:
     def run_updater(self, version):
         script = self.root / "update-server.ps1"
         return self.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script),
-                         "-InstallDir", str(self.root), "-Version", version], 3600)
+                         "-InstallDir", str(self.root), "-Version", version,
+                         "-KeepBackups", "0"], 3600)  # pruning follows keep_backups in auto_update.json
 
     def venv_python(self):
         return str(self.root / ".venv" / "Scripts" / "python.exe") if os.name == "nt" else str(self.root / ".venv" / "bin" / "python")

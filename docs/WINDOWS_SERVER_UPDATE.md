@@ -1,6 +1,6 @@
 # Update an existing Windows server
 
-Use `update-server.ps1` for an existing **source installation** with a working `.venv` Python environment. Git is not required. It defaults to `C:\Acuityware TV Manager` and release **18.19.0**. Run it on the server being updated, using an account with access to the installation and its parent folder. This does not update a packaged `TVManager.exe` installation.
+Use `update-server.ps1` for an existing **source installation** with a working `.venv` Python environment. Git is not required. It defaults to `C:\Acuityware TV Manager` and release **18.21.0**. Run it on the server being updated, using an account with access to the installation and its parent folder. This does not update a packaged `TVManager.exe` installation.
 
 ## Run the update
 
@@ -11,20 +11,20 @@ Use `update-server.ps1` for an existing **source installation** with a working `
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $Updater = Join-Path $env:USERPROFILE 'Downloads\Update-TVManager.ps1'
-Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.19.0/update-server.ps1' -OutFile $Updater
+Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/fpetillo/TV-Manager-Pro/v18.21.0/update-server.ps1' -OutFile $Updater
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Updater -InstallDir 'C:\Acuityware TV Manager'
 ```
 
 Change only `-InstallDir` if your installation is elsewhere. Execution-policy bypass applies only to this PowerShell process. The script downloads the tagged official source ZIP and reports errors instead of continuing a failed update.
 
-3. Wait for **Updated source to v18.19.0. TV Manager remains stopped.** If it reports any error, keep TV Manager stopped and review the error and recovery folder before retrying.
+3. Wait for **Updated source to v18.21.0. TV Manager remains stopped.** If it reports any error, keep TV Manager stopped and review the error and recovery folder before retrying.
 4. Restart with your existing task/service, or run the following for a manual production session. Use one startup method:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Acuityware TV Manager\run-prod.ps1'
 ```
 
-5. Open TV Manager, verify **18.19.0** in About, and press **Ctrl+F5**. Source installation and successful server startup are separate checks.
+5. Open TV Manager, verify **18.21.0** in About, and press **Ctrl+F5**. Source installation and successful server startup are separate checks.
 
 If Downloads does not exist under your Windows account, save the script to another folder and change `$Updater` accordingly. If permissions block the installation or backup folder, use an account permitted to maintain that installation.
 
@@ -42,18 +42,26 @@ For the default installation, backups go to:
 C:\Acuityware TV Manager Update Backups\<timestamp>-v<old-version>-<unique-id>\
 ```
 
-Each backup includes the installation's source, database and SQLite sidecars, `.env`, session key, configuration, imports, recovery state and `.venv`, with SHA-256 verification of copied files and SQLite checks. Previously stored `backups`, `.git`, `.runtime`, Python/test caches and lock files are excluded and remain in place. Media outside the installation is untouched and is not copied. If you store media inside the installation, that content is included in the backup and needs sufficient free space. Linked/junction paths require a manual update; the script stops before changing source.
+Since 18.21.0 the backup contains only what an update can change or a rollback needs: the files in the installation folder itself (source, `VERSION`, `.env`, session key, `config.ini`, `auto_update.json`), the deployable folders (`static`, `templates`, `docs`, `scripts`, `installer`, `tests`) and the database. Each file is copied and checked with SHA-256. The database is copied with SQLite's backup function, which includes committed WAL changes, and the copy is integrity-checked; it is stored as one self-contained `tvmanager.db` (no `-wal`/`-shm`).
+
+Runtime data folders are never written by the updater, so they are left in place and not copied: `managed_trash`, `imports`, `recovery`, `logs`, `diagnostics`, `uploads`, `archive-staging`, `rename-journals`, `corrupt-db`, `db-emergency` and `backups`, plus `.git`, `.runtime`, caches, lock files, `*.log` and `*.zip` in the installation folder. Media outside the installation is untouched. Linked/junction paths require a manual update; the script stops before changing source.
+
+**Python packages:** when the release's `requirements.txt` matches the installed one, `.venv` is not touched, not backed up and pip does not run. When it differs, `.venv` is backed up first and pip installs and checks the new requirements. Add `-RefreshDependencies` to reinstall packages anyway (for example after repairing Python).
+
+**Old backups:** after a successful update, older update backups are removed so the newest 5 remain (`-KeepBackups 5`, the default). Only backups of completed updates are removed; a backup from an update that rolled back or needs manual recovery is never removed. `-KeepBackups 0` keeps all backups. The nightly auto-updater passes `-KeepBackups 0` and prunes with `keep_backups` in `auto_update.json` instead.
+
+The update prints how long each step took and records the times in `update.json`.
 
 The script takes the application's installation lock and refuses to update a running instance. It checks the archive layout, version, manifest, Python syntax, destination paths, database and free space before changing source or dependencies. It never imports the app, launches a scheduler or runs database migrations. Normal startup performs the existing database protection and migrations.
 
-Dependency installation and consistency checks must pass before copying source. On a caught dependency or copy error, it attempts to restore changed source and the backed-up Python environment. It leaves database and settings in place and returns a failure status. `update.json` records progress and hashes; `RESTORE.txt` explains recovery. Power loss, forced termination or a failed rollback can still require manual recovery. Keep the app stopped until recovery is complete. Restore `.venv` at its original installation path. Do not overlay an old database on newer WAL/SHM files or roll back after production resumes without reviewing newer work.
+Dependency installation and consistency checks must pass before copying source. On a caught dependency or copy error, it attempts to restore changed source and, if packages were being changed, the backed-up Python environment. It leaves database and settings in place and returns a failure status. `update.json` records progress and hashes; `RESTORE.txt` explains recovery. Power loss, forced termination or a failed rollback can still require manual recovery. Keep the app stopped until recovery is complete. Restore `.venv` (present only when packages changed) at its original installation path. Delete `tvmanager.db-wal` and `-shm` before restoring `tvmanager.db` or roll back after production resumes without reviewing newer work.
 
 Keep the backup folder private: it contains your existing settings and credentials. Do not upload it to GitHub.
 
 For an already downloaded **official tagged source ZIP**, use:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-TVManager.ps1 -InstallDir 'C:\Acuityware TV Manager' -Version '18.19.0' -ArchivePath 'C:\Downloads\TV-Manager-Pro-18.19.0.zip'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-TVManager.ps1 -InstallDir 'C:\Acuityware TV Manager' -Version '18.21.0' -ArchivePath 'C:\Downloads\TV-Manager-Pro-18.21.0.zip'
 ```
 
 Dependencies may still need an internet connection. `-Version` can select a newer tagged release; downgrades are refused. Archive hashes in the backup journal identify the downloaded file, not an independently signed release.

@@ -1,32 +1,33 @@
 {
   "product": "TV Manager",
-  "version": "18.20.0",
-  "release_name": "Show Queue lists only what is missing",
-  "generated_at": "2026-10-20T15:55:43.089665+00:00",
+  "version": "18.21.0",
+  "release_name": "Faster verified update backup",
+  "generated_at": "2026-10-20T21:51:35.105187+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Show Queue Details selector: missing only (default) lists just the seasons with missing episodes under each show; all seasons shows everything as before",
-    "The Details choice is remembered in the browser; counts, sorting and filters are unchanged"
+    "Update backup covers only installation files, deployable folders and the database; runtime data folders (managed_trash, imports, recovery, logs) are left in place",
+    ".venv backup and pip run only when requirements.txt changes; newest 5 completed update backups kept; per-step timings printed"
   ],
   "validation": {
     "pytest": {
-      "passed": 583,
+      "passed": 595,
       "failed": 0,
       "skipped": 11,
-      "skip_reason": "Windows-only PowerShell, updater lease and service checks not runnable on the Linux build host"
+      "skip_reason": "Windows-only PowerShell, updater lock and service checks not runnable on the Linux build host; suite also runs on the GitHub Windows runner"
     },
     "python_parse": 185,
     "javascript_syntax": "43 passed",
-    "auto_update_end_to_end": "Not re-run (updater unchanged)",
-    "powershell": "Not re-run (scripts unchanged apart from the default version)",
+    "auto_update_end_to_end": "Not re-run; auto_update.py now passes -KeepBackups 0 to the updater",
+    "powershell": "Wrapper exercised by the Windows CI test (test_actual_powershell_wrapper_and_dependency_commands)",
     "windows_activation": "Not performed: scheduled-task registration, boot start, account rights and share access must be confirmed on the server",
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Disposable copy with synthetic queue rows: missing-only default hides complete seasons, all seasons restores them, choice survives reload, no page errors",
-    "indexer_end_to_end": "Not re-run (search unchanged)"
+    "browser_qa": "Not re-run (no UI change)",
+    "indexer_end_to_end": "Not re-run (search unchanged)",
+    "updater_timing": "Fake install on build host (2,400-file venv, 1 GB managed_trash, 300 MB DB, 20 s pip stand-in): 49.6 s before, 2.5 s after"
   },
-  "activation": "Stop TV Manager, install 18.20.0 with update-server.ps1 (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1.",
+  "activation": "Stop TV Manager, download update-server.ps1 from the v18.21.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -83,7 +84,8 @@
     "static/show_queue.js",
     "templates/show_queue.html",
     "help_content.py",
-    "docs/RELEASE_NOTES_v18.20.0.md"
+    "docs/RELEASE_NOTES_v18.20.0.md",
+    "docs/RELEASE_NOTES_v18.21.0.md"
   ],
   "sickchill_full_parity": false
 }

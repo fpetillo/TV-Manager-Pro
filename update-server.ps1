@@ -8,8 +8,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1
 [CmdletBinding()]
 param(
     [string]$InstallDir = 'C:\Acuityware TV Manager',
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.20.0',
-    [string]$ArchivePath = ''
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.21.0',
+    [string]$ArchivePath = '',
+    # Keep this many finished update backups (oldest are removed after a successful update). 0 keeps all.
+    [ValidateRange(0, 1000)][int]$KeepBackups = 5,
+    # Reinstall Python packages (and back up .venv) even when requirements.txt is unchanged.
+    [switch]$RefreshDependencies
 )
 $ErrorActionPreference = 'Stop'
 try {
@@ -40,12 +44,16 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import uuid
 import zipfile
 
 BACKUP_EXCLUDE = {'.git', 'backups', '.runtime'}
 CACHE_DIRS = {'__pycache__', '.pytest_cache'}
+DATABASE_FILES = {'tvmanager.db'}
+RUNTIME_DIRS_LEFT_IN_PLACE = ['managed_trash', 'imports', 'recovery', 'logs', 'diagnostics', 'uploads',
+                              'archive-staging', 'rename-journals', 'corrupt-db', 'db-emergency', 'backups']
 DEPLOY_DIRS = {'static', 'templates', 'docs', 'scripts', 'installer', 'tests'}
 MAX_ARCHIVE = 128 * 1024 * 1024
 MAX_EXPANDED = 512 * 1024 * 1024
@@ -165,18 +173,79 @@ def installation_lock(root):
             handle.seek(0)
             msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
-def inventory(root):
+def walk_files(root, start):
     files = []
-    for folder, directories, names in os.walk(root, followlinks=False):
+    for folder, directories, names in os.walk(start, followlinks=False):
         parent = Path(folder)
-        directories[:] = [d for d in directories if d not in CACHE_DIRS and not (parent == root and d in BACKUP_EXCLUDE)]
+        directories[:] = [d for d in directories if d not in CACHE_DIRS]
         for name in directories + names:
             no_link(parent / name)
         for name in names:
-            if (not name.endswith(('.pyc', '.pyo')) and name != '.media-files.lock'
-                and not (parent == root and name in BACKUP_EXCLUDE)):
+            if not name.endswith(('.pyc', '.pyo')) and name != '.media-files.lock':
                 files.append((parent / name).relative_to(root).as_posix())
     return files
+
+def inventory(root, include_environment):
+    # Back up only what an update can change or what a rollback needs: files in the
+    # installation folder itself (source, settings, VERSION) and the deployable folders.
+    # Runtime data folders (managed_trash, imports, recovery, logs, backups, ...) are
+    # never written by the updater, so they are left in place, not copied.
+    # The database is backed up separately with SQLite's backup API.
+    files = []
+    for entry in sorted(root.iterdir(), key=lambda p: p.name):
+        no_link(entry)
+        name = entry.name
+        if entry.is_file():
+            lower = name.lower()
+            if (name in BACKUP_EXCLUDE or name == '.media-files.lock' or lower in DATABASE_FILES
+                    or lower.endswith(('.pyc', '.pyo', '.log', '.zip', '.db-wal', '.db-shm', '.db-journal'))):
+                continue
+            files.append(name)
+        elif entry.is_dir() and (name in DEPLOY_DIRS or (include_environment and name == '.venv')):
+            files.extend(walk_files(root, entry))
+    return files
+
+def backup_database(source, target):
+    # SQLite's online backup copies a consistent image that includes committed WAL
+    # rows, so the -wal/-shm files are not needed in the backup.
+    with closing(sqlite3.connect(source.as_uri() + '?mode=ro', uri=True)) as live, \
+            closing(sqlite3.connect(long_path(target))) as copy:
+        live.backup(copy, pages=4096)
+        # Store the copy as a single self-contained file (the live database may use WAL).
+        copy.execute('PRAGMA journal_mode=DELETE').fetchall()
+    check_database(target)
+
+def dependencies_changed(root, stage):
+    current = root / 'requirements.txt'
+    if not current.is_file():
+        return True
+    normalize = lambda data: [line.strip() for line in data.decode('utf-8-sig').splitlines() if line.strip()]
+    return normalize(current.read_bytes()) != normalize((stage / 'requirements.txt').read_bytes())
+
+def prune_backups(backup_parent, keep, current):
+    # Removes only backups of updates that completed; never one that is in progress,
+    # rolled back or needs manual recovery, and never the backup just made.
+    if keep <= 0:
+        return []
+    finished = []
+    for folder in backup_parent.iterdir():
+        if not folder.is_dir() or folder.resolve().parent != backup_parent.resolve() or folder.resolve() == current.resolve():
+            continue
+        try:
+            no_link(folder)
+            status = json.loads((folder / 'update.json').read_text(encoding='utf-8')).get('status')
+        except (OSError, ValueError):
+            continue
+        if status == 'installed_restart_required':
+            finished.append(folder)
+    removed = []
+    for folder in sorted(finished, key=lambda p: p.name)[:max(0, len(finished) - (keep - 1))]:
+        try:
+            shutil.rmtree(long_path(folder))
+            removed.append(folder.name)
+        except OSError as error:
+            print('Could not remove old backup ' + folder.name + ': ' + str(error), flush=True)
+    return removed
 
 def check_database(path):
     with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as database:
@@ -212,7 +281,7 @@ def rollback(root, snapshot, changed, restore_environment):
         shutil.rmtree(environment)
         shutil.copytree(long_path(snapshot / '.venv'), long_path(environment), copy_function=copy_file)
 
-def update(root, version, archive_path=''):
+def update(root, version, archive_path='', keep_backups=0, refresh_dependencies=False):
     root = root.absolute()
     for parent in [root, *root.parents]:
         no_link(parent)
@@ -249,18 +318,30 @@ def update(root, version, archive_path=''):
             target = contained(root, relative)
             if target.exists() and not target.is_file():
                 raise ValueError('Release file conflicts with an installed directory: ' + relative)
-        check_database(root / 'tvmanager.db')
+        timings = {}
+        started = time.monotonic()
+        def phase(name):
+            nonlocal started
+            now = time.monotonic()
+            timings[name] = round(now - started, 1)
+            started = now
+        phase('download_and_check_release')
+        refresh_environment = refresh_dependencies or dependencies_changed(root, stage)
         backup_parent = root.parent / (root.name + ' Update Backups')
         no_link(backup_parent)
         backup_parent.mkdir(exist_ok=True)
         backup = backup_parent / (datetime.now().strftime('%Y%m%d-%H%M%S') + '-v' + old_version + '-' + uuid.uuid4().hex[:8])
         snapshot = backup / 'installation'
         snapshot.mkdir(parents=True)
-        source_files = inventory(root)
-        needed = sum(long_path(root / f).stat().st_size for f in source_files) + sum((stage / f).stat().st_size for f in files) + 100 * 1024 * 1024
+        source_files = inventory(root, refresh_environment)
+        database = root / 'tvmanager.db'
+        backup_bytes = sum(long_path(root / f).stat().st_size for f in source_files) + database.stat().st_size
+        needed = backup_bytes + sum((stage / f).stat().st_size for f in files) + 100 * 1024 * 1024
         if shutil.disk_usage(backup_parent).free < needed:
             raise ValueError('Not enough free disk space for the backup and update.')
-        print('Creating verified recovery backup (including Python environment): ' + str(backup), flush=True)
+        print('Creating verified recovery backup: ' + str(backup), flush=True)
+        print('  Python packages: ' + ('requirements changed; backing up .venv and reinstalling'
+                                       if refresh_environment else 'unchanged; .venv not touched'), flush=True)
         hashes = {}
         for relative in source_files:
             target = snapshot / relative
@@ -269,10 +350,18 @@ def update(root, version, archive_path=''):
             hashes[relative] = digest(root / relative)
             if digest(target) != hashes[relative]:
                 raise OSError('Backup verification failed: ' + relative)
-        check_database(snapshot / 'tvmanager.db')
+        phase('backup_files')
+        backup_database(database, snapshot / 'tvmanager.db')
+        hashes['tvmanager.db'] = digest(snapshot / 'tvmanager.db')
+        phase('backup_database')
+        print('  Backed up {} files and the database ({:.1f} MB) in {:.1f} s.'.format(
+            len(source_files), backup_bytes / 1048576, timings['backup_files'] + timings['backup_database']), flush=True)
         record = {'installation': str(root), 'from_version': old_version, 'to_version': version,
                   'archive_sha256': digest(archive), 'backup_sha256': hashes,
-                  'excluded': sorted(BACKUP_EXCLUDE | CACHE_DIRS) + ['*.pyc', '*.pyo', '.media-files.lock'],
+                  'backup_scope': 'installation files, deployable folders and database' + (' and .venv' if refresh_environment else ''),
+                  'left_in_place': RUNTIME_DIRS_LEFT_IN_PLACE + ([] if refresh_environment else ['.venv']),
+                  'dependencies_changed': refresh_environment, 'timings_seconds': timings,
+                  'excluded': sorted(BACKUP_EXCLUDE | CACHE_DIRS) + ['*.pyc', '*.pyo', '*.log', '*.zip', '.media-files.lock'],
                   'status': 'backup_verified', 'release_files': files}
         journal = backup / 'update.json'
         def save_status(status):
@@ -281,20 +370,25 @@ def update(root, version, archive_path=''):
         save_status('backup_verified')
         (backup / 'RESTORE.txt').write_text(
             'Keep TV Manager and its startup task/service stopped.\n'
-            'The installation folder here contains pre-update source, database, configuration and .venv.\n'
-            'The .venv must be restored at the ORIGINAL installation path shown in update.json.\n'
-            'Existing backups, Git history, runtime lease and caches are excluded and remain in place.\n'
+            'The installation folder here contains pre-update source, configuration and a consistent copy of\n'
+            'tvmanager.db (made with SQLite backup, so it needs no -wal/-shm files). It also contains .venv\n'
+            'only when the update changed Python packages; restore .venv at the ORIGINAL installation path.\n'
+            'Runtime data folders (managed_trash, imports, recovery, logs, backups and similar), Git history,\n'
+            'the runtime lease and caches are not changed by updates and are left in place, not copied.\n'
             'If manual recovery is necessary, retain the failed installation separately and restore these files\n'
-            'to the original location. Do not overlay an older database on newer WAL/SHM files.\n'
+            'to the original location. Delete tvmanager.db-wal and -shm before restoring tvmanager.db.\n'
             'Do not restore this database after resuming production without reviewing newer work.\n', encoding='utf-8')
         changed, dependencies_started = [], False
         try:
-            save_status('updating_dependencies')
-            dependencies_started = True
-            checked_run([python, '-m', 'pip', 'install', '--disable-pip-version-check', '-r', str(stage / 'requirements.txt')], root)
-            checked_run([python, '-m', 'pip', 'check'], root)
+            if refresh_environment:
+                save_status('updating_dependencies')
+                dependencies_started = True
+                checked_run([python, '-m', 'pip', 'install', '--disable-pip-version-check', '-r', str(stage / 'requirements.txt')], root)
+                checked_run([python, '-m', 'pip', 'check'], root)
+                phase('python_packages')
             save_status('installing_source')
             install_files(root, stage, files, changed)
+            phase('install_files')
             save_status('installed_restart_required')
         except Exception:
             print('Update failed. Restoring previous source and Python environment...', flush=True)
@@ -306,6 +400,10 @@ def update(root, version, archive_path=''):
                 print('Automatic recovery failed: ' + str(recovery_error), file=sys.stderr)
             print('Keep TV Manager stopped. Recovery backup: ' + str(backup), file=sys.stderr)
             raise
+        removed = prune_backups(backup_parent, keep_backups, backup)
+        if removed:
+            print('Removed {} older update backup(s), keeping the newest {}.'.format(len(removed), keep_backups), flush=True)
+        print('Time: ' + ', '.join('{} {:.1f} s'.format(k.replace('_', ' '), v) for k, v in timings.items()), flush=True)
         print('\nUpdated source to v' + version + '. TV Manager remains stopped.')
         print('Database, settings, library paths and startup configuration preserved.')
         print('Recovery backup: ' + str(backup))
@@ -320,9 +418,11 @@ def main():
     parser.add_argument('--install-dir', required=True)
     parser.add_argument('--version', required=True)
     parser.add_argument('--archive', default='')
+    parser.add_argument('--keep-backups', type=int, default=0)
+    parser.add_argument('--refresh-dependencies', action='store_true')
     args = parser.parse_args()
     try:
-        update(Path(args.install_dir), args.version, args.archive)
+        update(Path(args.install_dir), args.version, args.archive, args.keep_backups, args.refresh_dependencies)
     except Exception as error:
         print('UPDATE FAILED: ' + str(error), file=sys.stderr)
         return 1
@@ -336,7 +436,8 @@ if __name__ == '__main__':
     $HelperPath = [System.IO.Path]::GetTempFileName()
     try {
         [System.IO.File]::WriteAllText($HelperPath, $Updater, (New-Object System.Text.UTF8Encoding($false)))
-        $Arguments = @('-I', $HelperPath, '--install-dir', $Root, '--version', $Version)
+        $Arguments = @('-I', $HelperPath, '--install-dir', $Root, '--version', $Version, '--keep-backups', [string]$KeepBackups)
+        if ($RefreshDependencies) { $Arguments += '--refresh-dependencies' }
         if ($ArchivePath) { $Arguments += @('--archive', $ArchivePath) }
         & $BasePython @Arguments
         if ($LASTEXITCODE -ne 0) { throw 'Update did not complete. Review the error above; do not start a partial installation.' }

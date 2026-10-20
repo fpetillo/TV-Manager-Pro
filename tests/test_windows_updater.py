@@ -74,8 +74,14 @@ def test_update_preserves_state_and_verifies_cold_backup(updater, installation, 
     assert (installation / 'app.py').read_text() == 'new_code = True\n'
     for name, content in before.items():
         assert (installation / name).read_bytes() == content
-        if not name.startswith(('backups/', '.git/')):
+        if not name.startswith(('backups/', '.git/', 'imports/', 'recovery/')) and name != 'tvmanager.db':
             assert (backup / 'installation' / name).read_bytes() == content
+    # The database is copied with SQLite's backup API: same rows, not necessarily same bytes.
+    with closing(sqlite3.connect(backup / 'installation/tvmanager.db')) as connection:
+        assert connection.execute('SELECT * FROM settings').fetchall() == [('listen_host', '192.168.1.11')]
+    # Runtime data folders are never written by the updater, so they are left in place.
+    assert not (backup / 'installation/imports').exists()
+    assert not (backup / 'installation/recovery').exists()
     assert not (installation / '.env-before-github-old').exists()
     assert (backup / 'installation/.venv/Scripts/python.exe').read_text() == 'fixture-runtime'
     assert not (backup / 'installation/backups').exists()

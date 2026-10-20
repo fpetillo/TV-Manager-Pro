@@ -1,3 +1,7 @@
+## 18.21.0 — Faster verified update backup
+
+update-server.ps1 now backs up only what an update can change or a rollback needs: installation-folder files, the deployable folders and the database (copied with SQLite's backup function and integrity-checked). Runtime data folders such as managed_trash, imports, recovery and logs are left in place instead of being copied and hashed. .venv is backed up and pip runs only when requirements.txt changed (-RefreshDependencies forces it). The newest 5 completed update backups are kept (-KeepBackups, 0 keeps all). Each step's time is printed and recorded in update.json. See [release notes](docs/RELEASE_NOTES_v18.21.0.md).
+
 ## 18.20.0 — Show Queue lists only what is missing
 
 New Details selector on the Show Queue toolbar. Details: missing only (the default) lists under each show name just the "Missing:" episodes and the seasons that have missing aired episodes; complete shows show only their name. Details: all seasons shows every season as before, including "Missing: Complete" and 0-missing seasons. The choice is remembered in the browser; counts, sorting and filters are unchanged. See [release notes](docs/RELEASE_NOTES_v18.20.0.md).
