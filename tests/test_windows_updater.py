@@ -220,7 +220,8 @@ def test_actual_powershell_wrapper_and_dependency_commands(tmp_path):
         connection.commit()
     package = archive(tmp_path / 'release with spaces.zip')
     result = subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-                             str(SCRIPT), '-InstallDir', str(root), '-ArchivePath', str(package)],
+                             str(SCRIPT), '-InstallDir', str(root), '-ArchivePath', str(package),
+                             '-Version', VERSION],
                             capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
     assert 'TV Manager remains stopped' in result.stdout

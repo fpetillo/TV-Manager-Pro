@@ -50,7 +50,7 @@ const wait=()=>new Promise(r=>setTimeout(r,30));
 def _run(saved=""):
     if not shutil.which("node"):
         pytest.skip("node is not installed")
-    r = subprocess.run(["node", "-e", SCRIPT, json.dumps(ROWS), saved], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run(["node", "-e", SCRIPT, json.dumps(ROWS), saved], cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout)
 
