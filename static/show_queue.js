@@ -1,6 +1,12 @@
 const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 const resolutionControls=createShowResolutionControls(document.getElementById('showResolutionControls'),()=>load());
 let sort='aired_missing',direction='desc',offset=0,total=0,ignoreS00=false;
+/* v18.20.0 — Details under the show name: 'missing' (default) lists only seasons with missing episodes; 'all' lists every season. */
+const DETAIL_KEY='tvm.showQueue.detailMode';
+let detailMode='missing';
+try{const saved=localStorage.getItem(DETAIL_KEY);if(saved==='all'||saved==='missing')detailMode=saved;}catch{}
+const showQueueDetail=document.getElementById('showQueueDetail');
+if(showQueueDetail){showQueueDetail.value=detailMode;showQueueDetail.onchange=()=>{detailMode=showQueueDetail.value==='all'?'all':'missing';try{localStorage.setItem(DETAIL_KEY,detailMode)}catch{};load();};}
 const numericDefaultDesc=new Set(['downloads','missing','download_percent','size','active']);
 function fmtDate(v){
   if(!v)return '';
@@ -43,9 +49,12 @@ async function load(){
       const totalEpisodes=Number(r.episode_count||0);
       const missing=Number(r.missing_count||Math.max(totalEpisodes-downloaded,0));
       const meterClass=totalEpisodes===0?'empty':(downloaded>=totalEpisodes?'complete':(downloaded>0?'partial':'empty'));
-      const seasonText=(r.season_progress||[]).map(s=>`S${String(s.season).padStart(2,'0')}: ${s.aired_count-s.downloaded_count}/${s.aired_count} aired missing`).join(' · ');
+      const seasons=(r.season_progress||[]).map(s=>({...s,missing:Number(s.aired_count||0)-Number(s.downloaded_count||0)}));
+      const seasonText=seasons.filter(s=>detailMode==='all'||s.missing>0).map(s=>`S${String(s.season).padStart(2,'0')}: ${s.missing}/${s.aired_count} aired missing`).join(' · ');
       const missingText=esc(r.missing_display||r.missing_episode_numbers||(missing?`${missing} missing`:'Complete'));
-      return `<tr data-show-id="${esc(r.id)}"><td class="resolution-select-cell"></td><td>${esc(fmtDate(r.next_ep))}</td><td>${esc(fmtDate(r.prev_ep))}</td><td><a class="show-open-link" data-show-name="${esc(r.name)}" href="/show/${r.id}"><strong>${esc(r.name)}</strong></a><div class="muted tiny">Missing: ${missingText}</div><div class="muted tiny">${esc(seasonText)}</div></td><td>${esc(r.network||'')}</td><td><span class="quality-badge">${esc(r.quality||'HD')}</span></td><td class="downloads-cell" title="${downloaded} downloaded, ${missing} missing, ${totalEpisodes} aired${ignoreS00?' (S00 ignored)':''}"><div class="download-meter ${meterClass}"><span style="width:${Math.max(0,Math.min(100,pp))}%"></span><strong>${downloaded}/${totalEpisodes}</strong></div><small>${missing} missing · aired only${ignoreS00?' · no S00':''}</small></td><td class="num-cell">${esc(fmtSize(r.size_bytes))}</td><td class="center-cell">${r.active_flag?'✓':'—'}</td><td><span class="status-pill ${esc(r.status)}">${esc(r.status)}</span></td><td class="center-cell"><button type="button" class="secondary small-btn scan-show-files" data-show-id="${esc(r.id)}" data-show-name="${esc(r.name)}" title="Scan this show folder for files already on disk">Scan</button></td></tr>`
+      const missingLine=(detailMode==='all'||missing>0)?`<div class="muted tiny">Missing: ${missingText}</div>`:'';
+      const seasonLine=seasonText?`<div class="muted tiny">${esc(seasonText)}</div>`:'';
+      return `<tr data-show-id="${esc(r.id)}"><td class="resolution-select-cell"></td><td>${esc(fmtDate(r.next_ep))}</td><td>${esc(fmtDate(r.prev_ep))}</td><td><a class="show-open-link" data-show-name="${esc(r.name)}" href="/show/${r.id}"><strong>${esc(r.name)}</strong></a>${missingLine}${seasonLine}</td><td>${esc(r.network||'')}</td><td><span class="quality-badge">${esc(r.quality||'HD')}</span></td><td class="downloads-cell" title="${downloaded} downloaded, ${missing} missing, ${totalEpisodes} aired${ignoreS00?' (S00 ignored)':''}"><div class="download-meter ${meterClass}"><span style="width:${Math.max(0,Math.min(100,pp))}%"></span><strong>${downloaded}/${totalEpisodes}</strong></div><small>${missing} missing · aired only${ignoreS00?' · no S00':''}</small></td><td class="num-cell">${esc(fmtSize(r.size_bytes))}</td><td class="center-cell">${r.active_flag?'✓':'—'}</td><td><span class="status-pill ${esc(r.status)}">${esc(r.status)}</span></td><td class="center-cell"><button type="button" class="secondary small-btn scan-show-files" data-show-id="${esc(r.id)}" data-show-name="${esc(r.name)}" title="Scan this show folder for files already on disk">Scan</button></td></tr>`
     }).join(''):'<tr><td colspan="11">No shows match this filter.</td></tr>';
     for(const r of rows){const cell=showQueueBody.querySelector(`tr[data-show-id="${r.id}"] .resolution-select-cell`);if(cell)cell.append(resolutionControls.checkbox(r.id,r.name));}
     showQueuePrev.disabled=offset<=0;

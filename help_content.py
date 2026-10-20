@@ -41,7 +41,7 @@ HELP_SECTIONS = {
     "show-queue": {
         "title": "Show Queue",
         "summary": "The queue ranks shows by missing episode need and downloaded progress, while respecting ignored episodes and the Season 00 setting.",
-        "steps": ["Sort by Missing / Downloads.", "Click a show to open Show Detail.", "Use ignored rules when metadata contains specials, trailers, recaps, or unwanted entries."],
+        "steps": ["Sort by Missing / Downloads.", "Use Details: missing only (default) to list just the seasons with missing episodes under each show, or Details: all seasons to list every season.", "Click a show to open Show Detail.", "Use ignored rules when metadata contains specials, trailers, recaps, or unwanted entries."],
     },
     "episode-management": {
         "title": "Episode management",

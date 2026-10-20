@@ -1,3 +1,7 @@
+## 18.20.0 — Show Queue lists only what is missing
+
+New Details selector on the Show Queue toolbar. Details: missing only (the default) lists under each show name just the "Missing:" episodes and the seasons that have missing aired episodes; complete shows show only their name. Details: all seasons shows every season as before, including "Missing: Complete" and 0-missing seasons. The choice is remembered in the browser; counts, sorting and filters are unchanged. See [release notes](docs/RELEASE_NOTES_v18.20.0.md).
+
 ## 18.19.0 — Episode search finds the right show
 
 Every episode and season-pack search result is now checked against the show: the title must be the show's name followed by the episode number, so a search for Brothers no longer accepts Band of Brothers, Brothers & Sisters or The Brothers Sun. Rejected results stay visible as "Not this show or episode". A release may add the show's first-air year (Brothers.2009). New per-show settings: Release title matching (Strict/Loose), Extra search names, and search by TVDB/IMDb/TMDB ID first when the indexer supports it. See [release notes](docs/RELEASE_NOTES_v18.19.0.md).
