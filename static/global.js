@@ -295,3 +295,28 @@ let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{cons
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addPostProcessingShortcut,{once:true});else addPostProcessingShortcut();
 })();
+
+/* v18.22.0 — interface theme picker (Classic, Glassy, Midnight, Daylight). Saved for every browser. */
+;(()=>{
+  function mount(){
+    document.querySelectorAll('select[data-theme-picker]').forEach(select=>{
+      if(select.dataset.bound)return;
+      select.dataset.bound='1';
+      select.addEventListener('change',async()=>{
+        const root=document.documentElement,previous=root.dataset.theme||'classic',theme=select.value;
+        root.dataset.theme=theme;
+        select.disabled=true;
+        try{
+          const r=await fetch('/api/ui/theme',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({theme})});
+          const d=await r.json().catch(()=>({}));
+          if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
+          select.title='Theme saved';
+        }catch(err){
+          root.dataset.theme=previous;select.value=previous;
+          select.title='Theme not saved: '+err.message;
+        }finally{select.disabled=false}
+      });
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();

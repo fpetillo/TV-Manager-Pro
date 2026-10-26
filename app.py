@@ -28,6 +28,7 @@ import production
 import release
 import sync
 import support_routes
+import ui_themes
 import operator_experience
 import trakt_client
 import database_safety
@@ -101,7 +102,22 @@ def backup_before_upgrade():
 
 @app.context_processor
 def inject_app_version():
-    return {"app_version": APP_VERSION}
+    return {"app_version": APP_VERSION, "ui_theme": ui_themes.current(), "ui_themes": ui_themes.catalog()}
+
+
+@app.get("/api/ui/theme")
+def api_ui_theme():
+    return jsonify({"ok": True, "theme": ui_themes.current(), "themes": ui_themes.catalog()})
+
+
+@app.post("/api/ui/theme")
+def api_ui_theme_save():
+    data = request.get_json(silent=True) or {}
+    try:
+        theme = ui_themes.save(data.get("theme"))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "theme": theme, "themes": ui_themes.catalog()})
 
 def cx(path=None, readonly=False):
     return dbcore.connect(path or DB, wal=(path is None), readonly=readonly)

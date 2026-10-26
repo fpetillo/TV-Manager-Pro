@@ -84,6 +84,13 @@
     </div>
   </div>
 
+  <div class="nav-theme-picker">
+    <label for="uiThemeSelect">Theme</label>
+    <select id="uiThemeSelect" data-theme-picker aria-label="Interface theme">
+      {% for t in ui_themes %}<option value="{{ t.id }}" title="{{ t.description }}"{% if t.id == ui_theme %} selected{% endif %}>{{ t.label }}</option>{% endfor %}
+    </select>
+  </div>
+
   <div class="nav-footer-actions">
     <a href="/metadata-sources">Metadata Sources</a>
     <a href="/notifications">Notification Services</a>

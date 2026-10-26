@@ -1,33 +1,32 @@
 {
   "product": "TV Manager",
-  "version": "18.21.0",
-  "release_name": "Faster verified update backup",
-  "generated_at": "2026-10-20T21:51:35.105187+00:00",
+  "version": "18.22.0",
+  "release_name": "Interface themes: Classic, Glassy, Midnight, Daylight",
+  "generated_at": "2026-10-26T23:23:27.856561+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Update backup covers only installation files, deployable folders and the database; runtime data folders (managed_trash, imports, recovery, logs) are left in place",
-    ".venv backup and pip run only when requirements.txt changes; newest 5 completed update backups kept; per-step timings printed"
+    "Theme picker at the bottom of the side menu: Classic (unchanged), Glassy (frosted translucent panels), Midnight (near-black) and Daylight (light). The choice is saved on the server and applies to every browser",
+    "static/themes.css is generated from style.css by scripts/build_themes.py; Settings page garbled characters (âŒ˜, â€¦) repaired"
   ],
   "validation": {
     "pytest": {
-      "passed": 595,
+      "passed": 603,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lock and service checks not runnable on the Linux build host; suite also runs on the GitHub Windows runner"
     },
     "python_parse": 185,
     "javascript_syntax": "43 passed",
-    "auto_update_end_to_end": "Not re-run; auto_update.py now passes -KeepBackups 0 to the updater",
-    "powershell": "Wrapper exercised by the Windows CI test (test_actual_powershell_wrapper_and_dependency_commands)",
+    "auto_update_end_to_end": "Not re-run (updater unchanged apart from the default version)",
+    "powershell": "Not re-run (scripts unchanged apart from the default version)",
     "windows_activation": "Not performed: scheduled-task registration, boot start, account rights and share access must be confirmed on the server",
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Not re-run (no UI change)",
-    "indexer_end_to_end": "Not re-run (search unchanged)",
-    "updater_timing": "Fake install on build host (2,400-file venv, 1 GB managed_trash, 300 MB DB, 20 s pip stand-in): 49.6 s before, 2.5 s after"
+    "browser_qa": "Disposable copy with synthetic shows in Chromium: Launchpad, Dashboard, Shows, show page, Settings, Post Processing, Show Queue, Trakt, Jobs, About, Upcoming in all four themes; picker switches instantly, survives reload; no page errors",
+    "indexer_end_to_end": "Not re-run (search unchanged)"
   },
-  "activation": "Stop TV Manager, download update-server.ps1 from the v18.21.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1.",
+  "activation": "Stop TV Manager, download update-server.ps1 from the v18.22.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, then choose a theme at the bottom of the side menu.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -85,7 +84,18 @@
     "templates/show_queue.html",
     "help_content.py",
     "docs/RELEASE_NOTES_v18.20.0.md",
-    "docs/RELEASE_NOTES_v18.21.0.md"
+    "docs/RELEASE_NOTES_v18.21.0.md",
+    "ui_themes.py",
+    "scripts/build_themes.py",
+    "static/themes.css",
+    "static/global.js",
+    "static/style.css",
+    "static/settings-v5.js",
+    "templates/_nav.html",
+    "templates/settings.html",
+    "support_routes.py",
+    "app.py",
+    "docs/RELEASE_NOTES_v18.22.0.md"
   ],
   "sickchill_full_parity": false
 }

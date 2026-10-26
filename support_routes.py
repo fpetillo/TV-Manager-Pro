@@ -17,13 +17,20 @@ def register_support_routes(app, base_path, version_getter):
         except Exception:
             return "development"
 
+    def theme():
+        try:
+            import ui_themes
+            return ui_themes.current()
+        except Exception:
+            return "classic"
+
     def shell(title, eyebrow, body, nav_current=""):
         v = version()
         def current(path):
             return ' aria-current="page"' if nav_current == path else ""
         return f'''<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} - TV Manager</title><link rel="stylesheet" href="/static/style.css"></head>
+<html data-theme="{theme()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title} - TV Manager</title><link rel="stylesheet" href="/static/style.css?v={v}"><link rel="stylesheet" href="/static/themes.css?v={v}"></head>
 <body><main class="shell manager-shell">
 <header class="topbar"><div><p class="eyebrow">{eyebrow}</p><h1>{title}</h1><p class="subtitle">TV Manager v{v}</p></div></header>
 <nav class="appnav professional-nav">

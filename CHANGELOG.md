@@ -1,3 +1,7 @@
+## 18.22.0 — Interface themes: Classic, Glassy, Midnight, Daylight
+
+A Theme picker at the bottom of the side menu switches the whole interface between Classic (the existing look, unchanged), Glassy (frosted, translucent panels over a soft colour backdrop), Midnight (near-black neutral surfaces) and Daylight (a light theme). The change applies at once, is saved on the server (`ui`/`theme` setting, `GET`/`POST /api/ui/theme`) and is used by every browser and device. The theme styles in `static/themes.css` are generated from `style.css` by `scripts/build_themes.py`, so new screens pick up every theme automatically. Also repaired garbled characters on the Settings page (`âŒ˜`, `â€¦`). See [release notes](docs/RELEASE_NOTES_v18.22.0.md).
+
 ## 18.21.0 — Faster verified update backup
 
 update-server.ps1 now backs up only what an update can change or a rollback needs: installation-folder files, the deployable folders and the database (copied with SQLite's backup function and integrity-checked). Runtime data folders such as managed_trash, imports, recovery and logs are left in place instead of being copied and hashed. .venv is backed up and pip runs only when requirements.txt changed (-RefreshDependencies forces it). The newest 5 completed update backups are kept (-KeepBackups, 0 keeps all). Each step's time is printed and recorded in update.json. See [release notes](docs/RELEASE_NOTES_v18.21.0.md).
