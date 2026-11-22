@@ -972,6 +972,16 @@ def api_launchpad_summary():
         health_error = str(exc)
     payload = operator_experience.launchpad_summary(DB, APP_VERSION, health, network_settings.status(DB, app.config['TVMANAGER_NETWORK']))
     payload["readiness_label"] = str(payload.get("readiness") or "unknown").replace("_", " ").title()
+    try:
+        import movies
+        movie_summary = movies.dashboard_summary()
+        payload["movies"] = movie_summary["counts"]
+        for problem in movie_summary["problems"][:2]:
+            payload.setdefault("actions", []).append({"priority": "attention", "title": "Movies: " + problem["title"],
+                                                      "detail": "Movie automation needs this before it can run by itself.",
+                                                      "href": problem["href"], "label": "Open Movies" if problem["href"] == "/movies" else "Fix"})
+    except Exception:
+        payload["movies"] = {}
     if health_error:
         payload["health_warning"] = health_error
     return jsonify(payload)
@@ -2208,8 +2218,14 @@ def calendar_data():
 @app.get('/calendar.ics')
 def calendar_feed():
     import episode_calendar
-    rows=episode_calendar.episodes((date.today()-timedelta(days=30)).isoformat(),(date.today()+timedelta(days=335)).isoformat())
-    return app.response_class(episode_calendar.feed(rows),mimetype='text/calendar',headers={'Content-Disposition':'attachment; filename="tvmanager.ics"','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'})
+    start,end=(date.today()-timedelta(days=30)).isoformat(),(date.today()+timedelta(days=335)).isoformat()
+    rows=episode_calendar.episodes(start,end)
+    try:
+        import movies
+        movie_rows=movies.calendar(start,end)
+    except Exception:
+        movie_rows=[]
+    return app.response_class(episode_calendar.feed(rows,movie_rows),mimetype='text/calendar',headers={'Content-Disposition':'attachment; filename="tvmanager.ics"','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'})
 
 
 @app.post('/api/calendar/subscription')
@@ -2946,9 +2962,13 @@ def api_health():
 @app.get("/api/dashboard/full")
 def api_dashboard_full():
     health_summary=library_maintenance.cached_library_health_report(DB,duplicate_limit=10,sample_limit=8,path_mapper=ops.path_mapper_snapshot())  # same report as the other summary pages
+    import movies
+    try:movie_summary=movies.dashboard_summary();movie_downloads=movies.recent_downloads(20)
+    except Exception as exc:movie_summary={"error":str(exc)[:200]};movie_downloads=[]
     return jsonify(stats=engine.dashboard_stats(),jobs=engine.jobs_public(),
                    activity=engine.activity(20),downloads=engine.downloads(20),
-                   library_health=health_summary["counts"],recommendations=health_summary["recommendations"])
+                   library_health=health_summary["counts"],recommendations=health_summary["recommendations"],
+                   movies=movie_summary,movie_downloads=movie_downloads)
 
 @app.get("/api/settings/sections")
 def api_setting_sections():
@@ -3592,10 +3612,34 @@ def queue_page(): return render_template("queue.html")
 
 @app.get("/api/command/search")
 def api_command_search():
-    return jsonify(results=intelligence.command_search(request.args.get("q","")))
+    q=request.args.get("q","")
+    results=intelligence.command_search(q)
+    try:
+        import movies
+        found=movies.command_search(q)
+        shows=[r for r in results if r.get("type") in {"show","episode"}]
+        pages=[r for r in results if r.get("type") not in {"show","episode"}]
+        results=(shows[:8]+found+pages)[:16]
+        ql=q.strip().lower()
+        if len(ql)>=2 and ql in "movies":
+            results.append({"type":"page","title":"Movies","subtitle":"Navigation","href":"/movies"})
+    except Exception:
+        pass
+    return jsonify(results=results)
 
 @app.get("/api/insights")
-def api_insights(): return jsonify(results=intelligence.dashboard_insights())
+def api_insights():
+    results=intelligence.dashboard_insights()
+    try:
+        import movies
+        extra=movies.insights()
+        if extra:
+            calm=[r for r in results if r.get("title")=="Library looks calm"]
+            results=[r for r in results if r not in calm]+extra
+            if not results:results=calm
+    except Exception:
+        pass
+    return jsonify(results=results)
 
 @app.get("/api/tags")
 def api_tags(): return jsonify(results=intelligence.tags())

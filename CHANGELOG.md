@@ -1,3 +1,7 @@
+## 18.29.0 — TV shows and movies, one view
+
+Dashboard with matching TV Shows and Movies cards, a mixed Recently added poster rail, one Downloads feed (All / TV / Movies) and TV/Movie/System activity; movie insights; movies in the ⌘ search; a movie page with releases, history and activity; movie releases on Upcoming, the calendar and calendar.ics; movie downloads on Queue; Launchpad movie counts and actions; Movies under Shows in the menu; notifications that name the movie; browser icon redrawn to the brand. See [release notes](docs/RELEASE_NOTES_v18.29.0.md).
+
 ## 18.28.0 — Complete movie library list
 
 The Movies library scan reads every movie library on every Plex server page by page and scans every folder behind them (plus the movie folder and a new Other movie folders list), recognizes grouped and loose movies, shows what each source gave under Movies › Settings, and pauses automatic adding while any Plex library cannot be read. See [release notes](docs/RELEASE_NOTES_v18.28.0.md).

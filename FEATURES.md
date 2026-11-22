@@ -400,3 +400,7 @@ Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint
 ## v18.26.0 — Movies
 
 - Movies page: library, TMDb discovery, downloads and settings; automatic discovery, search, download handoff, failed/stalled retry, Plex-named import and Plex scan using the existing indexers, download clients and media servers. See docs/MOVIES.md.
+
+## v18.29.0 — TV shows and movies, one view
+
+- Dashboard, search, Upcoming, calendar feed, Queue, Launchpad, menu and notifications cover movies alongside TV; new movie page. See docs/RELEASE_NOTES_v18.29.0.md.

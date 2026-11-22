@@ -1,22 +1,35 @@
 <!doctype html><html data-theme="{{ ui_theme }}"><head><meta charset="utf-8"><link rel="icon" href="/static/icons/tv-manager.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#0b1220"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TV Manager Dashboard</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"><link rel="stylesheet" href="/static/themes.css?v={{ app_version }}"></head>
 <body><main class="shell manager-shell compact-home">
-<header class="topbar"><div><p class="eyebrow">TV MANAGER</p><h1>Dashboard</h1><p class="subtitle">Library health, automation, upcoming work, downloads and recent activity.</p></div></header>
+<header class="topbar"><div><p class="eyebrow">TV MANAGER</p><h1>Dashboard</h1><p class="subtitle">TV shows and movies in one place: library, automation, downloads and recent activity.</p></div></header>
 
 {% include "_nav.html" %}
 <div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
 <div id="commandPalette" class="command-palette" hidden><div class="command-card">
-  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, movies, pages, IDs…">
   <div id="commandResults"></div>
 </div></div>
 
-<section class="product-hero"><div><h2>Command Center</h2><p>One polished landing page for library status, automation, health, downloads and operator decisions.</p></div><div class="product-badges"><a class="product-badge workflow-link" href="/workflow">Open Workflow Cockpit</a><span class="product-badge">Local-first</span><span class="product-badge">SickChill-ready</span><span class="product-badge">v{{ app_version }}</span></div></section>
-<section class="dashboard-grid dashboard-8" id="stats"></section>
+<section class="product-hero"><div><h2>Command Center</h2><p>Your whole library at a glance — what is wanted, what is downloading, and what just arrived, for TV and movies alike.</p></div><div class="product-badges"><a class="product-badge workflow-link" href="/workflow">Open Workflow Cockpit</a><span class="product-badge">TV &amp; Movies</span><span class="product-badge">Local-first</span><span class="product-badge">v{{ app_version }}</span></div></section>
+
+<section class="media-overview" id="stats" aria-label="Library overview">
+  <article class="media-card media-tv" aria-labelledby="tvHeading">
+    <header><span class="media-icon" aria-hidden="true">TV</span><div><h2 id="tvHeading">TV Shows</h2><p id="tvState" class="media-state">Loading…</p></div><a class="btn secondary" href="/show-queue">Show Queue</a></header>
+    <div class="media-kpis" id="tvKpis"></div>
+  </article>
+  <article class="media-card media-movies" aria-labelledby="movieHeading">
+    <header><span class="media-icon" aria-hidden="true">🎬</span><div><h2 id="movieHeading">Movies</h2><p id="movieState" class="media-state">Loading…</p></div><a class="btn secondary" href="/movies">Movies</a></header>
+    <div class="media-kpis" id="movieKpis"></div>
+  </article>
+</section>
 <section class="insight-strip" id="insights"></section>
+
+<section class="panel recent-rail-panel"><div class="toolbar"><h2>Recently added</h2><div class="spacer"></div><span class="muted" id="recentNote"></span></div><div id="recentRail" class="poster-rail" aria-live="polite"></div></section>
+
 <div class="page-grid">
-<section class="panel col-8"><div class="toolbar"><h2>Automation</h2><div class="spacer"></div><a class="btn secondary" href="/settings">Configure</a></div><div id="jobs"></div></section>
+<section class="panel col-6"><div class="toolbar"><h2>Downloads</h2><div class="spacer"></div><div class="segmented" role="group" aria-label="Show downloads for"><button class="seg active" data-filter="all">All</button><button class="seg" data-filter="tv">TV</button><button class="seg" data-filter="movie">Movies</button></div></div><div id="downloads"></div></section>
+<section class="panel col-6"><div class="toolbar"><h2>Recent Activity</h2><div class="spacer"></div><a class="btn secondary" href="/logs">All events</a></div><div id="activity"></div></section>
+<section class="panel col-8"><div class="toolbar"><h2>Automation</h2><div class="spacer"></div><a class="btn secondary" href="/jobs">Jobs</a><a class="btn secondary" href="/settings">Configure</a></div><div id="jobs"></div></section>
 <section class="panel col-4"><div class="toolbar"><h2>System Health</h2><div class="spacer"></div><a class="btn secondary" href="/operations">Operations</a></div><div id="health"></div></section>
-<section class="panel col-6"><h2>Recent Activity</h2><div id="activity"></div></section>
-<section class="panel col-6"><h2>Recent Downloads</h2><div id="downloads"></div></section>
 </div>
 <footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/dashboard.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

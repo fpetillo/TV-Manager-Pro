@@ -614,7 +614,8 @@ def grab_result(result_id):
         data={'movie_id': row['movie_id'], 'download_id': download_id})
     try:
         import advanced
-        advanced.fire_webhooks('snatched', {'movie': row['movie_title'], 'year': row['movie_year'], 'release': row['title'], 'client': client})
+        advanced.fire_webhooks('snatched', {'movie': row['movie_title'], 'year': row['movie_year'], 'release': row['title'], 'client': client,
+                                            'message': f"Movie snatched: {row['movie_title']} ({row['movie_year'] or '?'}) — {row['title']}"})
     except Exception:
         pass
     return {'ok': True, 'client': client, 'external_id': external, 'download_id': download_id}
@@ -931,7 +932,8 @@ def import_download(download, dry_run=False):
     refresh_media_servers(str(folder))
     try:
         import advanced
-        advanced.fire_webhooks('downloaded', {'movie': movie['title'], 'year': movie.get('year'), 'path': str(target)})
+        advanced.fire_webhooks('downloaded', {'movie': movie['title'], 'year': movie.get('year'), 'path': str(target),
+                                               'message': f"Movie added to Plex: {movie['title']} ({movie.get('year') or '?'})"})
     except Exception:
         pass
     return dict(plan, method=used, replaced=replaced)
@@ -1597,3 +1599,117 @@ def summary():
     for job in jobs:
         job['last_message'] = (job.get('last_message') or '')[:400]
     return {'counts': counts, 'active_downloads': active, 'jobs': jobs, 'settings': settings_public()}
+
+
+# ---------------------------------------------------------------- shared views (dashboard, calendar, search, insights)
+
+def _setup_problems(settings=None):
+    s = settings or settings_public()
+    out = []
+    if s.get('enabled') != '1':
+        out.append(('Movies automation is off', '/movies'))
+    if not s.get('effective_library_root'):
+        out.append(('No movie library folder yet', '/movies'))
+    if not s.get('tmdb_configured'):
+        out.append(('TMDb is not configured', '/metadata-sources'))
+    if not s.get('indexers'):
+        out.append(('No indexers with a matching download client', '/settings'))
+    report = last_scan_report()
+    if report and not report.get('complete', True):
+        out.append(('A Plex movie library could not be read', '/movies'))
+    return out
+
+
+def dashboard_summary():
+    today = date.today()
+    week_ago = (datetime.now() - timedelta(days=7)).replace(microsecond=0).isoformat()
+    with cx() as c:
+        counts = {r['status']: r['n'] for r in c.execute('SELECT status,COUNT(*) n FROM movies GROUP BY status').fetchall()}
+        wanted = [dict(r) for r in c.execute("SELECT * FROM movies WHERE status='Wanted' AND monitored=1").fetchall()]
+        active = [dict(r) for r in c.execute("""SELECT d.id,d.movie_id,d.client,d.status,d.progress,d.release_name,d.created_at,m.title,m.year,m.poster_path
+                                                FROM movie_downloads d JOIN movies m ON m.id=d.movie_id
+                                                WHERE d.status IN ('Queued','Downloading','Downloaded') ORDER BY d.id DESC""").fetchall()]
+        recent = [dict(r) for r in c.execute("""SELECT id,title,year,poster_path,quality,resolution,downloaded_at,added_via FROM movies
+                                                WHERE status='Downloaded' AND downloaded_at IS NOT NULL AND added_via NOT IN ('plex','library')
+                                                ORDER BY downloaded_at DESC LIMIT 12""").fetchall()]
+        added_week = c.execute("SELECT COUNT(*) FROM movies WHERE added_via IN ('auto','manual') AND added_at>=?", (week_ago.replace('T', ' '),)).fetchone()[0]
+        imported_week = c.execute("SELECT COUNT(*) FROM movie_downloads WHERE status='Completed' AND updated_at>=?", (week_ago,)).fetchone()[0]
+        failed_week = c.execute("SELECT COUNT(*) FROM movie_downloads WHERE status='Failed' AND updated_at>=?", (week_ago,)).fetchone()[0]
+    available = [m for m in wanted if is_available(m)]
+    upcoming_movies = sorted((m for m in wanted if not is_available(m) and m.get('available_date')), key=lambda m: m['available_date'])
+    settings = settings_public()
+    problems = _setup_problems(settings)
+    return {
+        'counts': {'owned': counts.get('Downloaded', 0), 'wanted': len(available), 'waiting': len(wanted) - len(available),
+                   'downloading': len(active), 'ignored': counts.get('Ignored', 0), 'added_week': added_week,
+                   'imported_week': imported_week, 'failed_week': failed_week},
+        'active': active[:8], 'recent': recent, 'next_release': upcoming_movies[0] if upcoming_movies else None,
+        'problems': [{'title': t, 'href': h} for t, h in problems],
+        'running': not problems and settings.get('automation_enabled') and not settings.get('simulation_mode'),
+        'automation_enabled': settings.get('automation_enabled'), 'today': today.isoformat()}
+
+
+def recent_downloads(limit=20):
+    with cx() as c:
+        return [dict(r) for r in c.execute("""SELECT d.id,d.movie_id,d.client,d.status,d.release_name,d.created_at,d.updated_at,m.title,m.year
+                                              FROM movie_downloads d JOIN movies m ON m.id=d.movie_id ORDER BY d.id DESC LIMIT ?""",
+                                           (int(limit),)).fetchall()]
+
+
+def calendar(start, end):
+    """Wanted movies whose digital or disc release falls in [start, end] (ISO dates)."""
+    with cx() as c:
+        rows = [dict(r) for r in c.execute("""SELECT id,title,year,poster_path,available_date,release_date,status FROM movies
+                                              WHERE status IN ('Wanted','Snatched','Downloaded') AND monitored=1
+                                              AND available_date BETWEEN ? AND ? ORDER BY available_date,title""",
+                                           (str(start)[:10], str(end)[:10])).fetchall()]
+    return rows
+
+
+def command_search(q, limit=6):
+    q = (q or '').strip()
+    if not q:
+        return []
+    with cx() as c:
+        rows = c.execute("""SELECT id,title,year,status FROM movies WHERE lower(title) LIKE ? OR imdb_id=? OR CAST(tmdb_id AS TEXT)=?
+                            ORDER BY CASE status WHEN 'Downloaded' THEN 1 ELSE 0 END, year DESC LIMIT ?""",
+                         (f'%{q.lower()}%', q, q, int(limit))).fetchall()
+    label = {'Wanted': 'Wanted movie', 'Snatched': 'Movie downloading', 'Downloaded': 'Movie in library', 'Ignored': 'Ignored movie'}
+    return [{'type': 'movie', 'id': r['id'], 'title': f"{r['title']} ({r['year']})" if r['year'] else r['title'],
+             'subtitle': label.get(r['status'], 'Movie'), 'href': f"/movie/{r['id']}"} for r in rows]
+
+
+def insights():
+    try:
+        d = dashboard_summary()
+    except Exception:
+        return []
+    out = []
+    for problem in d['problems'][:2]:
+        out.append({'severity': 'warn', 'title': f"Movies: {problem['title']}", 'detail': 'Movie automation needs this before it can run by itself.',
+                    'href': problem['href']})
+    c = d['counts']
+    if c['failed_week']:
+        out.append({'severity': 'warn', 'title': f"{c['failed_week']} movie download{'s' if c['failed_week'] != 1 else ''} failed this week",
+                    'detail': 'Failed releases were blocklisted and other releases are being searched.', 'href': '/movies#downloads'})
+    if c['wanted']:
+        out.append({'severity': 'info', 'title': f"{c['wanted']} movie{'s' if c['wanted'] != 1 else ''} wanted",
+                    'detail': 'Released movies waiting for a good release on your indexers.', 'href': '/movies'})
+    if c['imported_week']:
+        out.append({'severity': 'good', 'title': f"{c['imported_week']} movie{'s' if c['imported_week'] != 1 else ''} added to Plex this week",
+                    'detail': 'Downloaded, renamed and scanned automatically.', 'href': '/movies'})
+    return out
+
+
+def detail(movie_id):
+    movie = get_movie(movie_id)
+    with cx() as c:
+        history = [dict(r) for r in c.execute('SELECT * FROM movie_downloads WHERE movie_id=? ORDER BY id DESC LIMIT 50', (movie['id'],)).fetchall()]
+        try:
+            events = [dict(r) for r in c.execute("""SELECT event_type event,message,level,created_at FROM activity_log
+                                                    WHERE event_type LIKE 'movie_%' AND (data LIKE ? OR data LIKE ?) ORDER BY id DESC LIMIT 30""",
+                                                 (f'%"movie_id": {movie["id"]},%', f'%"movie_id": {movie["id"]}}}%')).fetchall()]
+        except Exception:
+            events = []
+    movie['available'] = is_available(movie)
+    return {'movie': movie, 'results': results(movie['id']), 'downloads': history, 'events': events}

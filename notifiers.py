@@ -58,7 +58,7 @@ def remove(sid):
 def send(service,event,payload):
     kind=service['kind'];title='TV Manager: '+event
     # Only selected human-readable fields leave the app, never config/path objects.
-    description=str(payload.get('show') or payload.get('release') or payload.get('message') or 'TV Manager notification')
+    description=str((payload.get('movie') and payload.get('message')) or payload.get('show') or payload.get('release') or payload.get('message') or 'TV Manager notification')
     if payload.get('season') is not None and payload.get('episode') is not None:description+=f" S{int(payload['season']):02d}E{int(payload['episode']):02d}"
     text=title+'\n'+description
     headers={}

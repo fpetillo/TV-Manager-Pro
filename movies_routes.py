@@ -17,6 +17,28 @@ def register(app):
     def movies_page():
         return render_template('movies.html')
 
+    @app.get('/movie/<int:mid>')
+    def movie_page(mid):
+        return render_template('movie_detail.html', movie_id=mid)
+
+    @app.get('/api/movies/<int:mid>/detail')
+    def api_movie_detail(mid):
+        try:
+            return jsonify(movies.detail(mid))
+        except Exception as exc:
+            return _error(exc)
+
+    @app.get('/api/movies/dashboard')
+    def api_movies_dashboard():
+        return jsonify(movies.dashboard_summary())
+
+    @app.get('/api/movies/calendar')
+    def api_movies_calendar():
+        from datetime import date, timedelta
+        start = request.args.get('start') or date.today().isoformat()
+        end = request.args.get('end') or (date.today() + timedelta(days=int(request.args.get('days', 14) or 14))).isoformat()
+        return jsonify(results=movies.calendar(start, end))
+
     @app.get('/api/movies')
     def api_movies():
         a = request.args

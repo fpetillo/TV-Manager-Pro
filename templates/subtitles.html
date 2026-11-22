@@ -2,7 +2,7 @@
 <body><main class="shell manager-shell"><header class="topbar"><div><p class="eyebrow">LANGUAGE & ACCESSIBILITY</p><h1>Subtitles</h1><p class="subtitle">Audit the existing library for subtitle sidecars and identify episodes that still need subtitle retrieval.</p></div></header>{% include "_nav.html" %}
 <div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
 <div id="commandPalette" class="command-palette" hidden><div class="command-card">
-  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, movies, pages, IDs…">
   <div id="commandResults"></div>
 </div></div>
 <div class="page-grid"><section class="panel col-8"><div class="toolbar"><div><h2>Subtitle Audit</h2><div class="actions"><button id="enqueueSubs" class="secondary">Queue Missing</button><button id="runSubJobs" class="blue">Run Subtitle Jobs</button></div><p class="muted">Recognizes SRT, ASS, SSA, SUB and VTT sidecars beside downloaded episodes.</p></div><div class="spacer"></div><button id="scan" class="blue">Scan Library</button></div><div id="summary"></div><div id="results" class="table-wrap"></div></section><section class="panel col-4"><div class="toolbar"><h2>Providers</h2><div class="spacer"></div><button id="addSubProvider" class="secondary">Add</button></div><div id="subProviders"></div><div id="subProviderForm"></div></section></div>

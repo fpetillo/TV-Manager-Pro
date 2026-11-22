@@ -22,8 +22,9 @@ function showTab(name){
 async function loadSummary(){
   try{
     const d=await jsonFetch('/api/movies/summary');const c=d.counts||{},s=d.settings||{};
-    const tile=(n,l)=>`<div class="movie-stat"><strong>${esc(n||0)}</strong><span>${esc(l)}</span></div>`;
-    $('movieStatus').innerHTML=tile(c.Downloaded,'In library')+tile(c.Wanted,'Wanted')+tile(d.active_downloads,'Downloading')+tile(c.Ignored,'Ignored');
+    const tile=(n,l,tone,filter)=>`<a class="media-kpi ${tone||''}" href="#" data-filter="${filter}"><strong>${Number(n||0).toLocaleString()}</strong><span>${esc(l)}</span></a>`;
+    $('movieStatus').innerHTML=tile(c.Downloaded,'In library','good','Downloaded')+tile(c.Wanted,'Wanted',c.Wanted?'warn':'','Wanted')+tile(d.active_downloads,'Downloading',d.active_downloads?'live':'','Snatched')+tile(c.Ignored,'Ignored','','Ignored');
+    $('movieStatus').querySelectorAll('[data-filter]').forEach(a=>a.onclick=e=>{e.preventDefault();showTab('library');$('movieStatusFilter').value=a.dataset.filter;page=1;loadMovies();});
     const problems=[];
     if(String(s.enabled)!=='1')problems.push('Movies automation is turned off in Settings.');
     if(!s.automation_enabled)problems.push('TV Manager automation is off (Settings › Automation), so scheduled movie jobs will not run.');
@@ -51,8 +52,8 @@ async function loadMovies(){
 function movieCard(m){
   const dl=m.download;
   const state=dl?`${dl.client}: ${dl.status}${dl.status==='Downloading'?' '+Math.round((dl.progress||0)*100)+'%':''}`:(m.status==='Wanted'&&!m.available?'Waiting for digital release':'');
-  return `<article class="movie-card" data-id="${m.id}">${poster(m.poster_path)}<div class="movie-card-body">
-  <div class="trakt-card-head"><h3>${esc(m.title)} ${m.year?`<span>(${esc(m.year)})</span>`:''}</h3><span class="status-pill ${esc(m.status)}">${esc(STATUS_LABEL[m.status]||m.status)}</span></div>
+  return `<article class="movie-card" data-id="${m.id}"><a class="movie-poster-link" href="/movie/${m.id}" aria-label="${esc(m.title)} details">${poster(m.poster_path)}</a><div class="movie-card-body">
+  <div class="trakt-card-head"><h3><a href="/movie/${m.id}">${esc(m.title)}</a> ${m.year?`<span>(${esc(m.year)})</span>`:''}</h3><span class="status-pill ${esc(m.status)}">${esc(STATUS_LABEL[m.status]||m.status)}</span></div>
   <p class="result-meta">${[m.quality,sizeText(m.size),m.rating?('★ '+Number(m.rating).toFixed(1)):null,m.added_via==='auto'?'Auto-added':null].filter(Boolean).map(esc).join(' • ')}</p>
   ${state?`<p class="movie-state">${esc(state)}</p>`:''}${m.message?`<p class="muted">${esc(m.message)}</p>`:''}
   <div class="actions">
@@ -141,4 +142,4 @@ $('movieSettings').onsubmit=async e=>{
 document.querySelectorAll('.job-run').forEach(b=>b.onclick=async()=>{b.disabled=true;const label=b.textContent;try{await post(`/api/movies/jobs/${b.dataset.job}/run`);b.textContent='Started — see Jobs/Logs';setTimeout(()=>{b.disabled=false;b.textContent=label;loadSummary();loadMovies();},4000);}catch(e){b.disabled=false;alert(e.message);}});
 
 loadSummary();loadMovies();
-try{const t=localStorage.getItem('tvmanager.movies.tab');if(t&&t!=='library')showTab(t);}catch{}
+try{const h=location.hash.slice(1);const t=['library','discover','downloads','settings'].includes(h)?h:localStorage.getItem('tvmanager.movies.tab');if(t&&t!=='library')showTab(t);}catch{}

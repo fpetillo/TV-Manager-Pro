@@ -1,0 +1,17 @@
+<!doctype html><html data-theme="{{ ui_theme }}"><head><meta charset="utf-8"><link rel="icon" href="/static/icons/tv-manager.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#0b1220"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Movie</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"><link rel="stylesheet" href="/static/themes.css?v={{ app_version }}"></head>
+<body data-movie-id="{{ movie_id }}"><main class="shell manager-shell layout-audited movie-detail-page">
+<header class="topbar"><div><p class="eyebrow">MOVIE</p><h1 id="pageTitle">Movie</h1><p class="subtitle">Status, file, releases and history for one movie.</p></div><nav class="nav"><a class="btn secondary" href="/movies">All Movies</a><a class="btn secondary" href="/dashboard">Dashboard</a></nav></header>
+{% include "_nav.html" %}
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, movies, pages, IDs…"><div id="commandResults"></div></div></div>
+
+<section class="movie-hero" id="movieHero" aria-live="polite"><div class="movie-hero-backdrop" id="heroBackdrop"></div><div class="movie-hero-body"><div class="loading-box">Loading movie…</div></div></section>
+<div id="actionMessage" class="message"></div>
+
+<div class="page-grid">
+<section class="panel col-8"><div class="toolbar"><h2>Releases</h2><div class="spacer"></div><button id="searchNow" class="blue">Search now</button></div><p class="muted" id="releaseNote"></p><div class="table-wrap"><table class="data-table"><thead><tr><th>Release</th><th>Indexer</th><th>Quality</th><th>Size</th><th>Seeds</th><th></th></tr></thead><tbody id="releaseRows"></tbody></table></div></section>
+<section class="panel col-4"><h2>Details</h2><dl class="fact-list" id="facts"></dl></section>
+<section class="panel col-6"><h2>Download history</h2><div id="history"></div></section>
+<section class="panel col-6"><h2>Activity</h2><div id="events"></div></section>
+</div>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/global.js?v={{ app_version }}"></script><script src="/static/movie_detail.js?v={{ app_version }}"></script></body></html>

@@ -2,7 +2,7 @@
 <body><main class="shell manager-shell layout-audited show-detail-page" data-show-id="{{ show_id }}"><header class="topbar product-hero"><div><p class="eyebrow">SHOW COMMAND CENTER</p><h1 id="detailTitle">Loading show…</h1><p class="subtitle" id="detailSubtitle">Browse episodes, filter seasons/status, search/download exactly the episode you need, and return here automatically after queueing.</p></div><nav class="nav"><a class="btn secondary" href="/show-queue">Show Queue</a><a class="btn secondary" href="/download-center">Download Center</a><a class="btn secondary" href="/jobs">Jobs</a><a class="btn secondary" href="/manager?show={{ show_id }}">Classic Detail</a></nav></header>
 {% include "_nav.html" %}
 <div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
-<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…"><div id="commandResults"></div></div></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card"><input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, movies, pages, IDs…"><div id="commandResults"></div></div></div>
 
 <section class="panel show-detail-command-card" id="showHeader"><div class="loading-box"><div class="import-progress show-loading-progress"><div class="progress-head"><strong>Loading show</strong><span>Working</span></div><div class="progress-track indeterminate"><div class="progress-fill" style="width:45%"></div></div><p class="muted">Loading show details, season counts, and episode rules…</p></div></div></section>
 <section class="panel episode-command-panel">

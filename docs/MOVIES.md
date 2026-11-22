@@ -62,6 +62,10 @@ A download the client reports as failed, or that is not complete after 36 hours 
 
 Movies › Settings: automation on/off, library folder (empty = detected from Plex), completed-downloads folder, torrent import method, discovery filters, quality limits, give-up hours, ignore/preferred words, client categories/labels and indexer movie categories. Folders are checked when saved.
 
+## Movies across TV Manager (v18.29.0)
+
+Dashboard TV Shows and Movies cards, Recently added rail, combined Downloads and Activity; movie insights; ⌘ search; movie page `/movie/<id>`; Upcoming list and calendar, `calendar.ics`; Queue movie section; Launchpad counts and actions; notifications.
+
 ## API
 
-`GET /api/movies?status=&q=&sort=&page=`, `POST /api/movies {"tmdb_id":…}`, `GET /api/movies/summary`, `GET /api/movies/discover?list=digital|trending|popular|now_playing|upcoming|top_rated&q=&page=`, `GET|POST /api/movies/settings`, `GET /api/movies/downloads`, `POST /api/movies/downloads/<id>/fail`, `GET|POST /api/movies/<id>` (`{"status":"Ignored"|"Wanted"}`, `{"monitored":…}`), `POST /api/movies/<id>/search {"auto_grab":true}`, `POST /api/movies/results/<id>/grab`, `POST /api/movies/jobs/<job>/run`.
+`GET /api/movies?status=&q=&sort=&page=`, `POST /api/movies {"tmdb_id":…}`, `GET /api/movies/summary`, `GET /api/movies/discover?list=digital|trending|popular|now_playing|upcoming|top_rated&q=&page=`, `GET|POST /api/movies/settings`, `GET /api/movies/downloads`, `POST /api/movies/downloads/<id>/fail`, `GET|POST /api/movies/<id>` (`{"status":"Ignored"|"Wanted"}`, `{"monitored":…}`), `POST /api/movies/<id>/search {"auto_grab":true}`, `POST /api/movies/results/<id>/grab`, `POST /api/movies/jobs/<job>/run`, `GET /api/movies/<id>/detail`, `GET /api/movies/dashboard`, `GET /api/movies/calendar?start=&end=` (or `?days=`).

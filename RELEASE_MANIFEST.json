@@ -1,17 +1,17 @@
 {
   "product": "TV Manager",
-  "version": "18.28.0",
-  "release_name": "Complete movie library list",
-  "generated_at": "2026-11-22T22:21:42.233069+00:00",
+  "version": "18.29.0",
+  "release_name": "TV shows and movies, one view",
+  "generated_at": "2026-11-22T22:51:38.771223+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Every movie library on every Plex server read page by page; every folder behind them scanned on disk, plus the movie folder and an Other movie folders list",
-    "Grouped (A-Z, genre) and loose movie files recognized; per-source counts and problems shown under Movies \u203a Settings",
-    "Automatic adding pauses while any Plex library cannot be read; owned movies also matched by IMDb ID"
+    "Dashboard: matching TV Shows and Movies cards, mixed Recently added poster rail, one Downloads feed with All/TV/Movies, TV/Movie/System activity, grouped automation, movie insights",
+    "Movie page with releases, history and activity; movies in the command search, Upcoming, calendar and calendar.ics, Queue and Launchpad; Movies under Shows in the menu",
+    "Notifications name the movie; browser icon redrawn in the TV Manager Pro brand"
   ],
   "validation": {
     "pytest": {
-      "passed": 650,
+      "passed": 656,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lock and service checks not runnable on the Linux build host; suite also runs on the GitHub Windows runner"
@@ -24,11 +24,11 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Chrome on a disposable copy: Movies \u203a Settings scan table (Plex servers, libraries, folders, problems) and Other movie folders box render with no page errors",
+    "browser_qa": "Chrome on a disposable copy with sample TV and movie data: dashboard, movie page, Upcoming, Queue, Launchpad and Movies at desktop and phone width in Classic and Daylight themes; no page or server errors",
     "indexer_end_to_end": "Not performed for movies: search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server",
     "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Stop TV Manager, download update-server.ps1 from the v18.28.0 tag and run it, start with run.ps1, then Movies \u203a Settings \u203a Scan library now and check What the last library scan read.",
+  "activation": "Stop TV Manager, download update-server.ps1 from the v18.29.0 tag and run it, start with run.ps1, then Ctrl+F5 in the browser.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -136,7 +136,12 @@
     "tests/test_v18_27_0_browser_icon.py",
     "docs/RELEASE_NOTES_v18.27.0.md",
     "tests/test_v18_28_0_movie_library_coverage.py",
-    "docs/RELEASE_NOTES_v18.28.0.md"
+    "docs/RELEASE_NOTES_v18.28.0.md",
+    "templates/movie_detail.html",
+    "static/movie_detail.js",
+    "static/queue_movies.js",
+    "tests/test_v18_29_0_tv_movies_single_view.py",
+    "docs/RELEASE_NOTES_v18.29.0.md"
   ],
   "sickchill_full_parity": false
 }

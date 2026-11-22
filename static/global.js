@@ -43,7 +43,7 @@
 const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 function open(){palette.hidden=false;setTimeout(()=>input.focus(),30)}function close(){palette.hidden=true;input.value="";results.innerHTML=""}
 trigger.onclick=open;palette.onclick=e=>{if(e.target===palette)close()};document.addEventListener("keydown",e=>{if(e.key==="/"&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){e.preventDefault();open()}if(e.key==="Escape")close()});
-let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{const q=input.value.trim();if(!q){results.innerHTML='<div class="command-empty">Type to search.</div>';return}const r=await fetch("/api/command/search?q="+encodeURIComponent(q)),d=await r.json();results.innerHTML=d.results.length?d.results.map(x=>`<a class="command-result" href="${x.href}"><span class="command-icon">${x.type==="show"?"TV":x.type==="episode"?"EP":"↗"}</span><span><strong>${esc(x.title)}</strong><small>${esc(x.subtitle)}</small></span></a>`).join(""):'<div class="command-empty">No matches.</div>'},120)}
+let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{const q=input.value.trim();if(!q){results.innerHTML='<div class="command-empty">Type to search.</div>';return}const r=await fetch("/api/command/search?q="+encodeURIComponent(q)),d=await r.json();results.innerHTML=d.results.length?d.results.map(x=>`<a class="command-result" href="${x.href}"><span class="command-icon">${x.type==="show"?"TV":x.type==="episode"?"EP":x.type==="movie"?"🎬":"↗"}</span><span><strong>${esc(x.title)}</strong><small>${esc(x.subtitle)}</small></span></a>`).join(""):'<div class="command-empty">No matches.</div>'},120)}
 })();
 
 
@@ -152,7 +152,7 @@ let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{cons
     links.forEach(a=>{
       const href=norm(a.getAttribute("href"));
       const isRoot=href==="/" && here==="/";
-      if(isRoot || (href!=="/" && (href===here || here.startsWith(href+"/")))){
+      if(isRoot || (href!=="/" && (href===here || here.startsWith(href+"/") || (href==="/movies" && here.startsWith("/movie/"))))){
         a.classList.add("active"); a.setAttribute("aria-current","page");
         const sec=a.closest(".nav-section");
         if(sec){

@@ -1456,7 +1456,7 @@ def activity_filtered(limit=200, offset=0, level=None, event_type=None, q=None, 
 
 def downloads(limit=200):
     with cx() as c:
-        rows = c.execute("""SELECT d.*,s.name show_name,e.season,e.episode
+        rows = c.execute("""SELECT d.*,s.name show_name,s.id show_id,s.poster show_poster,e.season,e.episode
                             FROM downloads d
                             LEFT JOIN episodes e ON e.id=d.episode_id
                             LEFT JOIN shows s ON s.id=e.show_id

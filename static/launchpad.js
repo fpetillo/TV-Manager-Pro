@@ -14,7 +14,8 @@ async function loadLaunchpad(){
     const explain=document.getElementById('readinessExplain');
     if(explain){explain.className='notice info';explain.textContent=d.readiness_explanation || 'Replacement readiness summarizes import, health, metadata, downloader setup, and cutover status.';}
     const c=d.counts||{};
-    stats.innerHTML=[stat('Shows',c.shows),stat('Episodes',c.episodes),stat('Imports',c.import_runs),stat('Missing files',c.missing_files),stat('Duplicate groups',c.duplicate_groups),stat('Folder gaps',c.shows_without_location),stat('Metadata gaps',c.metadata_gaps),stat('Version',d.version)].join('');
+    const mv=d.movies||{};
+    stats.innerHTML=[stat('Shows',c.shows),stat('Episodes',c.episodes),stat('Movies',mv.owned),stat('Movies wanted',mv.wanted),stat('Missing files',c.missing_files),stat('Duplicate groups',c.duplicate_groups),stat('Folder gaps',c.shows_without_location),stat('Metadata gaps',c.metadata_gaps)].join('');
     actions.innerHTML=(d.actions||[]).map(actionCard).join('') || '<div class="empty-list">No recommended actions right now.</div>';
   }catch(e){
     document.getElementById('readyLabel').textContent='Not loaded';

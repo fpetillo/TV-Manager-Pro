@@ -34,7 +34,7 @@ def fold(line):
     return '\r\n'.join(result+[part])
 
 
-def feed(rows):
+def feed(rows,movies=()):
     lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//TV Manager Pro//Episode Calendar//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:TV Manager Episodes']
     stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     for e in rows:
@@ -43,6 +43,13 @@ def feed(rows):
         lines+=['BEGIN:VEVENT',f"UID:episode-{e['show_id']}-{e['id']}@tvmanager.local",'DTSTAMP:'+stamp,
             'DTSTART;VALUE=DATE:'+aired.strftime('%Y%m%d'),'DTEND;VALUE=DATE:'+(aired+timedelta(days=1)).strftime('%Y%m%d'),
             'SUMMARY:'+escape(summary),'DESCRIPTION:'+escape(f"{e.get('network') or ''}\n{e.get('status') or ''}"),'TRANSP:TRANSPARENT','END:VEVENT']
+    for m in movies:
+        # Wanted movies on their digital or disc release date (v18.29.0).
+        released=date.fromisoformat(str(m['available_date'])[:10])
+        title=f"{m['title']} ({m['year']})" if m.get('year') else m['title']
+        lines+=['BEGIN:VEVENT',f"UID:movie-{m['id']}@tvmanager.local",'DTSTAMP:'+stamp,
+            'DTSTART;VALUE=DATE:'+released.strftime('%Y%m%d'),'DTEND;VALUE=DATE:'+(released+timedelta(days=1)).strftime('%Y%m%d'),
+            'SUMMARY:'+escape(f"Movie: {title}"),'DESCRIPTION:'+escape(f"Digital or disc release\n{m.get('status') or ''}"),'TRANSP:TRANSPARENT','END:VEVENT']
     return '\r\n'.join(fold(line) for line in lines+['END:VCALENDAR'])+'\r\n'
 
 
