@@ -330,6 +330,8 @@ html[data-theme="glassy"] .status-pill.Downloaded,html[data-theme="glassy"] .sta
 html[data-theme="glassy"] .status-pill.Ignored{background:rgba(200,215,255,0.102);color:#aab4c3}
 html[data-theme="glassy"] .status-pill.Downloading,html[data-theme="glassy"] .status-pill.Queued{background:rgba(200,215,255,0.096);color:#ffdc71}
 html[data-theme="glassy"] .movies-page select{border:1px solid rgba(255,255,255,0.13);background:rgba(200,215,255,0.062);color:#e6edf6}
+html[data-theme="glassy"] .movies-page textarea{border:1px solid rgba(255,255,255,0.13);background:rgba(200,215,255,0.062);color:#e6edf6}
+html[data-theme="glassy"] .status-pill.Failed{background:rgba(200,215,255,0.1);color:#fca5a5}
 html[data-theme="glassy"]{background:#0b1024;color-scheme:dark;--glass-line:rgba(255,255,255,.18)}
 html[data-theme="glassy"] body{background:
   radial-gradient(900px 640px at 4% -4%,rgba(132,94,255,.62),transparent 60%),
@@ -675,6 +677,8 @@ html[data-theme="midnight"] .status-pill.Downloaded,html[data-theme="midnight"] 
 html[data-theme="midnight"] .status-pill.Ignored{background:#161617;color:#b2b6bb}
 html[data-theme="midnight"] .status-pill.Downloading,html[data-theme="midnight"] .status-pill.Queued{background:#161512;color:#ffdc71}
 html[data-theme="midnight"] .movies-page select{border:1px solid #27292c;background:#08090a;color:#ebeef1}
+html[data-theme="midnight"] .movies-page textarea{border:1px solid #27292c;background:#08090a;color:#ebeef1}
+html[data-theme="midnight"] .status-pill.Failed{background:#181414;color:#fca5a5}
 html[data-theme="midnight"]{background:#000;color-scheme:dark}
 html[data-theme="midnight"] body{background:#000}
 
@@ -1007,6 +1011,8 @@ html[data-theme="daylight"] .status-pill.Downloaded,html[data-theme="daylight"] 
 html[data-theme="daylight"] .status-pill.Ignored{background:#dfe1e4;color:#434953}
 html[data-theme="daylight"] .status-pill.Downloading,html[data-theme="daylight"] .status-pill.Queued{background:#eae7de;color:#a87f00}
 html[data-theme="daylight"] .movies-page select{border:1px solid #c8ccd2;background:#f1f2f6;color:#18202b}
+html[data-theme="daylight"] .movies-page textarea{border:1px solid #c8ccd2;background:#f1f2f6;color:#18202b}
+html[data-theme="daylight"] .status-pill.Failed{background:#e8dddd;color:#d40202}
 html[data-theme="daylight"]{background:#eef3fa;color-scheme:light}
 html[data-theme="daylight"] body{background:linear-gradient(180deg,#f5f8fd 0%,#e9eff8 100%);color:#172033}
 html[data-theme="daylight"] :is(input,select,textarea){color:#172033}

@@ -11,6 +11,7 @@ categories) -> handoff (your clients, movie category/label) -> polling
 (completed, failed or stalled) -> import (Plex naming, media server scan).
 Failed and stalled releases are blocklisted and the movie is searched again.
 """
+import json
 import os
 import re
 import shutil
@@ -59,6 +60,8 @@ DEFAULTS = {
     'torrent_import_method': 'hardlink',
     'stalled_hours': '36',
     'library_scanned_at': '',
+    'extra_library_folders': '',
+    'last_scan_report': '',
 }
 VIDEO_EXT = {'.mkv', '.mp4', '.avi', '.m4v', '.mov', '.wmv', '.ts', '.m2ts', '.mpg', '.mpeg'}
 SIDECAR_EXT = {'.srt', '.sub', '.idx', '.ass', '.ssa', '.vtt'}
@@ -67,6 +70,7 @@ PRE_RELEASE = {'cam', 'camrip', 'hdcam', 'ts', 'telesync', 'hdts', 'tc', 'teleci
 DISC_IMAGES = {'iso', 'bdmv', 'img'}
 JOB_INTERVALS = {'movie_library_scan': 1440, 'movie_discovery': 720, 'movie_search': 60, 'movie_downloads': 10}
 _movie_mode_unsupported = set()
+PLEX_PAGE = 1000
 _lock = threading.RLock()
 
 
@@ -977,10 +981,28 @@ def refresh_media_servers(path):
 
 # ---------------------------------------------------------------- library
 
+def _plex_video(video):
+    ids = {}
+    for guid in [video.get('guid') or ''] + [g.get('id') or '' for g in video.findall('Guid')]:
+        m = re.match(r'(?:com\.plexapp\.agents\.)?(tmdb|imdb|themoviedb)://(tt\d+|\d+)', guid)
+        if m:
+            ids['imdb' if m.group(2).startswith('tt') else 'tmdb'] = m.group(2)
+    part = video.find('.//Part')
+    year = video.get('year') or ''
+    return {'title': video.get('title'), 'year': int(year) if year.isdigit() else None,
+            'tmdb_id': int(ids['tmdb']) if ids.get('tmdb', '').isdigit() else None, 'imdb_id': ids.get('imdb'),
+            'file': part.get('file') if part is not None else None,
+            'size': int(part.get('size')) if part is not None and (part.get('size') or '').isdigit() else None}
+
+
 def _plex_movies():
-    """Movies already in every enabled Plex movie library, plus the library folders Plex uses."""
+    """Every movie in every movie library of every enabled Plex server.
+
+    Returns (movies, library folder paths, per-library report). Libraries are read
+    page by page so very large libraries are complete; a server or library that
+    cannot be read is reported, never silently skipped."""
     import advanced
-    out, locations = [], []
+    out, locations, sources = [], [], []
     for server in advanced.media_servers():
         if not server.get('enabled') or str(server.get('kind') or '').lower() != 'plex':
             continue
@@ -989,32 +1011,119 @@ def _plex_movies():
             base = full['url'].rstrip('/')
             headers = {'X-Plex-Token': full['token'], 'Accept': 'application/xml'}
             sections = ET.fromstring(requests.get(base + '/library/sections', headers=headers, timeout=15).content)
-            for directory in sections.findall('.//Directory'):
-                if directory.get('type') != 'movie':
-                    continue
-                locations.extend(loc.get('path') for loc in directory.findall('Location') if loc.get('path'))
-                listing_xml = requests.get(f"{base}/library/sections/{directory.get('key')}/all", headers=headers,
-                                           params={'includeGuids': 1}, timeout=60).content
-                for video in ET.fromstring(listing_xml).findall('.//Video'):
-                    ids = {}
-                    for guid in [video.get('guid') or ''] + [g.get('id') or '' for g in video.findall('Guid')]:
-                        m = re.match(r'(?:com\.plexapp\.agents\.)?(tmdb|imdb|themoviedb)://(tt\d+|\d+)', guid)
-                        if m:
-                            ids['imdb' if m.group(2).startswith('tt') else 'tmdb'] = m.group(2)
-                    part = video.find('.//Part')
-                    year = video.get('year') or ''
-                    out.append({'title': video.get('title'), 'year': int(year) if year.isdigit() else None,
-                                'tmdb_id': int(ids['tmdb']) if ids.get('tmdb', '').isdigit() else None, 'imdb_id': ids.get('imdb'),
-                                'file': part.get('file') if part is not None else None,
-                                'size': int(part.get('size')) if part is not None and (part.get('size') or '').isdigit() else None})
         except Exception as error:
+            sources.append({'kind': 'plex', 'server': server.get('name'), 'library': None, 'locations': [], 'count': 0,
+                            'ok': False, 'error': f'Could not reach this Plex server ({str(error)[:150]})'})
             log('movie_plex_index_error', f"{server.get('name')}: could not read Plex movie libraries ({str(error)[:120]})", 'warning')
-    return out, locations
+            continue
+        for directory in sections.findall('.//Directory'):
+            if directory.get('type') != 'movie':
+                continue
+            paths = [loc.get('path') for loc in directory.findall('Location') if loc.get('path')]
+            locations.extend(paths)
+            entry = {'kind': 'plex', 'server': server.get('name'), 'library': directory.get('title'), 'locations': paths,
+                     'count': 0, 'ok': True, 'error': ''}
+            try:
+                start = 0
+                while True:
+                    page = ET.fromstring(requests.get(f"{base}/library/sections/{directory.get('key')}/all", headers=headers,
+                                                      params={'includeGuids': 1, 'X-Plex-Container-Start': start,
+                                                              'X-Plex-Container-Size': PLEX_PAGE}, timeout=120).content)
+                    videos = page.findall('.//Video')
+                    out.extend(_plex_video(v) for v in videos)
+                    entry['count'] += len(videos)
+                    start += len(videos)
+                    total = int(page.get('totalSize') or 0)
+                    if not videos or len(videos) < PLEX_PAGE or (total and start >= total):
+                        break
+            except Exception as error:
+                entry.update(ok=False, error=f'Could not read the whole library ({str(error)[:150]})')
+                log('movie_plex_index_error', f"{server.get('name')} / {directory.get('title')}: {str(error)[:120]}", 'warning')
+            sources.append(entry)
+    return out, locations, sources
+
+
+def _split_folders(text):
+    return [p.strip().strip('"') for p in re.split(r'[\r\n;|]+', str(text or '')) if p.strip().strip('"')]
+
+
+def library_folders(plex_locations=()):
+    """All movie folders to read from disk: the import folder, extra folders and every Plex movie library folder."""
+    out, seen = [], []
+    candidates = [(setting('library_root'), 'Movie library folder')]
+    candidates += [(p, 'Other movie folder') for p in _split_folders(setting('extra_library_folders'))]
+    candidates += [(p, 'Plex library folder') for p in plex_locations or []]
+    candidates += [(setting('detected_library_root'), 'Detected from Plex')]
+    for raw, label in candidates:
+        if not raw:
+            continue
+        mapped = _map(str(raw))
+        key = os.path.normcase(os.path.normpath(mapped))
+        if key in seen:
+            continue
+        seen.append(key)
+        out.append({'path': mapped, 'configured': str(raw), 'source': label, 'reachable': os.path.isdir(mapped)})
+    # A folder inside another listed folder is read with its parent.
+    reachable = [os.path.normcase(os.path.normpath(f['path'])) for f in out if f['reachable']]
+    for folder in out:
+        key = os.path.normcase(os.path.normpath(folder['path']))
+        folder['inside'] = next((p for p in reachable if p != key and key.startswith(p.rstrip('\\/') + os.sep)), None)
+    return out
+
+
+def _movie_from_name(name):
+    match = re.match(r'^(.*?)\s*[\(\[](\d{4})[\)\]]', name)
+    if match:
+        return match.group(1).strip(' .-_'), int(match.group(2))
+    title, year, _rest = parse_release(name)
+    return title, year
+
+
+def _scan_folder(root):
+    """Movies in one library folder: Title (Year) folders, loose video files, and one level of grouping folders (A-Z, genres)."""
+    items = []
+
+    def add(name, video, path):
+        title, year = _movie_from_name(name)
+        if not title:
+            return
+        ids = re.search(r'tmdb-?(\d+)', path.name)
+        imdb = re.search(r'(tt\d{6,})', path.name)
+        items.append({'title': title, 'year': year, 'file': str(video), 'size': video.stat().st_size,
+                      'tmdb_id': int(ids.group(1)) if ids else None, 'imdb_id': imdb.group(1) if imdb else None, 'source': 'library'})
+
+    def visit(folder, depth):
+        try:
+            entries = sorted(Path(folder).iterdir())
+        except OSError:
+            return
+        for entry in entries:
+            if entry.name.startswith(('.', '@', '$', '#')) or entry.name.lower() in {'system volume information', 'recycler', 'lost+found'}:
+                continue  # trash, NAS system folders and hidden folders are not movies
+            try:
+                if entry.is_file():
+                    if entry.suffix.lower() in VIDEO_EXT and not re.search(r'(^|[\W_])sample([\W_]|$)', entry.name, re.I):
+                        add(entry.stem, entry, entry)
+                    continue
+                if not entry.is_dir():
+                    continue
+                direct = [p for p in entry.iterdir() if p.is_file() and p.suffix.lower() in VIDEO_EXT]
+                _title, year = _movie_from_name(entry.name)
+                if direct or year:
+                    videos = _videos(entry)
+                    if videos:
+                        add(entry.name, videos[0], entry)
+                elif depth == 0:
+                    visit(entry, 1)  # e.g. Movies\A\Title (Year) or Movies\Action\Title (Year)
+            except OSError:
+                continue
+    visit(root, 0)
+    return items
 
 
 def detect_library_root(plex_locations=None):
     if plex_locations is None:
-        _items, plex_locations = _plex_movies()
+        _items, plex_locations, _sources = _plex_movies()
     for location in plex_locations or []:
         mapped = _map(location)
         if mapped and os.path.isdir(mapped):
@@ -1062,42 +1171,54 @@ def _upsert_owned(c, item, index):
 
 
 def scan_library():
-    plex, locations = _plex_movies()
+    plex, locations, sources = _plex_movies()
     detected = detect_library_root(locations)
     if detected != setting('detected_library_root'):
         engine.set_setting(SECTION, 'detected_library_root', detected)
     counts = {'plex': len(plex), 'folders': 0, 'added': 0, 'updated': 0}
     folder_items = []
-    root = library_root()
-    if root and os.path.isdir(_map(root)):
-        for entry in Path(_map(root)).iterdir():
-            if not entry.is_dir() or entry.name.startswith(('.', '@', '$')):
-                continue  # trash, NAS system folders and hidden folders are not movies
-            match = re.match(r'^(.*?)\s*\((\d{4})\)', entry.name)
-            if match:
-                title, year = match.group(1).strip(), int(match.group(2))
-            else:
-                title, year, _rest = parse_release(entry.name)
-            if not title:
-                continue
-            videos = _videos(entry)
-            if not videos:
-                continue
-            ids = re.search(r'tmdb-(\d+)', entry.name)
-            folder_items.append({'title': title, 'year': year, 'file': str(videos[0]), 'size': videos[0].stat().st_size,
-                                 'tmdb_id': int(ids.group(1)) if ids else None, 'source': 'library'})
-        counts['folders'] = len(folder_items)
+    for folder in library_folders(locations):
+        entry = {'kind': 'folder', 'path': folder['configured'], 'source': folder['source'], 'count': 0, 'ok': True, 'error': ''}
+        if not folder['reachable'] and folder['source'] in {'Plex library folder', 'Detected from Plex'}:
+            # Plex already listed these movies; the folder is only unreachable from this server.
+            entry.update(error='Covered by the Plex library list (folder not reachable from this server)')
+        elif not folder['reachable']:
+            entry.update(ok=False, error='Not reachable from the TV Manager server (check the drive, share or Settings > Path Mappings)')
+        elif folder['inside']:
+            entry.update(error=f"Read with {folder['inside']}")
+        else:
+            found = _scan_folder(folder['path'])
+            entry['count'] = len(found)
+            folder_items.extend(found)
+        sources.append(entry)
+    counts['folders'] = len(folder_items)
     with cx() as c:
         index = {(norm(r['title']), r['year']): r['id'] for r in c.execute('SELECT id,title,year FROM movies').fetchall()}
         for item in [dict(p, source='plex') for p in plex if p.get('title')] + folder_items:
             outcome = _upsert_owned(c, item, index)
             if outcome in counts:
                 counts[outcome] += 1
+        owned = c.execute("SELECT COUNT(*) FROM movies WHERE status='Downloaded'").fetchone()[0]
         c.commit()
+    plex_problems = [s for s in sources if s['kind'] == 'plex' and not s['ok']]
+    report = {'scanned_at': now_iso(), 'complete': not plex_problems, 'owned': owned, 'sources': sources,
+              'plex_movies': counts['plex'], 'folder_movies': counts['folders']}
+    engine.set_setting(SECTION, 'last_scan_report', json.dumps(report))
     engine.set_setting(SECTION, 'library_scanned_at', now_iso())
-    log('movie_library_scan', f"Movie library scan: {counts['plex']} in Plex, {counts['folders']} folders, "
-                              f"{counts['added']} new, {counts['updated']} marked downloaded", data=counts)
-    return dict(counts, library_root=root, detected_library_root=detected)
+    level = 'warning' if plex_problems or any(not s['ok'] for s in sources) else 'info'
+    log('movie_library_scan', f"Movie library scan: {counts['plex']} in {sum(1 for s in sources if s['kind'] == 'plex' and s['library'])} Plex "
+                              f"libraries, {counts['folders']} in {sum(1 for s in sources if s['kind'] == 'folder' and s['count'])} folders; "
+                              f"{owned} owned in total; {counts['added']} new, {counts['updated']} marked downloaded"
+                              + (f"; {len(plex_problems)} Plex library problem(s)" if plex_problems else ''), level, data=counts)
+    return dict(counts, owned=owned, complete=report['complete'], library_root=library_root(), detected_library_root=detected,
+                sources=sources)
+
+
+def last_scan_report():
+    try:
+        return json.loads(setting('last_scan_report') or '{}')
+    except ValueError:
+        return {}
 
 
 # ---------------------------------------------------------------- TMDb discovery
@@ -1166,8 +1287,11 @@ def add_movie(tmdb_id, added_via='manual', monitored=True):
     year = _year(details.get('release_date'))
     imdb = (details.get('external_ids') or {}).get('imdb_id') or details.get('imdb_id')
     with cx() as c:
-        owned = c.execute('SELECT * FROM movies WHERE tmdb_id IS NULL AND lower(title)=lower(?) AND year IS ?',
-                          (details.get('title') or '', year)).fetchone()
+        owned = None
+        if imdb:
+            owned = c.execute('SELECT * FROM movies WHERE imdb_id=? AND tmdb_id IS NULL', (imdb,)).fetchone()
+        owned = owned or c.execute('SELECT * FROM movies WHERE tmdb_id IS NULL AND lower(title)=lower(?) AND year IS ?',
+                                   (details.get('title') or '', year)).fetchone()
         if owned:
             c.execute('UPDATE movies SET tmdb_id=?,imdb_id=COALESCE(imdb_id,?),poster_path=COALESCE(poster_path,?),overview=COALESCE(overview,?) WHERE id=?',
                       (tmdb_id, imdb, details.get('poster_path'), details.get('overview'), owned['id']))
@@ -1205,6 +1329,11 @@ def discover_auto():
     if not flag('auto_add'):
         return {'skipped': 'Automatic adding is turned off', 'added': 0}
     _require_library_scan()
+    report = last_scan_report()
+    if report and not report.get('complete', True):
+        bad = ', '.join(f"{s.get('server')}{' / ' + s['library'] if s.get('library') else ''}" for s in report.get('sources', [])
+                        if s.get('kind') == 'plex' and not s.get('ok'))
+        return {'skipped': f'Not adding movies: the last library scan could not read {bad}, so owned movies there are unknown', 'added': 0}
     limit = int(number('max_auto_add_per_run', 10))
     added, seen, errors = [], 0, []
     for page in range(1, 4):
@@ -1334,13 +1463,14 @@ def run_job(name):
 
 # ---------------------------------------------------------------- listing / settings for the UI
 
-PUBLIC_SETTINGS = [k for k in DEFAULTS if k not in {'detected_library_root', 'library_scanned_at'}]
+PUBLIC_SETTINGS = [k for k in DEFAULTS if k not in {'detected_library_root', 'library_scanned_at', 'last_scan_report'}]
 
 
 def settings_public():
     data = {k: setting(k) for k in PUBLIC_SETTINGS}
     data['detected_library_root'] = setting('detected_library_root')
     data['library_scanned_at'] = setting('library_scanned_at')
+    data['last_scan_report'] = last_scan_report()
     data['effective_library_root'] = library_root()
     nzb, torrent = _clients()
     data['nzb_client'] = nzb
@@ -1381,7 +1511,13 @@ def save_settings(body):
             raise ValueError(f'{key} must be one of {", ".join(sorted(choices[key]))}')
         elif key in {'library_root', 'download_dir'} and value and not os.path.isdir(_map(value)):
             raise ValueError(f'Folder not found from this server: {value}')
-        if len(value) > 1000:
+        elif key == 'extra_library_folders':
+            folders = _split_folders(value)
+            missing = [f for f in folders if not os.path.isdir(_map(f))]
+            if missing:
+                raise ValueError('Folder not found from this server: ' + ', '.join(missing[:5]))
+            value = '\n'.join(folders)
+        if len(value) > 8000:
             raise ValueError(f'{key} is too long')
         clean[key] = value
     for key, value in clean.items():

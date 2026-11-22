@@ -122,7 +122,16 @@ async function loadSettings(){
   const s=await jsonFetch('/api/movies/settings');const f=$('movieSettings');
   for(const el of f.elements){if(!el.name||!(el.name in s))continue;if(el.type==='checkbox')el.checked=['1','true','on','yes'].includes(String(s[el.name]).toLowerCase());else el.value=s[el.name]??'';}
   $('detectedRoot').textContent=s.detected_library_root?`Detected from Plex: ${s.detected_library_root}`:'No movie folder detected from Plex yet (runs with the library scan).';
+  renderScan(s.last_scan_report||{});
   $('clientInfo').textContent=`Using your TV Manager download clients: NZB ${s.nzb_client||'none'}, torrent ${s.torrent_client||'none'}; ${s.indexers} indexer(s). Movies go to their own category or label so they stay apart from TV.`;
+}
+function renderScan(r){
+  if(!r.sources){$('scanSummary').textContent='No library scan yet. Use "Scan library now".';$('scanSources').innerHTML='';return;}
+  const when=(r.scanned_at||'').replace('T',' ');
+  $('scanSummary').textContent=`${r.owned} movies owned in total (${r.plex_movies} entries from Plex, ${r.folder_movies} from folders; the same movie in both counts once). Scanned ${when}.`+(r.complete?'':' Some Plex libraries could not be read, so automatic adding is paused until the next complete scan.');
+  $('scanSources').innerHTML=r.sources.map(x=>{const name=x.kind==='plex'?`${esc(x.library||'(server)')}${x.locations&&x.locations.length?`<br><small class="muted">${x.locations.map(esc).join('<br>')}</small>`:''}`:esc(x.path);
+    const status=!x.ok?`<span class="status-pill Failed">Problem</span> ${esc(x.error)}`:(x.error?`<span class="muted">${esc(x.error)}</span>`:'<span class="status-pill Completed">Read</span>');
+    return `<tr><td>${x.kind==='plex'?'Plex: '+esc(x.server):esc(x.source)}</td><td class="wrap">${name}</td><td>${x.error&&x.ok?'—':esc(x.count)}</td><td class="wrap">${status}</td></tr>`;}).join('');
 }
 $('movieSettings').onsubmit=async e=>{
   e.preventDefault();const body={};

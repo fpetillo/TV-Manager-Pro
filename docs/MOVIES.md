@@ -8,12 +8,23 @@ Four scheduled jobs appear on the Jobs page. They run whenever TV Manager automa
 
 | Job | Every | What it does |
 |---|---|---|
-| `movie_library_scan` | 24 hours | Reads every enabled Plex movie library (TMDb/IMDb IDs, title, year, file) and the movie library folder (`Title (Year)` folders). Owned movies are recorded as Downloaded so they are never downloaded again. Also detects the movie library folder from Plex. |
+| `movie_library_scan` | 24 hours | Builds the complete list of movies you own (see below) so nothing you own is downloaded again. Also detects the movie library folder from Plex. |
 | `movie_discovery` | 12 hours | Asks TMDb for movies released on digital or disc in your region within the last 120 days that pass your filters (rating, votes, original language, skipped genres) and adds up to 10 new ones per run as Wanted. |
 | `movie_search` | 1 hour | Searches up to 10 wanted movies per run on your indexers and sends the best release to your download client. New movies are searched every 6 hours for two weeks, then daily. Movies TV Manager downloaded below the "Upgrade until" resolution are searched weekly for a better copy. |
 | `movie_downloads` | 10 minutes | Asks the download clients about every movie download, imports completed ones into the library, and retries failed or stalled ones. |
 
 Discovery and search never run before the first library scan has finished.
+
+## The complete owned-movie list
+
+The library scan reads, every day and on **Scan library now**:
+
+1. **Every movie library on every enabled Plex server** (Settings › Media Servers), page by page so very large libraries are read in full. TMDb and IMDb IDs from Plex are used for matching, including older Plex agents.
+2. **Every folder behind those Plex libraries** that the TV Manager server can reach (with Path Mappings applied), plus the movie library folder and any **Other movie folders** listed under Movies › Settings, one per line. This catches movies on disk that Plex has not matched or does not know about.
+
+On disk a movie is a `Title (Year)` folder (also `Title [Year]` or a release-style name with a year), a loose video file in the folder, or such a folder one level down inside a grouping folder (`Movies\A\…`, `Movies\Action\…`). Hidden, trash and NAS system folders are skipped; a folder inside another listed folder is read once. A movie found in several places counts once (TMDb ID, then IMDb ID, then title and year).
+
+**What the last library scan read** (Movies › Settings) lists every Plex server and library, every folder, how many movies each gave, and any problem. If a Plex server or library cannot be read, automatic adding of new movies is paused until a scan reads everything, because owned movies there would be unknown. A Plex folder that this server cannot reach is not a problem: Plex already listed its movies. A listed folder that cannot be reached is shown as a problem.
 
 ## Searching
 

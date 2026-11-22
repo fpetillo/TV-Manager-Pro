@@ -1,3 +1,7 @@
+## 18.28.0 — Complete movie library list
+
+The Movies library scan reads every movie library on every Plex server page by page and scans every folder behind them (plus the movie folder and a new Other movie folders list), recognizes grouped and loose movies, shows what each source gave under Movies › Settings, and pauses automatic adding while any Plex library cannot be read. See [release notes](docs/RELEASE_NOTES_v18.28.0.md).
+
 ## 18.27.0 — Browser icon
 
 TV Manager has its own icon (blue TV screen with a play button) in browser tabs, bookmarks and phone home screens: SVG, multi-size `favicon.ico`, Apple touch icon and a web app manifest, linked from every page and served without login. See [release notes](docs/RELEASE_NOTES_v18.27.0.md).

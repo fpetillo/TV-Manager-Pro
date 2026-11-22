@@ -44,6 +44,8 @@
       <label class="checkline"><input type="checkbox" name="enabled"> Movies automation on</label>
       <label class="field"><span>Movie library folder</span><input name="library_root" placeholder="Leave empty to use the folder detected from Plex"></label>
       <p class="muted" id="detectedRoot"></p>
+      <label class="field"><span>Other movie folders (one per line)</span><textarea name="extra_library_folders" rows="3" placeholder="E:\Movies&#10;\\NAS\Movies 4K"></textarea></label>
+      <p class="muted">Every movie library on every Plex server is read automatically, along with the folders behind those libraries. Add folders here only for movies Plex does not know about. New downloads go to the movie library folder above.</p>
       <label class="field"><span>Completed downloads folder (optional)</span><input name="download_dir" placeholder="Leave empty to use the TV, SABnzbd and torrent folders"></label>
       <label class="field"><span>Torrent import method</span><select name="torrent_import_method"><option value="hardlink">Hardlink (keeps seeding, no extra space)</option><option value="copy">Copy (keeps seeding)</option><option value="move">Move (stops seeding)</option></select></label>
       <p class="muted">Usenet downloads are always moved and the leftover download folder is removed.</p>
@@ -87,6 +89,8 @@
     </fieldset>
     <div class="toolbar"><button class="blue" type="submit">Save Settings</button><span id="settingsMessage" class="message"></span></div>
   </form>
+  <section class="movie-sources"><h2>What the last library scan read</h2><p class="muted" id="scanSummary"></p>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>Source</th><th>Library or folder</th><th>Movies</th><th>Status</th></tr></thead><tbody id="scanSources"></tbody></table></div></section>
   <div class="toolbar movie-jobs"><button class="secondary job-run" data-job="movie_library_scan">Scan library now</button><button class="secondary job-run" data-job="movie_discovery">Discover now</button><button class="secondary job-run" data-job="movie_search">Search wanted now</button></div>
 </section>
 

@@ -1,16 +1,17 @@
 {
   "product": "TV Manager",
-  "version": "18.27.0",
-  "release_name": "Browser icon",
-  "generated_at": "2026-11-22T22:01:13.476880+00:00",
+  "version": "18.28.0",
+  "release_name": "Complete movie library list",
+  "generated_at": "2026-11-22T22:21:42.233069+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "TV Manager icon in browser tabs, bookmarks and phone home screens (SVG, favicon.ico 16-64 px, Apple touch icon, web manifest)",
-    "Icon links on every page; /favicon.ico and /site.webmanifest served without login, ending the favicon 404 on every page load"
+    "Every movie library on every Plex server read page by page; every folder behind them scanned on disk, plus the movie folder and an Other movie folders list",
+    "Grouped (A-Z, genre) and loose movie files recognized; per-source counts and problems shown under Movies \u203a Settings",
+    "Automatic adding pauses while any Plex library cannot be read; owned movies also matched by IMDb ID"
   ],
   "validation": {
     "pytest": {
-      "passed": 645,
+      "passed": 650,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lock and service checks not runnable on the Linux build host; suite also runs on the GitHub Windows runner"
@@ -23,11 +24,11 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Chrome on a disposable copy: four icon links declared, SVG icon loaded with 200, no 404s in the server log",
+    "browser_qa": "Chrome on a disposable copy: Movies \u203a Settings scan table (Plex servers, libraries, folders, problems) and Other movie folders box render with no page errors",
     "indexer_end_to_end": "Not performed for movies: search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server",
     "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Stop TV Manager, download update-server.ps1 from the v18.27.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, then Ctrl+F5 in the browser.",
+  "activation": "Stop TV Manager, download update-server.ps1 from the v18.28.0 tag and run it, start with run.ps1, then Movies \u203a Settings \u203a Scan library now and check What the last library scan read.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -133,7 +134,9 @@
     "static/icons/icon-192.png",
     "static/icons/icon-512.png",
     "tests/test_v18_27_0_browser_icon.py",
-    "docs/RELEASE_NOTES_v18.27.0.md"
+    "docs/RELEASE_NOTES_v18.27.0.md",
+    "tests/test_v18_28_0_movie_library_coverage.py",
+    "docs/RELEASE_NOTES_v18.28.0.md"
   ],
   "sickchill_full_parity": false
 }

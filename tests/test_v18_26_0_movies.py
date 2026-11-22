@@ -271,7 +271,7 @@ def test_upgrade_moves_old_file_to_share_trash(db, monkeypatch):
         assert c.execute("SELECT category FROM trash_items").fetchone()[0] == 'upgrades'
     assert movies.get_movie(mid)['resolution'] == 1080
     engine.set_setting('Movies', 'library_scanned_at', '')
-    monkeypatch.setattr(movies, '_plex_movies', lambda: ([], []))
+    monkeypatch.setattr(movies, '_plex_movies', lambda: ([], [], []))
     assert movies.scan_library()['folders'] == 1  # the trash folder is not read as a movie
 
 
@@ -324,7 +324,7 @@ def test_library_scan_marks_owned_movies_and_discovery_skips_them(db, monkeypatc
     (db.library / 'Empty Folder (2020)').mkdir()
     wanted = add(title='Oppenheimer', year=2023, tmdb_id=872585, imdb_id='tt15398776')
     monkeypatch.setattr(movies, '_plex_movies', lambda: ([{'title': 'Barbie', 'year': 2023, 'tmdb_id': 346698, 'imdb_id': None,
-                                                           'file': 'D:/Movies/Barbie (2023)/Barbie.mkv', 'size': 5}], []))
+                                                           'file': 'D:/Movies/Barbie (2023)/Barbie.mkv', 'size': 5}], [], []))
     out = movies.scan_library()
     assert out['plex'] == 1 and out['folders'] == 1 and out['added'] == 1 and out['updated'] == 1
     assert movies.get_movie(wanted)['status'] == 'Downloaded'
