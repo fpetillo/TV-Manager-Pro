@@ -21,7 +21,7 @@ def candidates(show_id, episode_id=None):
             WHERE e.show_id=? AND (? IS NULL OR e.id=?) AND TRIM(COALESCE(e.location,''))=''
             AND COALESCE(e.monitored,1)=1 AND COALESCE(e.ignored,0)=0
             AND lower(COALESCE(e.status,'')) IN ('wanted','failed','unaired','skipped','unknown','')
-            AND date(episode_airdate(e.airdate)) <= date('now','localtime')
+            AND date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END)) <= date('now','localtime')
             AND (?=0 OR e.season<>0)
             AND NOT EXISTS (SELECT 1 FROM downloads d WHERE d.episode_id=e.id
                 AND lower(COALESCE(d.status,'')) IN ('queued','downloading','downloaded','importing'))

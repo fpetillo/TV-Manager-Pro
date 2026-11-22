@@ -174,6 +174,14 @@ def init():
             # on the Jobs page is preserved.
             c.execute("INSERT OR IGNORE INTO scheduler_jobs(name,enabled,interval_minutes) VALUES(?,?,?)",
                       (name, 1, interval))
+            # Same rule as the TV jobs: an interval saved in Settings > Automation wins.
+            try:
+                override = c.execute("SELECT value FROM settings WHERE lower(section)='tvmanager' AND name=?",
+                                     ('job_interval_' + name,)).fetchone()
+            except Exception:
+                override = None
+            if override and str(override[0] or '').strip().isdigit():
+                c.execute('UPDATE scheduler_jobs SET interval_minutes=? WHERE name=?', (max(1, int(override[0])), name))
         c.commit()
 
 
@@ -850,6 +858,14 @@ def _place(source, destination, method):
 
 
 def _trash_existing(path):
+    """Move a replaced movie file to the trash on its own share (restorable from the Trash page)."""
+    try:
+        import trash
+        root = library_root()
+        fallback = Path(_map(root)) / trash.FOLDER_NAME if root else None
+        return trash.move_to_trash(path, 'upgrades', reason='Movie replaced by an upgrade', fallback_root=fallback)
+    except Exception:
+        pass
     try:
         import app_paths
         trash = app_paths.application_root() / 'managed_trash' / 'movies' / datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -1055,8 +1071,8 @@ def scan_library():
     root = library_root()
     if root and os.path.isdir(_map(root)):
         for entry in Path(_map(root)).iterdir():
-            if not entry.is_dir():
-                continue
+            if not entry.is_dir() or entry.name.startswith(('.', '@', '$')):
+                continue  # trash, NAS system folders and hidden folders are not movies
             match = re.match(r'^(.*?)\s*\((\d{4})\)', entry.name)
             if match:
                 title, year = match.group(1).strip(), int(match.group(2))

@@ -43,7 +43,7 @@ A download the client reports as failed, or that is not complete after 36 hours 
 - The completed files are found from the client (SABnzbd storage folder, qBittorrent content path, uTorrent save path) or by release name in the download folders: the optional Movies download folder, the TV completed-downloads folder, the torrent folder and SABnzbd's complete and category folders. Path mappings apply.
 - The largest video (samples skipped) becomes `<library>\Title (Year)\Title (Year).ext`; subtitles next to it are kept (`.en.srt` etc.).
 - Usenet downloads are moved and the leftover release folder is deleted. Torrents are hardlinked by default so they keep seeding (copied if the library is on another drive); this can be set to copy or move.
-- An upgrade moves the old file to `managed_trash\movies\<time>\`.
+- An upgrade moves the old file to the trash on the movie share (`.tvmanager-trash\upgrades\`), restorable from the Trash page.
 - Every enabled Plex server scans the movie folder (other media servers refresh their library).
 - Simulation mode previews imports without moving anything and does not send downloads.
 

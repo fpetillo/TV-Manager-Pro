@@ -70,22 +70,21 @@ def retention_preview(policy_id):
 
 def retention_apply(policy_id):
     preview=retention_preview(policy_id);deleted=0;details=[]
-    stamp=datetime.now().strftime("%Y%m%d-%H%M%S");runtrash=TRASH/stamp;runtrash.mkdir(parents=True,exist_ok=True)
+    import trash
+    trash_folders=set()
     with cx() as c:
         for x in preview["candidates"]:
             src=Path(x["path"])
             if src.exists() and src.is_file():
-                target=runtrash/src.name
-                n=1
-                while target.exists():
-                    target=runtrash/f"{src.stem}-{n}{src.suffix}";n+=1
-                shutil.move(str(src),str(target))
+                # v18.25.0: trash on the same share, recorded so it can be restored or emptied.
+                target=Path(trash.move_to_trash(src,"retention",episode_id=x["episode_id"],reason=x.get("reason") or "Retention policy",conn=c))
+                trash_folders.add(str(target.parent))
                 c.execute("UPDATE episodes SET location=NULL,file_size=0,status='Archived' WHERE id=?",(x["episode_id"],))
                 details.append({**x,"trash_path":str(target)});deleted+=1
         c.execute("""INSERT INTO retention_runs(policy_id,dry_run,candidates,bytes_reclaimable,deleted,details_json)
                      VALUES(?,0,?,?,?,?)""",(policy_id,preview["count"],preview["bytes"],deleted,json.dumps(details)))
         c.commit()
-    return {"deleted":deleted,"trash":str(runtrash),"preview":preview}
+    return {"deleted":deleted,"trash":", ".join(sorted(trash_folders)),"preview":preview}
 
 def set_watched(eid,percent=100,profile="default",source="manual"):
     with cx() as c:
@@ -98,8 +97,13 @@ def system_health():
     checks=[]
     def add(name,status,detail): checks.append({"name":name,"status":status,"detail":detail})
     try:
-        with cx() as c:
-            c.execute("PRAGMA quick_check"); add("Database","OK","SQLite quick check completed")
+        # v18.23.0: reuse the cached integrity check (refreshed in the background every 15 minutes)
+        # instead of reading the whole database while holding the writer lock on every page view.
+        import database_safety
+        qc=database_safety.cached_quick_check(DB)
+        add("Database","OK" if qc.get("ok") else "ERROR",
+            f"SQLite quick check {qc.get('quick_check') or 'completed'} (checked {qc.get('checked_at') or 'just now'})")
+        with dbcore.connect(DB, readonly=True) as c:
             shows=c.execute("SELECT COUNT(*) c FROM shows").fetchone()["c"]
             eps=c.execute("SELECT COUNT(*) c FROM episodes").fetchone()["c"]
             add("Library","OK",f"{shows} shows / {eps} episodes indexed")

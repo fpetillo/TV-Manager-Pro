@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -155,14 +158,100 @@ def _episode_file_samples(conn, sample_limit: int, path_mapper=None) -> tuple[in
     )
     missing_rows: list[dict[str, Any]] = []
     missing_count = 0
-    for row in rows_with_paths:
-        path_text = str(row.get("location") or "")
-        if path_text and not Path(path_mapper(path_text) if path_mapper else path_text).is_file():
+    mapped = [path_mapper(str(r.get("location") or "")) if path_mapper else str(r.get("location") or "") for r in rows_with_paths]
+    present = files_present(mapped)
+    for row, path_text, ok in zip(rows_with_paths, mapped, present):
+        if path_text and not ok:
             missing_count += 1
             if len(missing_rows) < sample_limit:
                 row["problem"] = "file_not_found"
                 missing_rows.append(row)
     return missing_count, missing_rows, no_location_count, no_location_rows
+
+
+def _list_folder(folder: str) -> set[str] | None:
+    """Names of the files in one folder (case-folded on Windows); None if it cannot be read."""
+    try:
+        with os.scandir(folder) as it:
+            return {os.path.normcase(e.name) for e in it if e.is_file()}
+    except OSError:
+        return None
+
+
+def files_present(paths: list[str], workers: int = 16) -> list[bool]:
+    """Whether each path is an existing file, reading each folder once (v18.23.0).
+
+    Checking 70,000 episode files one by one meant 70,000 network round trips on a media
+    share. Listing each season folder once, several folders at a time, gives the same answer
+    for a fraction of the cost.
+    """
+    folders: dict[str, set[str] | None] = {}
+    split = []
+    for raw in paths:
+        if not raw:
+            split.append(None)
+            continue
+        folder, name = os.path.split(os.path.normpath(raw))
+        split.append((folder, os.path.normcase(name)))
+        folders.setdefault(folder, None)
+    names = list(folders)
+    if names:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max(1, min(workers, len(names)))) as pool:
+            for folder, listing in zip(names, pool.map(_list_folder, names)):
+                folders[folder] = listing
+    out = []
+    for item in split:
+        if item is None:
+            out.append(False)
+            continue
+        listing = folders.get(item[0])
+        out.append(bool(listing) and item[1] in listing)
+    return out
+
+
+_REPORT_CACHE: dict[tuple, dict[str, Any]] = {}
+_REPORT_LOCK = threading.Lock()
+REPORT_MAX_AGE_SECONDS = 10 * 60
+
+
+def cached_library_health_report(db_path: str | Path, *, duplicate_limit: int = 25, sample_limit: int = 25,
+                                 path_mapper=None, max_age: float = REPORT_MAX_AGE_SECONDS) -> dict[str, Any]:
+    """library_health_report for summary pages, reused for up to 10 minutes (v18.23.0).
+
+    Launchpad, Dashboard, Workflow and Setup each built the full report (every episode file
+    checked on disk) on every load. A stale report is returned at once while a background
+    thread rebuilds it; only the very first call waits.
+    """
+    key = (str(db_path), duplicate_limit, sample_limit)
+    now = time.monotonic()
+    with _REPORT_LOCK:
+        entry = _REPORT_CACHE.get(key)
+        stale = entry is not None and now - entry["at"] >= max_age
+        start_refresh = stale and not entry.get("running")
+        if start_refresh:
+            entry["running"] = True
+    if entry is None:
+        report = library_health_report(db_path, duplicate_limit=duplicate_limit, sample_limit=sample_limit, path_mapper=path_mapper)
+        with _REPORT_LOCK:
+            _REPORT_CACHE[key] = {"at": time.monotonic(), "report": report}
+        return report
+    if start_refresh:
+        def rebuild():
+            try:
+                fresh = library_health_report(db_path, duplicate_limit=duplicate_limit, sample_limit=sample_limit, path_mapper=path_mapper)
+                with _REPORT_LOCK:
+                    _REPORT_CACHE[key] = {"at": time.monotonic(), "report": fresh}
+            except Exception:
+                with _REPORT_LOCK:
+                    entry["running"] = False
+        threading.Thread(target=rebuild, name="tvm-library-health", daemon=True).start()
+    return entry["report"]
+
+
+def clear_report_cache() -> None:
+    with _REPORT_LOCK:
+        _REPORT_CACHE.clear()
 
 
 def library_health_report(db_path: str | Path, *, duplicate_limit: int = 25, sample_limit: int = 25, path_mapper=None) -> dict[str, Any]:
@@ -324,10 +413,10 @@ def apply_duplicate_cleanup(db_path: str | Path, *, trash_root: str | Path, acti
     import shutil
     from datetime import datetime
 
+    import trash
+
     ensure_maintenance_tables(db_path)
-    trash_root = Path(trash_root)
-    batch_dir = trash_root / datetime.now().strftime("duplicate-cleanup-%Y%m%d-%H%M%S")
-    batch_dir.mkdir(parents=True, exist_ok=True)
+    batch = datetime.now().strftime("duplicate-cleanup-%Y%m%d-%H%M%S")
     results: list[dict[str, Any]] = []
     with dbcore.connect(db_path) as conn:
         for item in actions:
@@ -338,15 +427,11 @@ def apply_duplicate_cleanup(db_path: str | Path, *, trash_root: str | Path, acti
                 message = "Source file does not exist or is not a regular file."
                 trash_path = None
             else:
-                target = batch_dir / src.name
-                n = 1
-                while target.exists():
-                    target = batch_dir / f"{src.stem}.{n}{src.suffix}"
-                    n += 1
-                shutil.move(str(src), str(target))
+                # v18.25.0: into the trash folder on the same share (recorded, restorable, emptiable).
+                trash_path = trash.move_to_trash(src, "duplicates", episode_id=item.get("episode_id"),
+                                                 reason="Duplicate cleanup", conn=conn, fallback_root=trash_root)
                 status = "moved"
                 message = "Moved to managed trash."
-                trash_path = str(target)
             conn.execute(
                 """
                 INSERT INTO duplicate_cleanup_actions(fingerprint,source_path,trash_path,action,status,message)
@@ -356,4 +441,4 @@ def apply_duplicate_cleanup(db_path: str | Path, *, trash_root: str | Path, acti
             )
             results.append({"source_path": str(src), "trash_path": trash_path, "status": status, "message": message})
         conn.commit()
-    return {"ok": True, "trash_batch": str(batch_dir), "results": results, "moved": sum(1 for r in results if r["status"] == "moved")}
+    return {"ok": True, "trash_batch": batch, "results": results, "moved": sum(1 for r in results if r["status"] == "moved")}

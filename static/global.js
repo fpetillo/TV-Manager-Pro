@@ -131,23 +131,14 @@ let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{cons
     if(tone) link.classList.add(tone);
   }
   async function refreshBadges(nav){
+    // v18.23.0: one lightweight request; skipped while the tab is hidden.
+    if(document.hidden)return;
     try{
-      const r=await fetch("/api/jobs?limit=50");
+      const r=await fetch("/api/nav/badges");
       const d=await r.json();
-      const jobs=Array.isArray(d.jobs)?d.jobs:[];
-      const active=jobs.filter(j=>!["complete","error","cancelled"].includes(String(j.status||"").toLowerCase())).length;
+      const active=Number(d.active_jobs||0), errors=Number(d.errors||0), ok=!!d.database_ok;
       setBadge(nav.querySelector('[data-nav-badge="jobs"]'), active, active?"badge-live":"");
-    }catch{}
-    try{
-      const r=await fetch("/api/logs?limit=25&level=ERROR");
-      const d=await r.json();
-      const total=Number(d.total ?? (Array.isArray(d.results)?d.results.length:0));
-      setBadge(nav.querySelector('[data-nav-badge="logs"]'), total>0?Math.min(total,99):0, total>0?"badge-warn":"");
-    }catch{}
-    try{
-      const r=await fetch("/api/protection/status");
-      const d=await r.json();
-      const ok=!!(d && d.database && d.database.ok);
+      setBadge(nav.querySelector('[data-nav-badge="logs"]'), errors>0?Math.min(errors,99):0, errors>0?"badge-warn":"");
       setBadge(nav.querySelector('[data-nav-badge="safety"]'), ok?"✓":"!", ok?"badge-live":"badge-warn");
     }catch{}
   }
@@ -211,6 +202,7 @@ let timer;input.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{cons
     }
     refreshBadges(nav);
     setInterval(()=>refreshBadges(nav), 30000);
+    document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshBadges(nav)});
   });
 })();
 

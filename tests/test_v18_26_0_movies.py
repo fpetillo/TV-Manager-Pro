@@ -1,4 +1,4 @@
-"""v18.23.0: Movies — discovery, search, handoff, polling, import and library scan."""
+"""v18.26.0: Movies — discovery, search, handoff, polling, import and library scan."""
 import json
 import os
 import shutil
@@ -241,6 +241,38 @@ def test_torrent_import_hardlinks_and_keeps_seeding_copy(db, monkeypatch):
     assert target.exists() and source.exists()
     if hasattr(os, 'link'):
         assert os.stat(source).st_ino == os.stat(target).st_ino
+
+
+def test_upgrade_moves_old_file_to_share_trash(db, monkeypatch):
+    import trash
+    monkeypatch.setattr(trash, 'DB', db.path)
+    mid = add()
+    old_folder = db.library / 'Dune Part Two (2024)'
+    old_folder.mkdir()
+    old = old_folder / 'Dune Part Two (2024).avi'
+    old.write_bytes(b'old')
+    with engine.cx() as c:
+        c.execute("UPDATE movies SET status='Downloaded',resolution=720,file_path=? WHERE id=?", (str(old), mid))
+        c.commit()
+    queued(mid, release='Dune.Part.Two.2024.1080p.BluRay.x264-GRP')
+    with engine.cx() as c:
+        c.execute("UPDATE movies SET status='Downloaded'")
+        c.commit()
+    folder = db.downloads / 'Dune.Part.Two.2024.1080p.BluRay.x264-GRP'
+    folder.mkdir()
+    (folder / 'movie.mkv').write_bytes(b'new' * 100)
+    monkeypatch.setattr(movies, 'snapshot', lambda client: {'nzo1': {'status': 'Downloaded', 'progress': 1}})
+    monkeypatch.setattr(movies, 'refresh_media_servers', lambda path: None)
+    movies.run_downloads()
+    assert not old.exists() and (old_folder / 'Dune Part Two (2024).mkv').exists()
+    trashed = list((db.library / '.tvmanager-trash' / 'upgrades').rglob('*.avi'))
+    assert len(trashed) == 1
+    with engine.cx() as c:
+        assert c.execute("SELECT category FROM trash_items").fetchone()[0] == 'upgrades'
+    assert movies.get_movie(mid)['resolution'] == 1080
+    engine.set_setting('Movies', 'library_scanned_at', '')
+    monkeypatch.setattr(movies, '_plex_movies', lambda: ([], []))
+    assert movies.scan_library()['folders'] == 1  # the trash folder is not read as a movie
 
 
 def test_failed_and_stalled_downloads_are_blocklisted_and_retried(db, monkeypatch):

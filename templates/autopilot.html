@@ -1,0 +1,59 @@
+<!doctype html>
+<html data-theme="{{ ui_theme }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Missing Episode Autopilot</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"><link rel="stylesheet" href="/static/themes.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell">
+<header class="topbar"><div><p class="eyebrow">AUTOMATION</p><h1>Missing Episode Autopilot</h1><p class="subtitle">Finds every aired episode you don't have, sends the best release to your downloader, retries with a different release when a download fails or stalls, and processes finished downloads into the library.</p></div></header>
+
+{% include "_nav.html" %}
+<div class="command-dock"><button id="commandTrigger" class="command-trigger">⌘ Search TV Manager <kbd>/</kbd></button></div>
+<div id="commandPalette" class="command-palette" hidden><div class="command-card">
+  <input id="commandInput" autocomplete="off" placeholder="Search shows, episodes, pages, IDs…">
+  <div id="commandResults"></div>
+</div></div>
+
+<section class="panel autopilot-switch-panel">
+  <div class="autopilot-switch-row">
+    <div>
+      <h2 id="apState">Loading…</h2>
+      <p id="apStateDetail" class="muted"></p>
+    </div>
+    <div class="actions">
+      <button id="apToggle" class="blue" disabled>Turn on</button>
+      <button id="apRunNow" class="secondary" disabled>Run now</button>
+    </div>
+  </div>
+  <div id="apReadiness" class="notice warn" hidden></div>
+  <p id="apMessage" class="message" role="status"></p>
+</section>
+
+<section class="autopilot-counts" id="apCounts" aria-label="Library status"></section>
+
+<section class="panel">
+  <h2>Settings</h2>
+  <form id="apSettings" class="autopilot-settings">
+    <label class="field"><span>Run every (minutes)</span><input type="number" name="interval_minutes" min="5" max="10080" required></label>
+    <label class="field"><span>Episodes searched per run</span><input type="number" name="batch_size" min="1" max="1000" required></label>
+    <label class="field"><span>Search the same episode again after (hours)</span><input type="number" name="retry_hours" min="1" max="1440" required></label>
+    <label class="field"><span>Give up on a download after (hours)</span><input type="number" name="stall_hours" min="1" max="720" required></label>
+    <label class="field"><span>Releases to try per episode</span><input type="number" name="max_attempts" min="1" max="100" required></label>
+    <label class="field"><span>Time limit per run (minutes)</span><input type="number" name="max_minutes" min="1" max="1440" required></label>
+    <label class="check"><input type="checkbox" name="include_skipped"> Search episodes marked Skipped</label>
+    <label class="check"><input type="checkbox" name="include_lost_files"> Search Downloaded or Archived episodes whose file is gone</label>
+    <label class="check"><input type="checkbox" name="postprocess"> Process completed downloads during each run</label>
+    <div class="actions"><button class="blue" type="submit">Save settings</button></div>
+  </form>
+  <p class="muted">Not-aired episodes are never searched. Ignored episodes, unmonitored episodes, paused shows and shows with searching turned off are skipped. Specials follow the Season 00 rule in Settings. A release that fails or stalls is blocked and never grabbed again.</p>
+</section>
+
+<section class="panel">
+  <div class="toolbar"><h2>Set aside for review</h2><div class="spacer"></div><button id="apRetryAll" class="secondary" disabled>Retry all</button></div>
+  <p class="muted">Episodes whose releases kept failing. Retry puts them back into the search rotation.</p>
+  <div id="apSetAside" class="table-wrap"></div>
+</section>
+
+<section class="panel">
+  <h2>Recent runs</h2>
+  <div id="apHistory" class="table-wrap"></div>
+</section>
+
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/autopilot.js?v={{ app_version }}"></script><script src="/static/global.js?v={{ app_version }}"></script></body></html>

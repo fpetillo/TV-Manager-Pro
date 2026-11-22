@@ -43,6 +43,9 @@ function returnToEpisodes(message){
   return loadEpisodes().then(done,done);
 }
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+// v18.24.0: an episode without a file is only "Missing" once it has aired.
+function localToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function fileStateLabel(e){const a=String(e.airdate||'');if(/^\d{4}-\d{2}-\d{2}/.test(a)&&a.slice(0,10)>localToday())return `<span class="not-aired-file" title="Airs ${esc(fmtDate(a))}">Not aired yet</span>`;if(!a)return '<span class="not-aired-file" title="No air date is known">No air date</span>';return '<span class="missing-file">Missing</span>'}
 function fmtDate(v){if(!v)return '—';const s=String(v);if(/^\d{4}-\d{2}-\d{2}/.test(s)){const [y,m,d]=s.slice(0,10).split('-');return `${+m}/${+d}/${y}`}return s}
 function fmtSize(n){n=Number(n||0);if(!n)return '—';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return `${n.toFixed(i?2:0)} ${u[i]}`}
 function epCode(e){return `S${String(e.season).padStart(2,'0')}E${String(e.episode).padStart(2,'0')}`}
@@ -139,7 +142,7 @@ async function loadShowCountsFast(){
 }
 let seasonGeneration=0;
 const expandedSeasons=new Set();
-function episodeRow(e){return `<tr class="${Number(e.ignored||0)?'ignored-row':''}"><td><input class="episode-check" type="checkbox" value="${e.id}"></td><td><strong>${epCode(e)}</strong>${Number(e.ignored||0)?'<span class="pill muted-pill">Ignored</span>':''}</td><td>${esc(e.name||'')}</td><td>${esc(fmtDate(e.airdate))}</td><td>${statusSelect(e)}${ignoreToggle(e)}</td><td>${esc(e.quality||'—')}</td><td class="file-cell">${e.location?esc(e.location):'<span class="missing-file">Missing</span>'}</td><td><button class="action-btn secondary" ${Number(e.ignored||0)?'disabled title="Ignored episodes are not searched"':''} data-search-episode="${e.id}">Search</button></td></tr>`;}
+function episodeRow(e){return `<tr class="${Number(e.ignored||0)?'ignored-row':''}"><td><input class="episode-check" type="checkbox" value="${e.id}"></td><td><strong>${epCode(e)}</strong>${Number(e.ignored||0)?'<span class="pill muted-pill">Ignored</span>':''}</td><td>${esc(e.name||'')}</td><td>${esc(fmtDate(e.airdate))}</td><td>${statusSelect(e)}${ignoreToggle(e)}</td><td>${esc(e.quality||'—')}</td><td class="file-cell">${e.location?esc(e.location):fileStateLabel(e)}</td><td><button class="action-btn secondary" ${Number(e.ignored||0)?'disabled title="Ignored episodes are not searched"':''} data-search-episode="${e.id}">Search</button></td></tr>`;}
 async function fillSeason(folder,season,generation){
   if(folder.dataset.loaded==='yes'||folder.dataset.loading==='yes')return;
   folder.dataset.loading='yes';

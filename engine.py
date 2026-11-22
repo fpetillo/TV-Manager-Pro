@@ -73,10 +73,24 @@ def as_int(v, default=0):
     except Exception:
         return default
 
+def _read_cx():
+    """Read-only connection: does not wait for TV Manager's single-writer lock (v18.23.0)."""
+    try:
+        return dbcore.connect(DB, readonly=True)
+    except sqlite3.Error:
+        return cx()
+
 def get_setting(section, name, default=None):
-    with cx() as c:
-        r = c.execute("SELECT value FROM settings WHERE lower(section)=lower(?) AND lower(name)=lower(?)",
-                      (section, name)).fetchone()
+    sql = "SELECT value FROM settings WHERE lower(section)=lower(?) AND lower(name)=lower(?)"
+    try:
+        with _read_cx() as c:
+            r = c.execute(sql, (section, name)).fetchone()
+    except sqlite3.OperationalError:
+        with cx() as c:  # settings table not created yet on a brand-new database
+            try:
+                r = c.execute(sql, (section, name)).fetchone()
+            except sqlite3.OperationalError:
+                r = None
     return default if not r else r["value"]
 
 def set_setting(section, name, value, is_secret=0, source="tvmanager"):
@@ -315,7 +329,14 @@ def init_engine():
             ("artwork_refresh", max(120, as_int(get_setting("TVManager", "artwork_refresh_frequency", 1440), 1440))),
             ("library_health_scan", max(60, as_int(get_setting("TVManager", "library_health_frequency", 1440), 1440))),
             ("database_protection", max(60, as_int(get_setting("TVManager", "database_protection_frequency", 1440), 1440))),
+            ("missing_autopilot", 60),
         ]
+        # v18.23.0: an interval chosen in Settings > Automation is saved as an override and kept
+        # across restarts (it used to be reset to the defaults above at every start).
+        overrides = {r["name"][len("job_interval_"):]: r["value"] for r in c.execute(
+            "SELECT name,value FROM settings WHERE lower(section)='tvmanager' AND name LIKE 'job_interval_%'")}
+        jobs = [(name, max(1, as_int(overrides.get(name), interval)) if overrides.get(name) not in (None, "") else interval)
+                for name, interval in jobs]
         for name, interval in jobs:
             c.execute("""INSERT INTO scheduler_jobs(name,enabled,interval_minutes)
                          VALUES(?,?,?)
@@ -358,8 +379,32 @@ def init_engine():
         episode_rules.init(DB)
     except Exception:
         pass
-    import movies
-    movies.init()
+    try:
+        import trash
+        with cx() as c:
+            trash.init(c)
+            c.commit()
+    except Exception as exc:
+        print(f"Trash table not created: {exc}")
+    try:
+        import autopilot
+        with cx() as c:
+            autopilot.init(c)
+            c.commit()
+    except Exception as exc:
+        print(f"Autopilot tables not created: {exc}")
+    try:
+        import performance
+        with cx() as c:
+            performance.ensure_indexes(c)
+            c.commit()
+    except Exception as exc:  # never block startup on an optional speed-up
+        print(f"Index check skipped: {exc}")
+    try:
+        import movies
+        movies.init()
+    except Exception as exc:
+        print(f"Movie tables not created: {exc}")
 
 
 def list_quality_profiles():
@@ -835,6 +880,20 @@ def _search_episode(episode_id, auto_grab=False, purpose="manual"):
         if key in seen:continue
         seen.add(key);deduped.append(x)
     all_results=deduped
+    # v18.24.0: releases that failed before are rejected here, so the best remaining release is
+    # chosen. Before, a blocked release could still rank first and the automatic grab then
+    # refused it, leaving the episode with nothing sent.
+    if all_results:
+        try:
+            with cx() as c:
+                blocked=c.execute("SELECT guid,lower(COALESCE(title,'')) title FROM failed_releases").fetchall()
+        except sqlite3.OperationalError:
+            blocked=[]  # minimal databases without the failed-release table
+        blocked_guids={r["guid"] for r in blocked if r["guid"]}
+        blocked_titles={r["title"] for r in blocked if r["title"]}
+        for x in all_results:
+            if not x.get("rejected_reason") and (x.get("guid") in blocked_guids or str(x.get("title") or "").lower() in blocked_titles):
+                x["rejected_reason"]="Failed before (blocked release)"
     all_results.sort(key=lambda x: (x["rejected_reason"] is not None, -x["score"], -(x["size"] or 0)))
     with cx() as c:
         c.execute("DELETE FROM search_results WHERE episode_id=? AND status='Found'", (episode_id,))
@@ -1158,14 +1217,14 @@ def eligible_episodes(kind="recent", limit=25):
         days = max(1, as_int(get_setting("TVManager", "recent_days", "14"), 14))
         start = (today - timedelta(days=days)).isoformat()
         end = today.isoformat()
-        where += ["e.airdate IS NOT NULL", "date(episode_airdate(e.airdate))>=?", "date(episode_airdate(e.airdate))<=?"]
+        where += ["e.airdate IS NOT NULL", "date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END))>=?", "date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END))<=?"]
         params += [start, end]
     else:
-        where += ["date(episode_airdate(e.airdate))<=?"]
+        where += ["date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END))<=?"]
         params += [today.isoformat()]
     sql = f"""SELECT e.id FROM episodes e JOIN shows s ON s.id=e.show_id
               WHERE {' AND '.join(where)}
-              ORDER BY date(episode_airdate(e.airdate)) {'DESC' if kind=='recent' else 'ASC'},e.id
+              ORDER BY date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END)) {'DESC' if kind=='recent' else 'ASC'},e.id
               LIMIT ?"""
     params.append(limit)
     with cx() as c:
@@ -1321,21 +1380,25 @@ def upcoming(days=14):
         c.create_function("episode_airdate",1,episode_dates.normalize)
         rows = c.execute("""SELECT e.*,s.name show_name,s.poster,s.network
                             FROM episodes e JOIN shows s ON s.id=e.show_id
-                            WHERE date(episode_airdate(e.airdate)) BETWEEN ? AND ?
-                            ORDER BY date(episode_airdate(e.airdate)),s.name,e.season,e.episode""",(start,end)).fetchall()
+                            WHERE date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END)) BETWEEN ? AND ?
+                            ORDER BY date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END)),s.name,e.season,e.episode""",(start,end)).fetchall()
     return [dict(r) | {"status_label":status_label(r["status"])} for r in rows]
 
 def missing(limit=500):
-    sql = """SELECT e.*,s.name show_name,s.poster,s.network
-                            FROM episodes e JOIN shows s ON s.id=e.show_id
-                            WHERE lower(COALESCE(e.status,'')) IN ('wanted','failed')
-                              AND (e.location IS NULL OR trim(e.location)='')
-                              AND date(episode_airdate(e.airdate))<=date('now','localtime')
-                              AND COALESCE(e.monitored,1)=1 AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored' AND COALESCE(s.paused,0)=0
-                         """ + specials_wanted_sql('e') + """
-                            ORDER BY date(episode_airdate(e.airdate)) DESC,s.name,e.season,e.episode
-                            LIMIT ?"""
-    with cx() as c:
+    """Aired episodes with no file, using the same rules as the Missing Episode Autopilot (v18.24.0).
+
+    Before 18.24.0 only episodes marked Wanted or Failed were listed, so Skipped episodes with no
+    file (common after a SickChill import) never appeared here or in searches.
+    """
+    import autopilot
+    cfg = autopilot.get_settings()
+    sql = f"""SELECT e.*,s.name show_name,s.poster,s.network,a.attempts autopilot_attempts,a.gave_up_at autopilot_set_aside
+              FROM episodes e JOIN shows s ON s.id=e.show_id
+              LEFT JOIN autopilot_episodes a ON a.episode_id=e.id
+              WHERE {autopilot._base_where(cfg)}
+              ORDER BY date({episode_dates.sql_expr("e.airdate")}) DESC,s.name,e.season,e.episode
+              LIMIT ?"""
+    with _read_cx() as c:
         c.create_function("episode_airdate",1,episode_dates.normalize)
         rows = c.execute(sql,(limit,)).fetchall()
     return [dict(r) | {"status_label":status_label(r["status"])} for r in rows]
@@ -1349,25 +1412,37 @@ def activity(limit=200):
                             ORDER BY a.id DESC LIMIT ?""",(limit,)).fetchall()
     return [dict(r) for r in rows]
 
+def _distinct_values(c, column):
+    """Distinct values of an indexed activity_log column via index skip-scan (no full table scan)."""
+    out=[]; last=None
+    while len(out)<200:
+        if last is None:
+            r=c.execute(f"SELECT {column} v FROM activity_log WHERE {column} IS NOT NULL ORDER BY {column} COLLATE NOCASE LIMIT 1").fetchone()
+        else:
+            r=c.execute(f"SELECT {column} v FROM activity_log WHERE {column} > ? COLLATE NOCASE ORDER BY {column} COLLATE NOCASE LIMIT 1",(last,)).fetchone()
+        if not r: break
+        last=r["v"]; out.append(last)
+    # Same values and order as SELECT DISTINCT ... ORDER BY <column>, ignoring case-only duplicates.
+    return sorted(dict.fromkeys(out))
+
 def activity_filtered(limit=200, offset=0, level=None, event_type=None, q=None, sort="created_at", direction="desc"):
     allowed_sort={"id":"a.id","created_at":"a.created_at","level":"a.level","event_type":"a.event_type","show":"s.name","message":"a.message"}
     sort_sql=allowed_sort.get(str(sort or "created_at"),"a.created_at")
     direction="ASC" if str(direction).lower()=="asc" else "DESC"
     where=[];params=[]
     if level:
-        where.append("lower(a.level)=lower(?)");params.append(level)
+        where.append("a.level=? COLLATE NOCASE");params.append(level)
     if event_type:
-        where.append("lower(a.event_type)=lower(?)");params.append(event_type)
+        where.append("a.event_type=? COLLATE NOCASE");params.append(event_type)
     if q:
         where.append("(lower(a.message) LIKE lower(?) OR lower(COALESCE(a.event_type,'')) LIKE lower(?) OR lower(COALESCE(s.name,'')) LIKE lower(?) OR lower(COALESCE(a.data,'')) LIKE lower(?))")
         term=f"%{q}%";params.extend([term,term,term,term])
     where_sql=("WHERE "+" AND ".join(where)) if where else ""
     limit=max(1,min(2000,int(limit or 200)));offset=max(0,int(offset or 0))
     with cx() as c:
-        total=c.execute(f"""SELECT COUNT(*) c FROM activity_log a
-                            LEFT JOIN shows s ON s.id=a.show_id
-                            LEFT JOIN episodes e ON e.id=a.episode_id
-                            {where_sql}""",params).fetchone()["c"]
+        # The joins only matter for the text search (show name); counting without them is far faster.
+        count_joins="LEFT JOIN shows s ON s.id=a.show_id" if q else ""
+        total=c.execute(f"""SELECT COUNT(*) c FROM activity_log a {count_joins} {where_sql}""",params).fetchone()["c"]
         rows=c.execute(f"""SELECT a.*,s.name show_name,e.season,e.episode
                             FROM activity_log a
                             LEFT JOIN shows s ON s.id=a.show_id
@@ -1375,8 +1450,8 @@ def activity_filtered(limit=200, offset=0, level=None, event_type=None, q=None, 
                             {where_sql}
                             ORDER BY {sort_sql} {direction}, a.id {direction}
                             LIMIT ? OFFSET ?""",params+[limit,offset]).fetchall()
-        levels=[r["level"] for r in c.execute("SELECT DISTINCT level FROM activity_log WHERE level IS NOT NULL ORDER BY level").fetchall()]
-        events=[r["event_type"] for r in c.execute("SELECT DISTINCT event_type FROM activity_log WHERE event_type IS NOT NULL ORDER BY event_type").fetchall()]
+        levels=_distinct_values(c,"level")
+        events=_distinct_values(c,"event_type")
     return {"total":total,"limit":limit,"offset":offset,"results":[dict(r) for r in rows],"levels":levels,"event_types":events,"has_more":offset+limit<total}
 
 def downloads(limit=200):
@@ -1477,6 +1552,8 @@ def update_job(name, enabled=None, interval=None):
         if interval is not None:
             c.execute("UPDATE scheduler_jobs SET interval_minutes=? WHERE name=?", (max(1,int(interval)), name))
         c.commit()
+    if interval is not None:
+        set_setting("TVManager", f"job_interval_{name}", str(max(1,int(interval))))
 
 def _job_due(r):
     if not r["enabled"]:
@@ -1748,8 +1825,27 @@ def run_job(name):
         elif name == "library_health_scan":
             result = library_maintenance.library_health_report(DB, duplicate_limit=25, sample_limit=25)
             msg = json.dumps(result)
+        elif name == "missing_autopilot":
+            import autopilot
+            result = autopilot.run_cycle()
+            msg = json.dumps(autopilot.summary_for_log(result), default=str)
         elif name == "database_protection":
             result = database_safety.protect_now(reason="scheduled", include_config=True, include_secrets=False)
+            try:
+                import performance
+                with cx() as c:
+                    result["log_rows_pruned"] = performance.prune_logs(c, get_setting)
+                    performance.optimize(c)
+                    c.commit()
+            except Exception as exc:
+                result["log_prune_error"] = str(exc)
+            try:
+                import trash
+                emptied = trash.auto_empty(get_setting)
+                if emptied is not None:
+                    result["trash_auto_empty"] = {k: emptied[k] for k in ("deleted", "bytes", "missing")}
+            except Exception as exc:
+                result["trash_auto_empty_error"] = str(exc)
             msg = json.dumps(result)
         elif name.startswith("movie_"):
             import movies

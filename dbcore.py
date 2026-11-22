@@ -1,4 +1,6 @@
 from __future__ import annotations
+import os
+import re
 import sqlite3
 import threading
 import time
@@ -15,12 +17,38 @@ DEFAULT_READ_BUSY_TIMEOUT_MS = 1200
 DEFAULT_TIMEOUT_SECONDS = DEFAULT_BUSY_TIMEOUT_MS / 1000
 DEFAULT_READ_TIMEOUT_SECONDS = DEFAULT_READ_BUSY_TIMEOUT_MS / 1000
 _WRITE_LOCK = threading.RLock()
+CACHE_SIZE_KIB = -32000          # negative = KiB: 32 MB page cache per connection
+MMAP_SIZE_BYTES = 256 * 1024 * 1024
 _TRANSIENT_LOCK_ERRORS = ("database is locked", "database table is locked", "database is busy")
 
 
 def is_lock_error(exc: BaseException) -> bool:
     msg = str(exc).lower()
     return any(x in msg for x in _TRANSIENT_LOCK_ERRORS)
+
+
+_READ_PREFIXES = ("select", "explain", "values")
+_WRITE_WORDS = re.compile(r"\b(insert|update|delete|replace)\b")
+_LOCKING_PRAGMAS = ("wal_checkpoint", "optimize", "incremental_vacuum", "user_version", "schema_version")
+
+
+def _is_write(sql) -> bool:
+    """True unless the statement only reads or sets connection options."""
+    text = str(sql).lstrip().lower()
+    if text.startswith(_READ_PREFIXES):
+        return False
+    if text.startswith("pragma"):
+        name = text[6:].strip().split("=", 1)[0].split("(", 1)[0].strip()
+        return name.startswith(_LOCKING_PRAGMAS) and ("=" in text or name.startswith(("wal_checkpoint", "optimize", "incremental_vacuum")))
+    if text.startswith("with"):
+        return bool(_WRITE_WORDS.search(text))
+    return True
+
+
+# v18.23.0: a writable connection takes the process-wide writer lock at its first write
+# statement instead of when it opens. Page views that only read no longer wait behind a
+# background job that is writing. Set TVMANAGER_EAGER_WRITE_LOCK=1 to restore the old behaviour.
+LAZY_WRITE_LOCK = os.environ.get("TVMANAGER_EAGER_WRITE_LOCK", "").strip().lower() not in {"1", "true", "yes"}
 
 
 class ManagedConnection(sqlite3.Connection):
@@ -33,6 +61,25 @@ class ManagedConnection(sqlite3.Connection):
 
     _tvmanager_write_locked = False
     _tvmanager_closed = False
+    _tvmanager_lazy = False
+
+    def _tvmanager_need_lock(self):
+        if self._tvmanager_lazy and not self._tvmanager_write_locked and not self._tvmanager_closed:
+            _WRITE_LOCK.acquire()
+            self._tvmanager_write_locked = True
+
+    def execute(self, sql, *args, **kwargs):
+        if self._tvmanager_lazy and not self._tvmanager_write_locked and _is_write(sql):
+            self._tvmanager_need_lock()
+        return super().execute(sql, *args, **kwargs)
+
+    def executemany(self, sql, *args, **kwargs):
+        self._tvmanager_need_lock()
+        return super().executemany(sql, *args, **kwargs)
+
+    def executescript(self, script):
+        self._tvmanager_need_lock()
+        return super().executescript(script)
 
     def __exit__(self, exc_type, exc, tb):
         try:
@@ -67,6 +114,9 @@ def connect(path, *, wal=True, readonly=False):
         # If the database is busy, fail quickly so the page can show a retryable message
         # instead of looking hung.
         c = _raw_connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=DEFAULT_READ_TIMEOUT_SECONDS)
+    elif LAZY_WRITE_LOCK:
+        c = _raw_connect(path)
+        c._tvmanager_lazy = True
     else:
         _WRITE_LOCK.acquire()
         try:
@@ -78,6 +128,10 @@ def connect(path, *, wal=True, readonly=False):
     c.row_factory = sqlite3.Row
     c.execute(f"PRAGMA busy_timeout={DEFAULT_READ_BUSY_TIMEOUT_MS if readonly else DEFAULT_BUSY_TIMEOUT_MS}")
     c.execute("PRAGMA foreign_keys=ON")
+    # v18.23.0: larger page cache, memory-mapped reads and in-memory temp tables for sorting.
+    c.execute(f"PRAGMA cache_size={CACHE_SIZE_KIB}")
+    c.execute(f"PRAGMA mmap_size={MMAP_SIZE_BYTES}")
+    c.execute("PRAGMA temp_store=MEMORY")
     if wal and not readonly:
         try:
             c.execute("PRAGMA journal_mode=WAL")

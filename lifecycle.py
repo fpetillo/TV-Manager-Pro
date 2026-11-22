@@ -151,14 +151,9 @@ def stage_replacement(episode, incoming_path, new_release=None, new_quality=None
         return {"allowed":False,"reason":reason}
     if not allowed:
         reason=f"Manual override: {reason}"
-    stamp=datetime.now().strftime("%Y%m%d-%H%M%S")
-    target_dir=TRASH/stamp
-    target_dir.mkdir(parents=True,exist_ok=True)
-    target=target_dir/old_path.name
-    n=1
-    while target.exists():
-        target=target_dir/f"{old_path.stem}-{n}{old_path.suffix}";n+=1
-    shutil.move(str(old_path),str(target))
+    # v18.25.0: trash lives on the media share next to the library, so this is a rename, not a copy.
+    import trash
+    target=Path(trash.move_to_trash(old_path,"upgrades",episode_id=episode["id"],reason=reason))
     with cx() as c:
         cur=c.execute("""INSERT INTO upgrade_replacements(
                           episode_id,old_path,replacement_path,trash_path,old_release,new_release,old_quality,new_quality,status)
@@ -166,6 +161,7 @@ def stage_replacement(episode, incoming_path, new_release=None, new_quality=None
                       (episode["id"],str(old_path),str(incoming_path),str(target),
                        episode["release_name"],new_release,episode["quality"],new_quality,"Staged"))
         rid=cur.lastrowid;c.commit()
+    trash.set_ref(target,f"upgrade_replacements:{rid}")
     return {"allowed":True,"replacement_id":rid,"trash_path":str(target),"reason":reason}
 
 def complete_replacement(replacement_id, final_path):
@@ -183,11 +179,12 @@ def rollback_replacement(replacement_id):
     if not trash.exists():raise ValueError("Original file is no longer available in managed trash")
     old.parent.mkdir(parents=True,exist_ok=True)
     replacement=Path(r["replacement_path"] or "")
+    import trash as trash_store
     if replacement.exists() and replacement.is_file():
-        qdir=BASE/"managed_trash"/"rollback_replaced"
-        qdir.mkdir(parents=True,exist_ok=True)
-        shutil.move(str(replacement),str(qdir/replacement.name))
+        trash_store.move_to_trash(replacement,"rollback_replaced",episode_id=r["episode_id"],
+                                  reason="Removed when the upgrade was rolled back")
     shutil.move(str(trash),str(old))
+    trash_store.mark_restored(trash)
     with cx() as c:
         c.execute("""UPDATE episodes SET location=?,release_name=?,quality=?,status='Downloaded'
                      WHERE id=?""",(str(old),r["old_release"],r["old_quality"],r["episode_id"]))

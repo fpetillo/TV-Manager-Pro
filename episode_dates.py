@@ -44,3 +44,16 @@ def normalize(value):
     if text.isdigit():
         return ""
     return text
+
+
+ISO_GLOB = "'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'"
+
+
+def sql_expr(column, function="episode_airdate"):
+    """SQL for normalize(column): ISO dates are handled in SQLite, only legacy values call Python.
+
+    Calling a Python function for every episode row made large libraries slow (v18.23.0).
+    The registered function (``function``) must still be created on the connection.
+    """
+    return (f"(CASE WHEN {column} GLOB {ISO_GLOB} THEN substr({column},1,10) "
+            f"ELSE {function}({column}) END)")
