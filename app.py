@@ -466,7 +466,7 @@ def api_exception_json(ex):
     raise ex
 
 
-PUBLIC_PATHS={"/login","/about","/about/","/version","/routes","/api/routes","/library-health","/library-health/","/library_health","/health/library","/api/about","/api/about/","/api/version","/api/version/","/api/health","/api/security/status","/database-safety","/database-safety/","/api/protection/status","/api/protection/backups"}
+PUBLIC_PATHS={"/favicon.ico","/site.webmanifest","/login","/about","/about/","/version","/routes","/api/routes","/library-health","/library-health/","/library_health","/health/library","/api/about","/api/about/","/api/version","/api/version/","/api/health","/api/security/status","/database-safety","/database-safety/","/api/protection/status","/api/protection/backups"}
 
 @app.before_request
 def enforce_security():
@@ -522,6 +522,21 @@ def security_headers(response):
         response.set_cookie("tvmanager_csrf",token,httponly=False,samesite="Lax",
                             secure=app.config["SESSION_COOKIE_SECURE"])
     return response
+
+@app.get("/favicon.ico")
+def favicon():
+    # Browsers ask for /favicon.ico on every page, including the login page.
+    return send_file(BASE / "static" / "icons" / "favicon.ico", mimetype="image/vnd.microsoft.icon", max_age=86400)
+
+
+@app.get("/site.webmanifest")
+def web_manifest():
+    return jsonify({"name": "TV Manager", "short_name": "TV Manager", "start_url": "/", "display": "standalone",
+                    "background_color": "#0b1220", "theme_color": "#0b1220",
+                    "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                              {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+                              {"src": "/static/icons/tv-manager.svg", "sizes": "any", "type": "image/svg+xml"}]}), 200, {"Content-Type": "application/manifest+json"}
+
 
 @app.route("/login",methods=["GET","POST"])
 def login():

@@ -1,3 +1,7 @@
+## 18.27.0 — Browser icon
+
+TV Manager has its own icon (blue TV screen with a play button) in browser tabs, bookmarks and phone home screens: SVG, multi-size `favicon.ico`, Apple touch icon and a web app manifest, linked from every page and served without login. See [release notes](docs/RELEASE_NOTES_v18.27.0.md).
+
 ## 18.26.0 — Movies: find, download and organize movies automatically
 
 New Movies page (Library section of the side menu) with Library, Discover, Downloads and Settings. Four scheduled jobs run with TV Manager automation: a daily library scan reads every Plex movie library and the movie folder so owned movies are never downloaded again (and detects the movie folder from Plex); discovery twice a day adds new digital and Blu-ray releases that pass rating, vote, language and genre filters; an hourly search uses the existing indexers (movie categories, IMDb ID first, strict title/year matching, no camera copies, disc images or remuxes, 720p–1080p by default) and sends the best release to the existing SABnzbd/NZBGet/torrent client under a `movies` category or label; every 10 minutes completed downloads are renamed to `Title (Year)\\Title (Year).ext` (Usenet moved and cleaned up, torrents hardlinked to keep seeding), Plex scans the folder, a replaced file goes to the share trash, and failed or stalled (36 h) releases are blocklisted and replaced. See [Movies](docs/MOVIES.md) and [release notes](docs/RELEASE_NOTES_v18.26.0.md).

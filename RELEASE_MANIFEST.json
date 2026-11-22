@@ -1,17 +1,16 @@
 {
   "product": "TV Manager",
-  "version": "18.26.0",
-  "release_name": "Movies: find, download and organize movies automatically",
-  "generated_at": "2026-11-22T16:45:24.053632+00:00",
+  "version": "18.27.0",
+  "release_name": "Browser icon",
+  "generated_at": "2026-11-22T22:01:13.476880+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "New Movies page and four movie jobs (library scan, discovery, search, downloads) using the existing indexers, download clients, TMDb credential and Plex servers",
-    "New digital and Blu-ray releases that pass rating, vote, language and genre filters are added, searched (movie categories, IMDb ID first) and sent under a movies category or label; completed files are renamed to Title (Year)/Title (Year).ext and Plex scans the folder",
-    "Failed or stalled releases are blocklisted and another is searched; owned movies in Plex or the movie folder are never downloaded again; a replaced file goes to the share trash"
+    "TV Manager icon in browser tabs, bookmarks and phone home screens (SVG, favicon.ico 16-64 px, Apple touch icon, web manifest)",
+    "Icon links on every page; /favicon.ico and /site.webmanifest served without login, ending the favicon 404 on every page load"
   ],
   "validation": {
     "pytest": {
-      "passed": 642,
+      "passed": 645,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lock and service checks not runnable on the Linux build host; suite also runs on the GitHub Windows runner"
@@ -24,11 +23,11 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Movies page checked in Chrome at desktop and phone width on the v18.22.0-based build (status line, cards, filters, Releases dialog, Ignore, Downloads, Settings save/validation, job buttons); on the merged v18.26.0 tree the page and API are verified by the running-app test",
+    "browser_qa": "Chrome on a disposable copy: four icon links declared, SVG icon loaded with 200, no 404s in the server log",
     "indexer_end_to_end": "Not performed for movies: search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server",
     "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Stop TV Manager, download update-server.ps1 from the v18.26.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, open Movies and check the status line. Movie jobs run when TV Manager automation is on.",
+  "activation": "Stop TV Manager, download update-server.ps1 from the v18.27.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, then Ctrl+F5 in the browser.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -127,7 +126,14 @@
     "templates/movies.html",
     "docs/MOVIES.md",
     "docs/RELEASE_NOTES_v18.26.0.md",
-    "tests/test_v18_26_0_movies.py"
+    "tests/test_v18_26_0_movies.py",
+    "static/icons/tv-manager.svg",
+    "static/icons/favicon.ico",
+    "static/icons/apple-touch-icon.png",
+    "static/icons/icon-192.png",
+    "static/icons/icon-512.png",
+    "tests/test_v18_27_0_browser_icon.py",
+    "docs/RELEASE_NOTES_v18.27.0.md"
   ],
   "sickchill_full_parity": false
 }
