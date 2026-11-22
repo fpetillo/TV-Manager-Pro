@@ -400,6 +400,11 @@ def init_engine():
             c.commit()
     except Exception as exc:  # never block startup on an optional speed-up
         print(f"Index check skipped: {exc}")
+    try:
+        import movies
+        movies.init()
+    except Exception as exc:
+        print(f"Movie tables not created: {exc}")
 
 
 def list_quality_profiles():
@@ -1842,6 +1847,10 @@ def run_job(name):
             except Exception as exc:
                 result["trash_auto_empty_error"] = str(exc)
             msg = json.dumps(result)
+        elif name.startswith("movie_"):
+            import movies
+            result = movies.run_job(name)
+            msg = json.dumps(result, default=str)
         else:
             raise ValueError("Unknown job")
         failed = result.get("ok") is False or bool(result.get("errors"))

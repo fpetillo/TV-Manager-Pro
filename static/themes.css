@@ -313,6 +313,23 @@ html[data-theme="glassy"] .autopilot-counts small{color:#8fa1ba}
 html[data-theme="glassy"] .not-aired-file{color:#8fa1ba}
 html[data-theme="glassy"] .trash-counts small{color:#8fa1ba}
 html[data-theme="glassy"] .trash-path{color:#8fa1ba}
+html[data-theme="glassy"] .movie-stat{border:1px solid rgba(255,255,255,0.13);background:rgba(200,215,255,0.066)}
+html[data-theme="glassy"] .movie-stat span{color:#94a3b8}
+html[data-theme="glassy"] .movie-tab{background:rgba(200,215,255,0.08);color:#c7d2df;border:1px solid rgba(255,255,255,0.13)}
+html[data-theme="glassy"] .movie-tab.active{background:#1261a0;color:#fff;border-color:#1261a0}
+html[data-theme="glassy"] .movie-card{border:1px solid rgba(255,255,255,0.13);background:linear-gradient(180deg,rgba(200,215,255,0.071),rgba(200,215,255,0.062))}
+html[data-theme="glassy"] .movie-card h3 span{color:#94a3b8}
+html[data-theme="glassy"] .movie-card p{color:#c7d2df}
+html[data-theme="glassy"] .movie-poster{background:rgba(200,215,255,0.085)}
+html[data-theme="glassy"] .movie-state{color:#ffdc71}
+html[data-theme="glassy"] .movie-settings fieldset{border:1px solid rgba(255,255,255,0.13)}
+html[data-theme="glassy"] .movie-dialog{border:1px solid rgba(255,255,255,0.13);background:rgba(200,215,255,0.062);color:#e6edf6}
+html[data-theme="glassy"] .movie-dialog::backdrop{background:rgba(0,0,0,.6)}
+html[data-theme="glassy"] .movie-dialog tr.rejected td{color:#8b98a9}
+html[data-theme="glassy"] .status-pill.Downloaded,html[data-theme="glassy"] .status-pill.Completed{background:rgba(200,215,255,0.086);color:#9bf2af}
+html[data-theme="glassy"] .status-pill.Ignored{background:rgba(200,215,255,0.102);color:#aab4c3}
+html[data-theme="glassy"] .status-pill.Downloading,html[data-theme="glassy"] .status-pill.Queued{background:rgba(200,215,255,0.096);color:#ffdc71}
+html[data-theme="glassy"] .movies-page select{border:1px solid rgba(255,255,255,0.13);background:rgba(200,215,255,0.062);color:#e6edf6}
 html[data-theme="glassy"]{background:#0b1024;color-scheme:dark;--glass-line:rgba(255,255,255,.18)}
 html[data-theme="glassy"] body{background:
   radial-gradient(900px 640px at 4% -4%,rgba(132,94,255,.62),transparent 60%),
@@ -641,6 +658,23 @@ html[data-theme="midnight"] .autopilot-counts small{color:#9da3ac}
 html[data-theme="midnight"] .not-aired-file{color:#9da3ac}
 html[data-theme="midnight"] .trash-counts small{color:#9da3ac}
 html[data-theme="midnight"] .trash-path{color:#9da3ac}
+html[data-theme="midnight"] .movie-stat{border:1px solid #27292c;background:#090a0b}
+html[data-theme="midnight"] .movie-stat span{color:#a0a5ac}
+html[data-theme="midnight"] .movie-tab{background:#0e0f10;color:#cfd3d7;border:1px solid #27292c}
+html[data-theme="midnight"] .movie-tab.active{background:#1261a0;color:#fff;border-color:#1261a0}
+html[data-theme="midnight"] .movie-card{border:1px solid #27292c;background:linear-gradient(180deg,#0b0c0d,#08090a)}
+html[data-theme="midnight"] .movie-card h3 span{color:#a0a5ac}
+html[data-theme="midnight"] .movie-card p{color:#cfd3d7}
+html[data-theme="midnight"] .movie-poster{background:#101112}
+html[data-theme="midnight"] .movie-state{color:#ffdc71}
+html[data-theme="midnight"] .movie-settings fieldset{border:1px solid #27292c}
+html[data-theme="midnight"] .movie-dialog{border:1px solid #27292c;background:#08090a;color:#ebeef1}
+html[data-theme="midnight"] .movie-dialog::backdrop{background:rgba(0,0,0,.6)}
+html[data-theme="midnight"] .movie-dialog tr.rejected td{color:#95999f}
+html[data-theme="midnight"] .status-pill.Downloaded,html[data-theme="midnight"] .status-pill.Completed{background:#0f1311;color:#9bf2af}
+html[data-theme="midnight"] .status-pill.Ignored{background:#161617;color:#b2b6bb}
+html[data-theme="midnight"] .status-pill.Downloading,html[data-theme="midnight"] .status-pill.Queued{background:#161512;color:#ffdc71}
+html[data-theme="midnight"] .movies-page select{border:1px solid #27292c;background:#08090a;color:#ebeef1}
 html[data-theme="midnight"]{background:#000;color-scheme:dark}
 html[data-theme="midnight"] body{background:#000}
 
@@ -956,6 +990,23 @@ html[data-theme="daylight"] .autopilot-counts small{color:#4c5665}
 html[data-theme="daylight"] .not-aired-file{color:#4c5665}
 html[data-theme="daylight"] .trash-counts small{color:#4c5665}
 html[data-theme="daylight"] .trash-path{color:#4c5665}
+html[data-theme="daylight"] .movie-stat{border:1px solid #c8ccd2;background:#eff1f4}
+html[data-theme="daylight"] .movie-stat span{color:#4d5562}
+html[data-theme="daylight"] .movie-tab{background:#e8eaee;color:#2d353e;border:1px solid #c8ccd2}
+html[data-theme="daylight"] .movie-tab.active{background:#1261a0;color:#fff;border-color:#1261a0}
+html[data-theme="daylight"] .movie-card{border:1px solid #c8ccd2;background:linear-gradient(180deg,#eceef2,#f1f3f5)}
+html[data-theme="daylight"] .movie-card h3 span{color:#4d5562}
+html[data-theme="daylight"] .movie-card p{color:#2d353e}
+html[data-theme="daylight"] .movie-poster{background:#e6e8ec}
+html[data-theme="daylight"] .movie-state{color:#a87f00}
+html[data-theme="daylight"] .movie-settings fieldset{border:1px solid #c8ccd2}
+html[data-theme="daylight"] .movie-dialog{border:1px solid #c8ccd2;background:#f1f3f5;color:#18202b}
+html[data-theme="daylight"] .movie-dialog::backdrop{background:rgba(255,255,255,0.7)}
+html[data-theme="daylight"] .movie-dialog tr.rejected td{color:#585f69}
+html[data-theme="daylight"] .status-pill.Downloaded,html[data-theme="daylight"] .status-pill.Completed{background:#e3eee8;color:#16d442}
+html[data-theme="daylight"] .status-pill.Ignored{background:#dfe1e4;color:#434953}
+html[data-theme="daylight"] .status-pill.Downloading,html[data-theme="daylight"] .status-pill.Queued{background:#eae7de;color:#a87f00}
+html[data-theme="daylight"] .movies-page select{border:1px solid #c8ccd2;background:#f1f2f6;color:#18202b}
 html[data-theme="daylight"]{background:#eef3fa;color-scheme:light}
 html[data-theme="daylight"] body{background:linear-gradient(180deg,#f5f8fd 0%,#e9eff8 100%);color:#172033}
 html[data-theme="daylight"] :is(input,select,textarea){color:#172033}

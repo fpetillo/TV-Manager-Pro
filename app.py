@@ -28,6 +28,7 @@ import production
 import release
 import sync
 import support_routes
+import movies_routes
 import ui_themes
 import operator_experience
 import trakt_client
@@ -64,6 +65,7 @@ app.config["SESSION_COOKIE_SECURE"]=str(os.getenv("TVMANAGER_HTTPS","0")).lower(
 # This guarantees /about, /library-health, /routes and version APIs exist
 # even if a later template/static route fails.
 support_routes.register_support_routes(app, BASE, lambda: APP_VERSION)
+movies_routes.register(app)
 
 BACKUPS=BASE/"backups"; BACKUPS.mkdir(exist_ok=True)
 MANAGED_TRASH=BASE/"managed_trash"; MANAGED_TRASH.mkdir(exist_ok=True)

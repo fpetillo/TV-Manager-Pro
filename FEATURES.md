@@ -392,3 +392,11 @@ Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint
 - Operator workflow map.
 - Context help sections for key daily flows.
 - Honest gap tracking for provider depth, subtitle automation, media server depth, and anime/scene/XEM edge cases.
+
+## v18.23.0 — Movies
+
+- Movies page: library, TMDb discovery, downloads and settings; automatic discovery, search, download handoff, failed/stalled retry, Plex-named import and Plex scan using the existing indexers, download clients and media servers. See docs/MOVIES.md.
+
+## v18.26.0 — Movies
+
+- Movies page: library, TMDb discovery, downloads and settings; automatic discovery, search, download handoff, failed/stalled retry, Plex-named import and Plex scan using the existing indexers, download clients and media servers. See docs/MOVIES.md.
