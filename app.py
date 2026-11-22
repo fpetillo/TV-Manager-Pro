@@ -52,6 +52,8 @@ IMPORTS=BASE/"imports"; IMPORTS.mkdir(exist_ok=True)
 IMPORT_JOBS: dict[str, dict] = {}
 IMPORT_JOBS_LOCK = threading.RLock()
 app=Flask(__name__,root_path=str(BASE))
+import http_speed
+http_speed.init(app)  # v18.23.0: gzip + long-lived caching of versioned static files
 app.secret_key=security.session_secret()
 app.config["MAX_CONTENT_LENGTH"]=512*1024*1024
 app.config["SESSION_COOKIE_HTTPONLY"]=True
@@ -816,7 +818,8 @@ def api_show_queue():
     except Exception: offset=0
     ignore_specials = _ignore_season_zero_counts()
     episode_filter = _queue_episode_filter("e", ignore_specials)
-    aired_filter = " AND date(queue_airdate(e.airdate))<=date('now','localtime')"
+    aired_filter = " AND date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE queue_airdate(e.airdate) END))<=date('now','localtime')"
+    aired_cond = aired_filter[len(" AND "):]
     where=[]; params=[]
     if q:
         like=f"%{q}%"; where.append("(s.name LIKE ? COLLATE NOCASE OR COALESCE(s.network,'') LIKE ? COLLATE NOCASE OR COALESCE(s.imdb_id,'') LIKE ? COLLATE NOCASE OR COALESCE(s.location,'') LIKE ? COLLATE NOCASE)"); params.extend([like]*4)
@@ -827,6 +830,8 @@ def api_show_queue():
     elif active in {"no","false","0"}:
         where.append("(COALESCE(s.paused,0)=1 OR COALESCE(s.search_enabled,1)=0)")
     where_sql=(" WHERE "+" AND ".join(where)) if where else ""
+    # Filters also limit the episode pass to the matching shows.
+    agg_shows=f" AND e.show_id IN (SELECT s.id FROM shows s{where_sql})" if where else ""
     # v17.23.0: sort in Python after fetching the filtered set so display values
     # like 3/7 never drive ordering. Downloads is sorted by real downloaded count,
     # then total episode count and completion percent. Legacy ordinal dates are
@@ -836,20 +841,29 @@ def api_show_queue():
               COALESCE(s.status,'Wanted') status,
               s.paused, s.search_enabled, s.monitor_new,
               (CASE WHEN COALESCE(s.paused,0)=0 AND COALESCE(s.search_enabled,1)=1 THEN 1 ELSE 0 END) active_flag,
-              (SELECT MIN(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate>=date('now') {episode_filter}) next_ep,
-              (SELECT MAX(e.airdate) FROM episodes e WHERE e.show_id=s.id AND e.airdate<date('now') {episode_filter}) prev_ep,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter} AND e.location IS NOT NULL AND TRIM(e.location)<>'') downloaded_count,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter}) episode_count,
-              (SELECT COUNT(*) FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter} AND (e.location IS NULL OR TRIM(e.location)='')) missing_count,
-              COALESCE((SELECT GROUP_CONCAT('S' || printf('%02d', e.season) || 'E' || printf('%02d', e.episode), ',')
-                        FROM episodes e WHERE e.show_id=s.id {episode_filter} {aired_filter}
-                        AND (e.location IS NULL OR TRIM(e.location)='')
-                        ORDER BY e.season,e.episode), '') missing_episode_numbers,
-              COALESCE((SELECT SUM(COALESCE(e.file_size,0)) FROM episodes e WHERE e.show_id=s.id {episode_filter}),0) size_bytes
-           FROM shows s{where_sql}"""
+              agg.next_ep, agg.prev_ep,
+              COALESCE(agg.downloaded_count,0) downloaded_count,
+              COALESCE(agg.episode_count,0) episode_count,
+              COALESCE(agg.missing_count,0) missing_count,
+              COALESCE(agg.size_bytes,0) size_bytes
+           FROM shows s
+           LEFT JOIN (
+              -- v18.23.0: one pass over episodes for every show (was seven correlated subqueries per show)
+              SELECT x.show_id,
+                MIN(CASE WHEN x.airdate>=date('now') THEN x.airdate END) next_ep,
+                MAX(CASE WHEN x.airdate<date('now') THEN x.airdate END) prev_ep,
+                SUM(x.aired*x.has_file) downloaded_count,
+                SUM(x.aired) episode_count,
+                SUM(x.aired*(1-x.has_file)) missing_count,
+                SUM(COALESCE(x.file_size,0)) size_bytes
+              FROM (SELECT e.show_id, e.airdate, e.file_size,
+                      CASE WHEN {aired_cond} THEN 1 ELSE 0 END aired,
+                      CASE WHEN e.location IS NOT NULL AND TRIM(e.location)<>'' THEN 1 ELSE 0 END has_file
+                    FROM episodes e WHERE 1=1 {episode_filter}{agg_shows}) x
+              GROUP BY x.show_id) agg ON agg.show_id=s.id{where_sql}"""
     with cx() as c:
         c.create_function("queue_airdate", 1, _normalize_queue_airdate)
-        rows=[dict(r) for r in c.execute(sql,params).fetchall()]
+        rows=[dict(r) for r in c.execute(sql,(params+params) if where else params).fetchall()]
     total=len(rows)
     rows=_sort_show_queue_rows(rows, sort, direction)
     page_rows=rows[offset:offset+limit]
@@ -862,6 +876,16 @@ def api_show_queue():
                 SUM(CASE WHEN TRIM(COALESCE(e.location,''))<>'' THEN 1 ELSE 0 END) downloaded_count
                 FROM episodes e WHERE e.show_id IN ({','.join('?' for _ in ids)})
                 {episode_filter} {aired_filter} GROUP BY e.show_id,e.season ORDER BY e.season""", ids).fetchall()
+        missing_codes = {}
+        with cx() as c:
+            c.create_function("queue_airdate", 1, _normalize_queue_airdate)
+            for r in c.execute(f"""SELECT e.show_id, 'S' || printf('%02d', e.season) || 'E' || printf('%02d', e.episode) code
+                FROM episodes e WHERE e.show_id IN ({','.join('?' for _ in ids)})
+                {episode_filter} {aired_filter} AND (e.location IS NULL OR TRIM(e.location)='')
+                ORDER BY e.show_id,e.season,e.episode""", ids):
+                missing_codes.setdefault(r["show_id"], []).append(r["code"])
+        for row in page_rows:
+            row["missing_episode_numbers"] = ",".join(missing_codes.get(row["id"], []))
     for row in page_rows:
         row['season_progress'] = [dict(r) for r in season_rows if r['show_id']==row['id']]
 
@@ -924,7 +948,7 @@ def setup_assistant_page(): return render_template("setup_assistant.html")
 @app.get("/api/launchpad/summary")
 def api_launchpad_summary():
     try:
-        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
+        health = library_maintenance.cached_library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
         health_error = None
     except Exception as exc:
         health = {"ok": False, "counts": {}, "recommendations": [str(exc)]}
@@ -956,7 +980,7 @@ def api_readiness_clear(key):
 @app.get("/api/setup/summary")
 def api_setup_summary():
     try:
-        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
+        health = library_maintenance.cached_library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
     except Exception as exc:
         health = {"ok": False, "counts": {}, "recommendations": [str(exc)]}
     return jsonify(operator_experience.setup_assistant_summary(DB, BASE, APP_VERSION, health, network_settings.status(DB, app.config['TVMANAGER_NETWORK'])))
@@ -969,7 +993,7 @@ def api_workflow_summary():
     except Exception:
         dashboard_stats = {}
     try:
-        health = library_maintenance.library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
+        health = library_maintenance.cached_library_health_report(DB, duplicate_limit=10, sample_limit=8, path_mapper=ops.path_mapper_snapshot())
     except Exception as exc:
         health = {"ok": False, "counts": {}, "recommendations": [f"Library Health needs attention: {exc}"]}
     try:
@@ -1807,6 +1831,91 @@ def quality_page(): return render_template("quality.html")
 
 @app.get("/upcoming")
 def upcoming_page(): return render_template("upcoming.html")
+
+# v18.25.0: managed trash (index, restore, empty)
+@app.get("/trash")
+def trash_page(): return render_template("trash.html")
+
+@app.get("/api/trash")
+def api_trash():
+    import trash
+    try: limit=int(request.args.get("limit") or 500)
+    except ValueError: limit=500
+    return jsonify(**trash.summary(), items=trash.items(limit, request.args.get("category") or None))
+
+@app.post("/api/trash/empty")
+def api_trash_empty():
+    import trash
+    body=request.get_json(silent=True) or {}
+    mode=str(body.get("mode") or "")
+    try:
+        if mode=="all":
+            out=trash.empty(category=body.get("category") or None, include_legacy=bool(body.get("include_legacy")))
+        elif mode=="older":
+            days=int(body.get("days"))
+            if days<0: raise ValueError
+            out=trash.empty(older_than_days=days, category=body.get("category") or None, include_legacy=bool(body.get("include_legacy")))
+        elif mode=="selected":
+            ids=body.get("ids")
+            if not isinstance(ids,list) or not ids: return jsonify(ok=False,error="Choose at least one file."),400
+            out=trash.empty(item_ids=[int(x) for x in ids])
+        elif mode=="legacy":
+            out=trash.empty(item_ids=[], include_legacy=True)
+        else:
+            return jsonify(ok=False,error="Choose what to empty."),400
+    except (TypeError, ValueError):
+        return jsonify(ok=False,error="Days must be a whole number of 0 or more."),400
+    engine.log("trash_emptied", f"Trash emptied: {out['deleted']} file(s), {out['bytes']} bytes", "info", data={k:out[k] for k in ("deleted","bytes","missing","legacy_deleted")})
+    return jsonify(out)
+
+@app.post("/api/trash/restore/<int:item_id>")
+def api_trash_restore(item_id):
+    import trash
+    try:
+        out=trash.restore(item_id)
+    except ValueError as exc:
+        return jsonify(ok=False,error=str(exc)),400
+    engine.log("trash_restored", f"Restored from trash: {out.get('restored')}")
+    return jsonify(out)
+
+@app.post("/api/trash/settings")
+def api_trash_settings():
+    import trash
+    try:
+        return jsonify(trash.save_settings(request.get_json(silent=True) or {}))
+    except ValueError as exc:
+        return jsonify(ok=False,error=str(exc)),400
+
+# v18.24.0: Missing Episode Autopilot
+@app.get("/autopilot")
+def autopilot_page(): return render_template("autopilot.html")
+
+@app.get("/api/autopilot/status")
+def api_autopilot_status():
+    import autopilot
+    return jsonify(autopilot.status())
+
+@app.post("/api/autopilot/settings")
+def api_autopilot_settings():
+    import autopilot
+    try:
+        return jsonify(autopilot.save_settings(request.get_json(silent=True) or {}))
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+
+@app.post("/api/autopilot/retry")
+def api_autopilot_retry():
+    import autopilot
+    body=request.get_json(silent=True) or {}
+    if body.get("all"):
+        return jsonify(ok=True, **autopilot.retry(None))
+    ids=body.get("episode_ids")
+    if not isinstance(ids,list) or not ids:
+        return jsonify(ok=False, error="Choose at least one episode."), 400
+    try:
+        return jsonify(ok=True, **autopilot.retry([int(x) for x in ids]))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="Episode ids must be numbers."), 400
 
 @app.get("/missing")
 def missing_page(): return render_template("missing.html")
@@ -2819,7 +2928,7 @@ def api_health():
 
 @app.get("/api/dashboard/full")
 def api_dashboard_full():
-    health_summary=library_maintenance.library_health_report(DB,duplicate_limit=5,sample_limit=5,path_mapper=ops.path_mapper_snapshot())
+    health_summary=library_maintenance.cached_library_health_report(DB,duplicate_limit=10,sample_limit=8,path_mapper=ops.path_mapper_snapshot())  # same report as the other summary pages
     return jsonify(stats=engine.dashboard_stats(),jobs=engine.jobs_public(),
                    activity=engine.activity(20),downloads=engine.downloads(20),
                    library_health=health_summary["counts"],recommendations=health_summary["recommendations"])
@@ -3293,10 +3402,28 @@ def api_job(job_id):
         return jsonify(error="Job not found."),404
     return jsonify(ok=True, job=job)
 
+@app.get("/api/nav/badges")
+def api_nav_badges():
+    """Everything the menu badges need in one cheap request (v18.23.0).
+
+    Replaces three calls every 30 seconds per open page, one of which re-read the whole
+    database and every backup copy.
+    """
+    jobs=job_center.list_jobs(None)
+    active=sum(1 for j in jobs if str(j.get("status") or "").lower() not in {"complete","error","cancelled"})
+    try:
+        with engine._read_cx() as c:
+            errors=c.execute("SELECT COUNT(*) FROM activity_log WHERE level=? COLLATE NOCASE",("ERROR",)).fetchone()[0]
+    except Exception:
+        errors=0
+    db=database_safety.cached_quick_check(DB)
+    return jsonify(ok=True,active_jobs=active,errors=errors,database_ok=bool(db.get("ok")),database_checked_at=db.get("checked_at"))
+
 @app.get("/api/protection/status")
 def api_protection_status():
-    db=database_safety.quick_check(DB)
-    backups=database_safety.scan_backups()
+    # v18.23.0: the live check is reused for 15 minutes and unchanged backups are not re-read.
+    db=database_safety.cached_quick_check(DB)
+    backups=database_safety.scan_backups(check_live=False)
     return jsonify(ok=True, database=db, backups={
         "count": backups.get("count",0),
         "newest_usable_backup": backups.get("newest_usable_backup"),

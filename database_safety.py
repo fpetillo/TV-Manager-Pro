@@ -213,7 +213,61 @@ def protect_now(*, reason: str = "manual", include_config: bool = True, include_
     return {"ok": bool(db.get("ok")) and bool(cfg.get("ok", True)), "database": db, "config": cfg}
 
 
-def scan_backups() -> dict[str, Any]:
+# v18.23.0: backup files do not change after they are written, so their integrity check and
+# SHA-256 are cached by (path, size, mtime). Before this, every Safety badge refresh (every page,
+# every 30 seconds) re-read every backup database twice.
+_BACKUP_CHECK_CACHE: dict[tuple[str, int, int], dict[str, Any]] = {}
+_LIVE_CHECK: dict[str, Any] = {}
+_LIVE_CHECK_LOCK = threading.Lock()
+LIVE_CHECK_MAX_AGE_SECONDS = 15 * 60
+
+
+def _checked_backup(path: Path) -> dict[str, Any]:
+    st = path.stat()
+    key = (str(path), st.st_size, st.st_mtime_ns)
+    hit = _BACKUP_CHECK_CACHE.get(key)
+    if hit is None:
+        qc = quick_check(path)
+        hit = {**qc, "sha256": _sha256(path) if qc.get("ok") else None}
+        if len(_BACKUP_CHECK_CACHE) > 2000:
+            _BACKUP_CHECK_CACHE.clear()
+        _BACKUP_CHECK_CACHE[key] = hit
+    return dict(hit)
+
+
+def cached_quick_check(db_path: str | Path = DB, *, max_age: float = LIVE_CHECK_MAX_AGE_SECONDS) -> dict[str, Any]:
+    """Integrity check of the live database, reused for up to 15 minutes.
+
+    A stale result is returned at once while a background thread refreshes it, so the
+    navigation badge never waits for a full read of a large database.
+    """
+    key = str(Path(db_path))
+    now = time.monotonic()
+    with _LIVE_CHECK_LOCK:
+        entry = _LIVE_CHECK.get(key)
+        fresh = entry is not None and now - entry["at"] < max_age
+        running = bool(entry and entry.get("running"))
+        if entry is not None and not fresh and not running:
+            entry["running"] = True
+    if entry is None:
+        result = quick_check(db_path)
+        with _LIVE_CHECK_LOCK:
+            _LIVE_CHECK[key] = {"at": time.monotonic(), "result": result}
+        return dict(result, cached=False)
+    if not fresh and not running:
+        def refresh():
+            try:
+                result = quick_check(db_path)
+            except Exception as exc:  # noqa: BLE001
+                result = dict(entry["result"], ok=False, error=str(exc))
+            with _LIVE_CHECK_LOCK:
+                _LIVE_CHECK[key] = {"at": time.monotonic(), "result": result}
+        threading.Thread(target=refresh, name="tvm-db-quick-check", daemon=True).start()
+    return dict(entry["result"], cached=True)
+
+
+def scan_backups(*, check_live: bool = True) -> dict[str, Any]:
+    """check_live=False reuses the cached live-database check and skips its SHA-256."""
     candidates: list[Path] = []
     for pattern in ("tvmanager*.db", "*.db"):
         candidates.extend(BASE.glob(pattern))
@@ -227,13 +281,21 @@ def scan_backups() -> dict[str, Any]:
         if path in seen or not path.exists() or not path.is_file():
             continue
         seen.add(path)
-        qc = quick_check(path)
+        live = path == DB.resolve()
+        if live and not check_live:
+            checked = {k: v for k, v in cached_quick_check(path).items() if k != "cached"}
+            checked["sha256"] = None
+        elif live:
+            checked = quick_check(path)
+            checked["sha256"] = _sha256(path) if checked.get("ok") else None
+        else:
+            checked = _checked_backup(path)
         try:
             mtime = path.stat().st_mtime
             modified = datetime.fromtimestamp(mtime).isoformat(timespec="seconds")
         except Exception:
             modified = None
-        results.append({**qc, "path": str(path), "modified_at": modified, "sha256": _sha256(path) if qc.get("ok") else None})
+        results.append({**checked, "path": str(path), "modified_at": modified})
     results.sort(key=lambda x: x.get("modified_at") or "", reverse=True)
     newest_ok = next((r for r in results if r.get("ok") and Path(r.get("path", "")).name != "tvmanager.db"), None)
     return {"ok": True, "count": len(results), "newest_usable_backup": newest_ok, "results": results, "manifest": _manifest_records()[-50:]}

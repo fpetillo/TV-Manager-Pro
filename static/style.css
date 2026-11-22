@@ -411,3 +411,15 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 
 /* v18.22.0 theme picker */
 .nav-theme-picker{display:flex;align-items:center;gap:10px;margin-top:10px;padding:9px 10px;border:1px solid rgba(123,152,194,.22);border-radius:12px;background:#0b1420}.nav-theme-picker label{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#8fa1ba}.nav-theme-picker select{flex:1;min-width:0;padding:7px 9px;border-radius:9px;border:1px solid #344258;background:#0f1520;color:#fff;font-weight:700}
+
+/* v18.24.0 Missing Episode Autopilot */
+.autopilot-switch-row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}.autopilot-switch-row h2{margin:0 0 4px}
+.autopilot-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0}.autopilot-counts small{display:block;color:#8fa1ba;font-size:.74rem;margin-top:4px}
+.autopilot-settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;align-items:end}.autopilot-settings .check{display:flex;gap:8px;align-items:center;font-weight:600}.autopilot-settings .check input{width:auto}.autopilot-settings .actions{grid-column:1/-1}
+.not-aired-file{color:#8fa1ba;font-style:italic}
+#apHistory td small{display:block;margin-top:3px}
+
+/* v18.25.0 Trash */
+.trash-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}.trash-counts small{display:block;color:#8fa1ba;font-size:.74rem;margin-top:4px}
+.trash-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.trash-actions .field{width:180px}
+.trash-path{font-family:ui-monospace,monospace;font-size:.76rem;color:#8fa1ba;overflow-wrap:anywhere}

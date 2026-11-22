@@ -67,10 +67,22 @@ def session_secret():
         pass
     return value
 
+def _read_cx():
+    # Read-only: per-request security checks must not queue behind long background writes.
+    try:
+        return dbcore.connect(DB, readonly=True)
+    except Exception:
+        return cx()
+
 def _setting(name,default="0"):
-    with cx() as c:
-        r=c.execute("""SELECT value FROM settings
-                       WHERE lower(section)='tvmanager' AND lower(name)=lower(?)""",(name,)).fetchone()
+    try:
+        with _read_cx() as c:
+            r=c.execute("""SELECT value FROM settings
+                           WHERE lower(section)='tvmanager' AND lower(name)=lower(?)""",(name,)).fetchone()
+    except Exception:
+        with cx() as c:
+            r=c.execute("""SELECT value FROM settings
+                           WHERE lower(section)='tvmanager' AND lower(name)=lower(?)""",(name,)).fetchone()
     return default if not r else r["value"]
 
 def _set_setting(name,value):
@@ -94,8 +106,12 @@ def set_browser_auth(enabled):
     _set_setting("browser_auth_enabled","1" if enabled else "0")
 
 def admin_configured():
-    with cx() as c:
-        return c.execute("SELECT 1 FROM admin_users WHERE enabled=1 LIMIT 1").fetchone() is not None
+    try:
+        with _read_cx() as c:
+            return c.execute("SELECT 1 FROM admin_users WHERE enabled=1 LIMIT 1").fetchone() is not None
+    except Exception:
+        with cx() as c:
+            return c.execute("SELECT 1 FROM admin_users WHERE enabled=1 LIMIT 1").fetchone() is not None
 
 def _derive(password,salt,iterations):
     raw=hashlib.pbkdf2_hmac("sha256",password.encode("utf-8"),salt,int(iterations))

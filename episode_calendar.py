@@ -14,9 +14,9 @@ def episodes(start,end,include_specials=False):
         c.create_function('episode_airdate',1,episode_dates.normalize)
         rows=c.execute('''SELECT e.id,e.show_id,e.season,e.episode,e.name,e.airdate,e.status,
             s.name show_name,s.network FROM episodes e JOIN shows s ON s.id=e.show_id
-            WHERE date(episode_airdate(e.airdate)) BETWEEN ? AND ?
+            WHERE date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END)) BETWEEN ? AND ?
             AND COALESCE(e.ignored,0)=0 AND lower(COALESCE(e.status,''))<>'ignored'
-            AND (? OR e.season<>0) ORDER BY date(episode_airdate(e.airdate)),s.name,e.season,e.episode''',
+            AND (? OR e.season<>0) ORDER BY date((CASE WHEN e.airdate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' THEN substr(e.airdate,1,10) ELSE episode_airdate(e.airdate) END)),s.name,e.season,e.episode''',
             (start.isoformat(),end.isoformat(),int(include_specials))).fetchall()
     return [dict(r)|{'airdate':episode_dates.normalize(r['airdate'])} for r in rows]
 

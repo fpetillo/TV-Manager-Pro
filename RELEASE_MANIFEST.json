@@ -1,16 +1,16 @@
 {
   "product": "TV Manager",
-  "version": "18.22.0",
-  "release_name": "Interface themes: Classic, Glassy, Midnight, Daylight",
-  "generated_at": "2026-10-26T23:23:27.856561+00:00",
+  "version": "18.25.0",
+  "release_name": "Trash on the media share, with Empty trash",
+  "generated_at": "2026-10-27T01:37:12.022955+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Theme picker at the bottom of the side menu: Classic (unchanged), Glassy (frosted translucent panels), Midnight (near-black) and Daylight (light). The choice is saved on the server and applies to every browser",
-    "static/themes.css is generated from style.css by scripts/build_themes.py; Settings page garbled characters (âŒ˜, â€¦) repaired"
+    "Trash kept in .tvmanager-trash at the top of each library folder on the share: instant rename instead of a network copy to the server's drive; media-server ignore markers",
+    "Trash page: totals, every file, Restore for all kinds, Empty all / older than N days / selected, optional automatic emptying, Empty old server trash"
   ],
   "validation": {
     "pytest": {
-      "passed": 603,
+      "passed": 616,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lock and service checks not runnable on the Linux build host; suite also runs on the GitHub Windows runner"
@@ -23,10 +23,11 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Disposable copy with synthetic shows in Chromium: Launchpad, Dashboard, Shows, show page, Settings, Post Processing, Show Queue, Trakt, Jobs, About, Upcoming in all four themes; picker switches instantly, survives reload; no page errors",
-    "indexer_end_to_end": "Not re-run (search unchanged)"
+    "browser_qa": "Disposable copy in Chromium: Trash page with share and old-server items; no page errors",
+    "indexer_end_to_end": "Not re-run (search unchanged)",
+    "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Stop TV Manager, download update-server.ps1 from the v18.22.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, then choose a theme at the bottom of the side menu.",
+  "activation": "Stop TV Manager, run update-server.ps1 for 18.25.0 (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, press Ctrl+F5, check Library Locations, then open Trash.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -95,7 +96,30 @@
     "templates/settings.html",
     "support_routes.py",
     "app.py",
-    "docs/RELEASE_NOTES_v18.22.0.md"
+    "docs/RELEASE_NOTES_v18.22.0.md",
+    "performance.py",
+    "http_speed.py",
+    "dbcore.py",
+    "database_safety.py",
+    "library_maintenance.py",
+    "ops.py",
+    "completion.py",
+    "security.py",
+    "episode_dates.py",
+    "show_missing_search.py",
+    "docs/RELEASE_NOTES_v18.23.0.md",
+    "autopilot.py",
+    "templates/autopilot.html",
+    "static/autopilot.js",
+    "static/show_detail.js",
+    "static/missing.js",
+    "tests/fixtures/autopilot_e2e_scenario.py",
+    "docs/RELEASE_NOTES_v18.24.0.md",
+    "trash.py",
+    "templates/trash.html",
+    "static/trash.js",
+    "lifecycle.py",
+    "docs/RELEASE_NOTES_v18.25.0.md"
   ],
   "sickchill_full_parity": false
 }

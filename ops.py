@@ -307,22 +307,35 @@ def path_mapper_snapshot():
 def map_path(path):
     return path_mapper_snapshot()(path)
 
+def _folder_state(path):
+    p=Path(path)
+    try:
+        ok=p.exists()
+    except OSError:
+        return False,False
+    if not ok:
+        return False,False
+    try:return True,os.access(p,os.W_OK)
+    except Exception:return True,False
+
 def root_health():
     with cx() as c:rows=c.execute("""SELECT id,name,location FROM shows WHERE location IS NOT NULL AND trim(location)<>'' ORDER BY name""").fetchall()
+    # v18.23.0: one mapping lookup for the whole run (was one database connection per show) and
+    # folder checks in parallel, because each check is a network round trip on a media share.
+    mapper=path_mapper_snapshot()
+    mapped=[mapper(r["location"]) for r in rows]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        states=list(pool.map(_folder_state,mapped))
     items=[];reachable=missing=0
-    for r in rows:
-        mapped=map_path(r["location"]);p=Path(mapped)
-        ok=p.exists()
-        writable=False
-        if ok:
-            reachable+=1
-            try:writable=os.access(p,os.W_OK)
-            except Exception:writable=False
+    for r,m,(ok,writable) in zip(rows,mapped,states):
+        if ok:reachable+=1
         else:missing+=1
-        items.append({"show_id":r["id"],"show":r["name"],"configured":r["location"],"mapped":mapped,"reachable":ok,"writable":writable})
+        items.append({"show_id":r["id"],"show":r["name"],"configured":r["location"],"mapped":m,"reachable":ok,"writable":writable})
     return {"checked":len(items),"reachable":reachable,"missing":missing,"items":items[:1000]}
 
 def detect_conflicts():
+    map_path=path_mapper_snapshot()  # v18.23.0: one lookup per run, not one connection per episode
     with cx() as c:
         c.execute("DELETE FROM library_conflicts WHERE resolved=0")
         rows=c.execute("""SELECT e.id episode_id,e.show_id,e.season,e.episode,e.location,s.name show_name
