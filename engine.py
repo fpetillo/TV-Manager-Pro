@@ -358,6 +358,8 @@ def init_engine():
         episode_rules.init(DB)
     except Exception:
         pass
+    import movies
+    movies.init()
 
 
 def list_quality_profiles():
@@ -1749,6 +1751,10 @@ def run_job(name):
         elif name == "database_protection":
             result = database_safety.protect_now(reason="scheduled", include_config=True, include_secrets=False)
             msg = json.dumps(result)
+        elif name.startswith("movie_"):
+            import movies
+            result = movies.run_job(name)
+            msg = json.dumps(result, default=str)
         else:
             raise ValueError("Unknown job")
         failed = result.get("ok") is False or bool(result.get("errors"))

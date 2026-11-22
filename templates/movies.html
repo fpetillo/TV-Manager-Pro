@@ -1,0 +1,94 @@
+<!doctype html><html data-theme="{{ ui_theme }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Movies</title><link rel="stylesheet" href="/static/style.css?v={{ app_version }}"><link rel="stylesheet" href="/static/themes.css?v={{ app_version }}"></head>
+<body><main class="shell manager-shell layout-audited movies-page"><header class="topbar product-hero"><div><p class="eyebrow">MOVIES</p><h1>Movies</h1><p class="subtitle">New digital and Blu-ray releases are found on TMDb, downloaded with your existing indexers and download clients, renamed into your movie library and scanned into Plex automatically.</p></div><nav class="nav"><a class="btn secondary" href="/jobs">Jobs</a><a class="btn secondary" href="/logs">Logs</a></nav></header>
+{% include "_nav.html" %}
+<section class="panel movie-status-panel"><div id="movieStatus" class="movie-status-grid" aria-live="polite">Loading…</div><div id="movieReadiness" class="message"></div></section>
+<div class="movie-tabs" role="tablist" aria-label="Movie views">
+  <button class="movie-tab active" role="tab" aria-selected="true" data-tab="library">Library</button>
+  <button class="movie-tab" role="tab" aria-selected="false" data-tab="discover">Discover</button>
+  <button class="movie-tab" role="tab" aria-selected="false" data-tab="downloads">Downloads</button>
+  <button class="movie-tab" role="tab" aria-selected="false" data-tab="settings">Settings</button>
+</div>
+
+<section class="panel movie-view" id="view-library" role="tabpanel">
+  <div class="toolbar discover-toolbar">
+    <select id="movieStatusFilter" aria-label="Status"><option value="Missing">Wanted and downloading</option><option value="">All movies</option><option value="Wanted">Wanted</option><option value="Snatched">Downloading</option><option value="Downloaded">Downloaded</option><option value="Ignored">Ignored</option></select>
+    <input id="movieSearch" class="grow" placeholder="Filter by title or year…" aria-label="Filter movies">
+    <select id="movieSort" aria-label="Sort"><option value="added">Recently added</option><option value="title">Title</option><option value="year">Year</option><option value="rating">Rating</option></select>
+    <button id="movieReload" class="secondary">Refresh</button>
+  </div>
+  <div id="movieMessage" class="message"></div>
+  <div id="movieList" class="movie-grid"></div>
+  <div class="toolbar"><button id="moviePrev" class="secondary" hidden>Previous</button><span id="moviePageInfo" class="muted"></span><button id="movieNext" class="secondary" hidden>Next</button></div>
+</section>
+
+<section class="panel movie-view" id="view-discover" role="tabpanel" hidden>
+  <div class="toolbar discover-toolbar">
+    <select id="discoverList" aria-label="List"><option value="digital">New digital &amp; Blu-ray releases (your filters)</option><option value="trending">Trending this week</option><option value="popular">Popular</option><option value="now_playing">In theaters</option><option value="upcoming">Upcoming</option><option value="top_rated">Top rated</option></select>
+    <input id="discoverQuery" class="grow" placeholder="Or search TMDb by movie title…" aria-label="Search TMDb">
+    <button id="discoverLoad" class="blue">Load</button>
+  </div>
+  <p class="muted">Movies you add are searched for as soon as they are out on digital or disc; upcoming and in-theater titles wait until then.</p>
+  <div id="discoverMessage" class="message"></div>
+  <div id="discoverResults" class="movie-grid"></div>
+  <div class="toolbar"><button id="discoverMore" class="secondary" hidden>Load More</button></div>
+</section>
+
+<section class="panel movie-view" id="view-downloads" role="tabpanel" hidden>
+  <div class="toolbar"><button id="downloadsReload" class="secondary">Refresh</button><button class="secondary job-run" data-job="movie_downloads">Check downloads now</button></div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Movie</th><th>Release</th><th>Client</th><th>Status</th><th>Progress</th><th>Started</th><th>Notes</th><th></th></tr></thead><tbody id="downloadRows"></tbody></table></div>
+</section>
+
+<section class="panel movie-view" id="view-settings" role="tabpanel" hidden>
+  <form id="movieSettings" class="movie-settings">
+    <fieldset><legend>Library</legend>
+      <label class="checkline"><input type="checkbox" name="enabled"> Movies automation on</label>
+      <label class="field"><span>Movie library folder</span><input name="library_root" placeholder="Leave empty to use the folder detected from Plex"></label>
+      <p class="muted" id="detectedRoot"></p>
+      <label class="field"><span>Completed downloads folder (optional)</span><input name="download_dir" placeholder="Leave empty to use the TV, SABnzbd and torrent folders"></label>
+      <label class="field"><span>Torrent import method</span><select name="torrent_import_method"><option value="hardlink">Hardlink (keeps seeding, no extra space)</option><option value="copy">Copy (keeps seeding)</option><option value="move">Move (stops seeding)</option></select></label>
+      <p class="muted">Usenet downloads are always moved and the leftover download folder is removed.</p>
+    </fieldset>
+    <fieldset><legend>Automatic discovery</legend>
+      <label class="checkline"><input type="checkbox" name="auto_add"> Add new digital and Blu-ray releases automatically</label>
+      <label class="checkline"><input type="checkbox" name="auto_grab"> Download the best release automatically</label>
+      <div class="movie-settings-grid">
+        <label class="field"><span>Minimum TMDb rating</span><input name="min_rating" type="number" step="0.1" min="0" max="10"></label>
+        <label class="field"><span>Minimum votes</span><input name="min_votes" type="number" min="0"></label>
+        <label class="field"><span>Released within (days)</span><input name="discovery_days" type="number" min="1"></label>
+        <label class="field"><span>Region</span><input name="discovery_region" maxlength="2"></label>
+        <label class="field"><span>Original languages</span><input name="languages" placeholder="en, es (empty = any)"></label>
+        <label class="field"><span>Skip genres</span><input name="exclude_genres" placeholder="Documentary, Horror"></label>
+        <label class="field"><span>Most added per run</span><input name="max_auto_add_per_run" type="number" min="0"></label>
+        <label class="field"><span>Most searched per run</span><input name="max_searches_per_run" type="number" min="1"></label>
+      </div>
+    </fieldset>
+    <fieldset><legend>Quality</legend>
+      <div class="movie-settings-grid">
+        <label class="field"><span>Minimum resolution</span><select name="min_resolution"><option value="480">SD</option><option value="720">720p</option><option value="1080">1080p</option><option value="2160">2160p</option></select></label>
+        <label class="field"><span>Maximum resolution</span><select name="max_resolution"><option value="720">720p</option><option value="1080">1080p</option><option value="2160">2160p</option></select></label>
+        <label class="field"><span>Upgrade until</span><select name="cutoff_resolution"><option value="720">720p</option><option value="1080">1080p</option><option value="2160">2160p</option></select></label>
+        <label class="field"><span>Minimum size (MB)</span><input name="min_size_mb" type="number" min="0"></label>
+        <label class="field"><span>Maximum size (GB)</span><input name="max_size_gb" type="number" min="0" step="0.5"></label>
+        <label class="field"><span>Give up on a download after (hours)</span><input name="stalled_hours" type="number" min="1"></label>
+      </div>
+      <label class="checkline"><input type="checkbox" name="allow_hevc"> Allow x265/HEVC</label>
+      <label class="checkline"><input type="checkbox" name="allow_remux"> Allow remux (very large files)</label>
+      <label class="field"><span>Ignore words</span><input name="ignore_words" placeholder="e.g. hardcoded, korsub"></label>
+      <label class="field"><span>Preferred words</span><input name="preferred_words" placeholder="e.g. atmos, proper"></label>
+    </fieldset>
+    <fieldset><legend>Download clients</legend>
+      <p class="muted" id="clientInfo"></p>
+      <div class="movie-settings-grid">
+        <label class="field"><span>SABnzbd category</span><input name="sab_category"></label>
+        <label class="field"><span>NZBGet category</span><input name="nzbget_category"></label>
+        <label class="field"><span>Torrent label / category</span><input name="torrent_label"></label>
+        <label class="field"><span>Indexer movie categories</span><input name="categories" placeholder="2000"></label>
+      </div>
+    </fieldset>
+    <div class="toolbar"><button class="blue" type="submit">Save Settings</button><span id="settingsMessage" class="message"></span></div>
+  </form>
+  <div class="toolbar movie-jobs"><button class="secondary job-run" data-job="movie_library_scan">Scan library now</button><button class="secondary job-run" data-job="movie_discovery">Discover now</button><button class="secondary job-run" data-job="movie_search">Search wanted now</button></div>
+</section>
+
+<dialog id="movieDialog" class="movie-dialog"><div class="movie-dialog-body"><div class="toolbar"><h2 id="dialogTitle"></h2><button id="dialogClose" class="secondary">Close</button></div><div id="dialogContent"></div></div></dialog>
+<footer class="app-version-footer"><span>TV Manager</span><strong>v{{ app_version }}</strong><a href="/about">About</a></footer></main><script src="/static/global.js?v={{ app_version }}"></script><script src="/static/movies.js?v={{ app_version }}"></script></body></html>

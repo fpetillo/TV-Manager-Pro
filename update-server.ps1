@@ -8,7 +8,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1
 [CmdletBinding()]
 param(
     [string]$InstallDir = 'C:\Acuityware TV Manager',
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.22.0',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.23.0',
     [string]$ArchivePath = '',
     # Keep this many finished update backups (oldest are removed after a successful update). 0 keeps all.
     [ValidateRange(0, 1000)][int]$KeepBackups = 5,

@@ -1,32 +1,33 @@
 {
   "product": "TV Manager",
-  "version": "18.22.0",
-  "release_name": "Interface themes: Classic, Glassy, Midnight, Daylight",
-  "generated_at": "2026-10-26T23:23:27.856561+00:00",
+  "version": "18.23.0",
+  "release_name": "Movies: find, download and organize movies automatically",
+  "generated_at": "2026-11-22T15:54:49.338894+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Theme picker at the bottom of the side menu: Classic (unchanged), Glassy (frosted translucent panels), Midnight (near-black) and Daylight (light). The choice is saved on the server and applies to every browser",
-    "static/themes.css is generated from style.css by scripts/build_themes.py; Settings page garbled characters (âŒ˜, â€¦) repaired"
+    "New Movies page: library, Discover (TMDb), Downloads and Settings. New digital and Blu-ray releases that pass your rating, vote, language and genre filters are added automatically, searched on your existing indexers (movie categories, IMDb ID first) and sent to your existing SABnzbd/NZBGet/torrent client under a movies category or label",
+    "Completed downloads are renamed to Title (Year)/Title (Year).ext in the movie library (Usenet moved, torrents hardlinked so they keep seeding) and every enabled Plex server scans the new folder. Failed or stalled releases are blocklisted and another release is searched",
+    "The movie library folder is detected from Plex; movies already in Plex or the library folder are recognized before anything is searched, so nothing you own is downloaded again"
   ],
   "validation": {
     "pytest": {
-      "passed": 603,
+      "passed": 628,
       "failed": 0,
       "skipped": 11,
       "skip_reason": "Windows-only PowerShell, updater lock and service checks not runnable on the Linux build host; suite also runs on the GitHub Windows runner"
     },
-    "python_parse": 185,
-    "javascript_syntax": "43 passed",
+    "python_parse": 193,
+    "javascript_syntax": "44 passed (node --check)",
     "auto_update_end_to_end": "Not re-run (updater unchanged apart from the default version)",
     "powershell": "Not re-run (scripts unchanged apart from the default version)",
     "windows_activation": "Not performed: scheduled-task registration, boot start, account rights and share access must be confirmed on the server",
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Disposable copy with synthetic shows in Chromium: Launchpad, Dashboard, Shows, show page, Settings, Post Processing, Show Queue, Trakt, Jobs, About, Upcoming in all four themes; picker switches instantly, survives reload; no page errors",
-    "indexer_end_to_end": "Not re-run (search unchanged)"
+    "browser_qa": "Disposable copy with synthetic movies in Chrome at desktop and phone width: Movies status line, library cards and filters, Releases dialog, Ignore, Downloads table, Settings save and invalid-folder error, job buttons; no page errors (TMDb posters blocked by the build sandbox network)",
+    "indexer_end_to_end": "Not performed: movie search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server"
   },
-  "activation": "Stop TV Manager, download update-server.ps1 from the v18.22.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, then choose a theme at the bottom of the side menu.",
+  "activation": "Stop TV Manager, download update-server.ps1 from the v18.23.0 tag and run it (see docs/WINDOWS_SERVER_UPDATE.md), start with run.ps1, open Movies and check the status line. Movie jobs run when TV Manager automation is on.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -95,7 +96,13 @@
     "templates/settings.html",
     "support_routes.py",
     "app.py",
-    "docs/RELEASE_NOTES_v18.22.0.md"
+    "docs/RELEASE_NOTES_v18.22.0.md",
+    "movies.py",
+    "movies_routes.py",
+    "static/movies.js",
+    "templates/movies.html",
+    "docs/MOVIES.md",
+    "docs/RELEASE_NOTES_v18.23.0.md"
   ],
   "sickchill_full_parity": false
 }
