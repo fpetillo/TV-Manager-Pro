@@ -412,3 +412,7 @@ Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint
 ## v18.31.0 — Movie destination folders and Plex folder translations
 
 - Configured destination folders with free-space choice; per-Plex-server folder translations for targeted scans, movie-library scan fallback.
+
+## v18.32.0 — Plex scans with no setup
+
+- Every Plex server scans all its movie libraries after each movie import; no folder translations.

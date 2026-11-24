@@ -2,6 +2,8 @@
 
 Built on v18.30.0.
 
+> The per-Plex-server folder translations described below were removed in v18.32.0: every Plex server now scans all its movie libraries with no setup.
+
 ## Why
 
 The Plex servers name their movie folders their own way (for example `/data/movies` or `M:\Movies`), and the names differ from server to server and from what the TV Manager server reaches (`\\192.168.1.222\Media_5\Movies`). v18.30.0 tried to infer the destination from Plex's library paths. That cannot work reliably, so where movies go is now configured on the TV Manager server and Plex's paths are used only to tell each server what to scan.

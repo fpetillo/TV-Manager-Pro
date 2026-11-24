@@ -65,7 +65,6 @@ DEFAULTS = {
     'destination_folders': '',
     'destination_rule': 'most_free',
     'min_free_gb': '50',
-    'plex_path_map': '',
 }
 VIDEO_EXT = {'.mkv', '.mp4', '.avi', '.m4v', '.mov', '.wmv', '.ts', '.m2ts', '.mpg', '.mpeg'}
 SIDECAR_EXT = {'.srt', '.sub', '.idx', '.ass', '.ssa', '.vtt'}
@@ -969,10 +968,9 @@ def _scan_note(scans, root=None):
             parts.append(f"{s.get('server')}: scan request failed")
         elif s.get('targeted'):
             parts.append(f"{s.get('server')}: scanned {s.get('path') or 'the movie folder'}")
-        elif s.get('plex_path'):
-            parts.append(f"{s.get('server')}: {s.get('plex_path')} is not in a movie library there, so all movie libraries were scanned")
         elif s.get('kind') == 'plex':
-            parts.append(f"{s.get('server')}: scanned all movie libraries (no folder translation set)")
+            n = s.get('refreshed')
+            parts.append(f"{s.get('server')}: scanning {n} movie librar{'y' if n == 1 else 'ies'}" if n else f"{s.get('server')}: scanning its movie libraries")
         else:
             parts.append(f"{s.get('server')}: library refresh requested")
     return 'Media servers — ' + '; '.join(parts) + '.'
@@ -1011,12 +1009,10 @@ def refresh_media_servers(path):
             continue
         try:
             if str(server.get('kind') or '').lower() == 'plex':
-                # Plex is told the folder in its own terms (per-server translation). Without one, every
-                # movie library on that server is scanned, which always finds the new movie.
-                plex_path = plex_path_for(server['id'], path)
-                result = advanced._refresh_plex(advanced.media_server(server['id'], masked=False), plex_path,
+                # Each Plex server already knows its movie libraries and their folders, so ask it to
+                # scan all of them. Plex only picks up new or changed files, so this stays quick.
+                result = advanced._refresh_plex(advanced.media_server(server['id'], masked=False), None,
                                                 tv_only=False, section_type='movie')
-                result = dict(result, plex_path=plex_path)
             else:
                 result = advanced.refresh_media_server(server['id'])
             results.append({'server': server['name'], **result})
@@ -1263,47 +1259,6 @@ def destination_for(movie, size_bytes=0):
     else:
         chosen = max(candidates, key=lambda c: (c[1], -c[0]))
     return chosen[2], 'first folder with space' if setting('destination_rule') == 'in_order' else 'most free space'
-
-
-def plex_path_map():
-    """Per Plex server translations: [{'server_id', 'local', 'plex'}]."""
-    try:
-        rows = json.loads(setting('plex_path_map') or '[]')
-    except ValueError:
-        return []
-    out = []
-    for r in rows if isinstance(rows, list) else []:
-        try:
-            sid = int(r.get('server_id'))
-        except (TypeError, ValueError, AttributeError):
-            continue
-        local, plex = str(r.get('local') or '').strip(), str(r.get('plex') or '').strip()
-        if local and plex:
-            out.append({'server_id': sid, 'local': local, 'plex': plex})
-    return out
-
-
-def plex_path_for(server_id, local_path):
-    """The path a given Plex server uses for a folder on this server, or None if no translation fits."""
-    target = _map(str(local_path)).replace('\\', '/').rstrip('/')
-    best = None
-    for rule in plex_path_map():
-        if rule['server_id'] != int(server_id):
-            continue
-        for local in {rule['local'], _map(rule['local'])}:
-            prefix = local.replace('\\', '/').rstrip('/')
-            if not prefix:
-                continue
-            same = target.casefold() == prefix.casefold()
-            under = target.casefold().startswith(prefix.casefold() + '/')
-            if (same or under) and (best is None or len(prefix) > best[0]):
-                best = (len(prefix), rule['plex'], target[len(prefix):])
-    if not best:
-        return None
-    plex, rest = best[1], best[2].lstrip('/')
-    sep = '\\' if ('\\' in plex and '/' not in plex) or re.match(r'^[A-Za-z]:\\', plex) else '/'
-    base = plex.rstrip('/\\')
-    return base + (sep + rest.replace('/', sep) if rest else '')
 
 
 def _inside(child, parent):
@@ -1660,7 +1615,6 @@ def run_job(name):
 # ---------------------------------------------------------------- listing / settings for the UI
 
 PUBLIC_SETTINGS = [k for k in DEFAULTS if k not in {'detected_library_root', 'library_scanned_at', 'last_scan_report'}]
-# plex_path_map is returned parsed (a list) by settings_public; it is saved from a list or JSON text.
 
 
 def settings_public():
@@ -1674,7 +1628,6 @@ def settings_public():
     data['library_plex_status'] = library_plex_status(data['effective_library_root'], folders)
     data['destination_list'] = destination_folders()
     data['destination_status'] = destination_status()
-    data['plex_path_map'] = plex_path_map()
     servers = []
     try:
         import advanced
@@ -1714,9 +1667,6 @@ def save_settings(body):
     for key, value in (body or {}).items():
         if key not in PUBLIC_SETTINGS:
             continue
-        if key == 'plex_path_map':
-            clean[key] = _clean_plex_map(value)
-            continue
         value = '' if value is None else str(value).strip()
         if key in booleans:
             value = '1' if value.lower() in {'1', 'true', 'yes', 'on'} else '0'
@@ -1751,31 +1701,6 @@ def save_settings(body):
         # Keep the older single-folder setting in step for anything still reading it.
         engine.set_setting(SECTION, 'library_root', (clean['destination_folders'].split('\n') or [''])[0])
     return settings_public()
-
-
-def _clean_plex_map(value):
-    if isinstance(value, str):
-        try:
-            value = json.loads(value or '[]')
-        except ValueError:
-            raise ValueError('Plex folder translations are not valid') from None
-    if not isinstance(value, list):
-        raise ValueError('Plex folder translations must be a list')
-    rows = []
-    for r in value:
-        if not isinstance(r, dict):
-            continue
-        local, plex = str(r.get('local') or '').strip(), str(r.get('plex') or '').strip()
-        if not local and not plex:
-            continue
-        if not local or not plex:
-            raise ValueError('Each Plex folder translation needs both the folder on this server and the folder as Plex sees it')
-        try:
-            sid = int(r.get('server_id'))
-        except (TypeError, ValueError):
-            raise ValueError('Each Plex folder translation needs a Plex server') from None
-        rows.append({'server_id': sid, 'local': local, 'plex': plex})
-    return json.dumps(rows)
 
 
 def listing(status='', query='', page=1, page_size=60, sort='added'):

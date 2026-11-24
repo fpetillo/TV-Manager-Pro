@@ -58,12 +58,12 @@ A download the client reports as failed, or that is not complete after 36 hours 
 - Every enabled Plex server scans the movie folder (other media servers refresh their library).
 - Simulation mode previews imports without moving anything and does not send downloads.
 
-## Where movies go and how Plex is told (v18.31.0)
+## Where movies go and how Plex is told (v18.31.0, v18.32.0)
 
 - **Destination folders** (Movies › Settings › *Where new movies go*) are written the way the TV Manager server reaches them. Plex library paths never decide where files go.
 - With several folders, a movie goes to the one with the most free space (or the first with space, in order), keeping the per-drive reserve. Upgrades stay in the folder of the current copy.
-- After import, every enabled Plex server is asked to scan. A per-server translation (*folder on this server → same folder as that Plex sees it*) lets Plex scan just the movie's folder; without one, that server scans all its movie libraries.
-- **Move N movies into the destination folders** relocates earlier imports and tells Plex about each.
+- After import, every enabled Plex server is asked to scan all of its movie libraries. No setup: each Plex server already knows its libraries.
+- **Move N movies into the destination folders** relocates earlier imports; Plex then scans its movie libraries.
 
 ## Settings
 

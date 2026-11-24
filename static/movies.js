@@ -125,29 +125,12 @@ async function loadSettings(){
   for(const el of f.elements){if(!el.name||!(el.name in s))continue;if(el.type==='checkbox')el.checked=['1','true','on','yes'].includes(String(s[el.name]).toLowerCase());else el.value=s[el.name]??'';}
   renderScan(s.last_scan_report||{});
   renderDestinations(s);
-  renderPlexMap(s);
   loadRelocation();
   $('clientInfo').textContent=`Using your TV Manager download clients: NZB ${s.nzb_client||'none'}, torrent ${s.torrent_client||'none'}; ${s.indexers} indexer(s). Movies go to their own category or label so they stay apart from TV.`;
 }
 function renderDestinations(s){
   const list=s.destination_status||[];
   $('destStatus').innerHTML=list.length?list.map(d=>`<div class="dest-row ${d.reachable?'ok':'bad'}"><span class="dest-path">${esc(d.path)}</span><span>${d.reachable?(d.free_gb!=null?`${d.free_gb.toLocaleString()} GB free of ${d.total_gb.toLocaleString()} GB`:'Reachable'):'Not reachable from this server'}</span></div>`).join(''):'<div class="dest-row bad"><span>No destination folder yet. New movies cannot be imported until one is added.</span></div>';
-}
-let plexMapRows=[];
-function renderPlexMap(s){
-  const servers=s.plex_servers||[];plexMapRows=(s.plex_path_map||[]).map(r=>({...r}));
-  const box=$('plexMap');
-  if(!servers.length){box.innerHTML='<p class="muted">No Plex server is set up. Add one under Settings › Media Servers.</p>';return;}
-  const dests=s.destination_list||[];
-  const draw=()=>{box.innerHTML=servers.map(srv=>{const rows=plexMapRows.map((r,i)=>({...r,i})).filter(r=>r.server_id===srv.id);
-    return `<div class="plex-map-server"><div class="plex-map-head"><strong>${esc(srv.name)}</strong>${srv.enabled?'':' <span class="chip">off</span>'}<span class="muted">${rows.length?`${rows.length} translation${rows.length===1?'':'s'}`:'No translation — scans all movie libraries'}</span></div>
-      ${rows.map(r=>`<div class="plex-map-row" data-i="${r.i}"><label class="field"><span>Folder on this server</span><input class="pm-local" list="destList" value="${esc(r.local)}" placeholder="\\\\192.168.1.222\\Media_5\\Movies"></label><span class="pm-arrow" aria-hidden="true">→</span><label class="field"><span>Same folder as ${esc(srv.name)} sees it</span><input class="pm-plex" list="plexList${srv.id}" value="${esc(r.plex)}" placeholder="/data/movies"></label><button type="button" class="secondary small-btn pm-remove" aria-label="Remove translation">Remove</button></div>`).join('')}
-      <datalist id="plexList${srv.id}">${(srv.movie_folders||[]).map(f=>`<option value="${esc(f)}">`).join('')}</datalist>
-      <div class="plex-map-actions"><button type="button" class="secondary small-btn pm-add" data-sid="${srv.id}">Add translation</button>${(srv.movie_folders||[]).length?`<span class="muted">${esc(srv.name)}'s movie folders: ${srv.movie_folders.map(esc).join(' · ')}</span>`:'<span class="muted">Run "Scan library now" to list this server\'s movie folders.</span>'}</div></div>`;}).join('')+`<datalist id="destList">${dests.map(d=>`<option value="${esc(d)}">`).join('')}</datalist>`;
-    box.querySelectorAll('.plex-map-row').forEach(row=>{const r=plexMapRows[+row.dataset.i];row.querySelector('.pm-local').oninput=e=>r.local=e.target.value;row.querySelector('.pm-plex').oninput=e=>r.plex=e.target.value;row.querySelector('.pm-remove').onclick=()=>{plexMapRows.splice(+row.dataset.i,1);draw();};});
-    box.querySelectorAll('.pm-add').forEach(b=>b.onclick=()=>{plexMapRows.push({server_id:+b.dataset.sid,local:dests[0]||'',plex:''});draw();box.querySelector(`.plex-map-row[data-i="${plexMapRows.length-1}"] .pm-plex`)?.focus();});
-  };
-  draw();
 }
 async function loadRelocation(){
   const box=$('relocateBox');
@@ -158,7 +141,7 @@ async function loadRelocation(){
       <ul>${p.items.slice(0,6).map(i=>`<li>${esc(i.title)}${i.year?` (${esc(i.year)})`:''} <small class="muted">${esc(i.from)} → ${esc(i.dest)}</small></li>`).join('')}${p.items.length>6?`<li class="muted">and ${p.items.length-6} more</li>`:''}</ul>
       ${p.skipped.length?`<p class="muted">${p.skipped.length} cannot be moved: ${p.skipped.slice(0,3).map(x=>esc(x.title+' — '+x.reason)).join('; ')}</p>`:''}
       ${p.items.length?`<button type="button" class="blue" id="relocateBtn">Move ${p.items.length} movie${p.items.length===1?'':'s'} into the destination folders</button>`:''}`;
-    const b=$('relocateBtn');if(b)b.onclick=async()=>{if(!confirm(`Move ${p.items.length} movie folder(s) into the destination folders? Plex is told about each one afterwards.`))return;b.disabled=true;b.textContent='Moving… (see Logs)';try{await post('/api/movies/relocate');setTimeout(loadRelocation,5000);}catch(e){b.disabled=false;alert(e.message);}};
+    const b=$('relocateBtn');if(b)b.onclick=async()=>{if(!confirm(`Move ${p.items.length} movie folder(s) into the destination folders? Plex scans its movie libraries afterwards.`))return;b.disabled=true;b.textContent='Moving… (see Logs)';try{await post('/api/movies/relocate');setTimeout(loadRelocation,5000);}catch(e){b.disabled=false;alert(e.message);}};
   }catch(e){box.hidden=true;}
 }
 function renderScan(r){
@@ -172,7 +155,6 @@ function renderScan(r){
 $('movieSettings').onsubmit=async e=>{
   e.preventDefault();const body={};
   for(const el of e.target.elements){if(!el.name)continue;body[el.name]=el.type==='checkbox'?(el.checked?'1':'0'):el.value;}
-  body.plex_path_map=plexMapRows.filter(r=>r.local.trim()||r.plex.trim());
   try{await post('/api/movies/settings',body);setMessage($('settingsMessage'),'Saved.','success');await loadSettings();loadSummary();}catch(err){setMessage($('settingsMessage'),err.message,'error');}
 };
 document.querySelectorAll('.job-run').forEach(b=>b.onclick=async()=>{b.disabled=true;const label=b.textContent;try{await post(`/api/movies/jobs/${b.dataset.job}/run`);b.textContent='Started — see Jobs/Logs';setTimeout(()=>{b.disabled=false;b.textContent=label;loadSummary();loadMovies();},4000);}catch(e){b.disabled=false;alert(e.message);}});

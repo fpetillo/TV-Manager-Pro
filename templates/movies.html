@@ -52,11 +52,8 @@
         <label class="field"><span>Keep free on each drive (GB)</span><input name="min_free_gb" type="number" min="0" step="5"></label>
       </div>
       <p class="muted">An upgrade replaces the old copy in the folder it is already in. If every drive is below the free-space reserve, the movie goes to the drive with the most room.</p>
+      <p class="muted">After each import, every Plex server is asked to scan all of its movie libraries. Nothing to set up: Plex already knows its libraries.</p>
       <div id="relocateBox" class="relocate-box" hidden></div>
-    </fieldset>
-    <fieldset><legend>Tell Plex about new movies</legend>
-      <p class="muted">After each import, every Plex server is asked to scan. If a Plex server names a folder differently (for example <code>/data/movies</code> for <code>\\192.168.1.222\Media_5\Movies</code>), add a translation and Plex scans just that movie folder. With no translation, Plex scans all of its movie libraries, which still finds the movie but takes longer.</p>
-      <div id="plexMap" class="plex-map"></div>
     </fieldset>
     <fieldset><legend>Library and downloads</legend>
       <label class="field"><span>Other movie folders to count as owned (one per line)</span><textarea name="extra_library_folders" rows="3" placeholder="E:\Movies&#10;\\NAS\Movies 4K"></textarea></label>

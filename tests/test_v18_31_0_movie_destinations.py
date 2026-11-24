@@ -1,4 +1,4 @@
-"""v18.31.0: movie destination folders set on this server, and per-Plex-server folder translations for scans."""
+"""v18.31.0/v18.32.0: movie destination folders set on this server; every Plex server scans its movie libraries."""
 import json
 import sys
 from collections import namedtuple
@@ -60,22 +60,6 @@ def test_destination_choice_most_free_in_order_and_upgrades_stay_put(db, tmp_pat
     assert movies.destination_for({}, 40 * GB)[0] is None
 
 
-def test_plex_path_translation_per_server(db):
-    movies.save_settings({'plex_path_map': [
-        {'server_id': 1, 'local': r'\\192.168.1.222\Media_5\Movies', 'plex': '/data/media5/movies'},
-        {'server_id': 2, 'local': r'\\192.168.1.222\Media_5', 'plex': r'M:\\'},
-        {'server_id': 2, 'local': '', 'plex': ''},
-    ]})
-    assert len(movies.plex_path_map()) == 2
-    target = r'\\192.168.1.222\Media_5\Movies\Dune (2024)'
-    assert movies.plex_path_for(1, target) == '/data/media5/movies/Dune (2024)'
-    assert movies.plex_path_for(2, target) == r'M:\Movies\Dune (2024)'
-    assert movies.plex_path_for(3, target) is None
-    assert movies.plex_path_for(1, r'\\192.168.1.222\Media_6\Movies\X') is None
-    with pytest.raises(ValueError, match='needs both'):
-        movies.save_settings({'plex_path_map': [{'server_id': 1, 'local': 'X:/Movies', 'plex': ''}]})
-
-
 class FakeResponse:
     def __init__(self, content=b''):
         self.content = content
@@ -104,19 +88,17 @@ def plex(monkeypatch):
     return calls
 
 
-def test_plex_is_told_in_its_own_paths_and_scans_movie_libraries_without_a_translation(db, monkeypatch):
+def test_every_plex_server_scans_all_its_movie_libraries_without_configuration(db, monkeypatch):
+    # v18.32.0: no folder translation; each Plex server already knows its libraries.
     calls = plex(monkeypatch)
-    movies.save_settings({'plex_path_map': [{'server_id': 1, 'local': r'\\nas\Media_5\Movies', 'plex': '/data/media5/movies'}]})
     out = movies.refresh_media_servers(r'\\nas\Media_5\Movies\Dune (2024)')
     refreshes = [c for c in calls if c[0].endswith('/refresh')]
-    assert ('http://plex1:32400/library/sections/2/refresh', {'path': '/data/media5/movies/Dune (2024)'}) in refreshes
-    # Office has no translation: both of its movie libraries are scanned, never the TV library.
-    assert ('http://plex2:32400/library/sections/2/refresh', {}) in refreshes
-    assert ('http://plex2:32400/library/sections/3/refresh', {}) in refreshes
-    assert not any('/sections/1/' in c[0] for c in refreshes)
-    note = movies._scan_note(out)
-    assert 'Den: scanned /data/media5/movies/Dune (2024)' in note
-    assert 'Office: scanned all movie libraries (no folder translation set)' in note
+    for host in ('plex1', 'plex2'):
+        assert (f'http://{host}:32400/library/sections/2/refresh', {}) in refreshes
+        assert (f'http://{host}:32400/library/sections/3/refresh', {}) in refreshes
+    assert not any('/sections/1/' in c[0] for c in refreshes)  # never the TV library
+    assert movies._scan_note(out) == 'Media servers — Den: scanning 2 movie libraries; Office: scanning 2 movie libraries.'
+    assert 'plex_path_map' not in movies.settings_public()
 
 
 def test_import_uses_destination_with_room_and_reports_settings(db, monkeypatch, tmp_path):
@@ -138,4 +120,4 @@ def test_import_uses_destination_with_room_and_reports_settings(db, monkeypatch,
     assert scanned == [str(b / 'Dune Part Two (2024)')]
     s = movies.settings_public()
     assert [d['path'] for d in s['destination_status']] == [str(a), str(b)] and s['destination_status'][1]['free_gb'] == 800.0
-    assert 'plex_servers' in s and s['plex_path_map'] == []
+    assert 'plex_servers' in s

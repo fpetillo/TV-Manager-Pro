@@ -1,3 +1,7 @@
+## 18.32.0 — Plex scans with no setup
+
+Every enabled Plex server scans all of its movie libraries after each movie import; the v18.31.0 per-server folder translations are removed. See [release notes](docs/RELEASE_NOTES_v18.32.0.md).
+
 ## 18.31.0 — Movie destination folders and Plex folder translations
 
 Movies go to destination folders configured on this server (most free space or in order, free-space reserve, upgrades stay put); each Plex server is told about new movies through optional per-server folder translations, or scans all its movie libraries without one. Plex library paths no longer decide where files go. See [release notes](docs/RELEASE_NOTES_v18.31.0.md).
