@@ -300,7 +300,7 @@ def test_media_server(sid):
         return {"ok":True,"kind":"Kodi","status":r.status_code}
     raise ValueError("Unsupported media server kind")
 
-def _refresh_plex(server,target_path=None,tv_only=True):
+def _refresh_plex(server,target_path=None,tv_only=True,section_type=None):
     """Request scans using Plex's own paths; a foreign path needs a full TV scan."""
     import xml.etree.ElementTree as ET
     base=server['url'].rstrip('/')
@@ -314,7 +314,8 @@ def _refresh_plex(server,target_path=None,tv_only=True):
     sections={}
     for directory in root.findall('.//Directory'):
         key=directory.get('key')
-        if key and key.isdigit() and (not tv_only or directory.get('type')=='show'):
+        wanted=section_type or ('show' if tv_only else None)
+        if key and key.isdigit() and (not wanted or directory.get('type')==wanted):
             sections.setdefault(key,[]).extend(loc.get('path') for loc in directory.findall('Location') if loc.get('path'))
     def normalized(path):
         path=str(path).replace('\\','/').rstrip('/')
@@ -328,7 +329,7 @@ def _refresh_plex(server,target_path=None,tv_only=True):
                 if target==rootpath or target.startswith(rootpath+'/'):
                     matches.append((len(rootpath),key))
     keys=sorted({key for length,key in matches if length==max(x[0] for x in matches)}) if matches else list(sections)
-    if not keys:return {'ok':False,'kind':'plex','refreshed':0,'message':'No Plex TV libraries available' if tv_only else 'No Plex libraries available'}
+    if not keys:return {'ok':False,'kind':'plex','refreshed':0,'message':'No Plex movie libraries available' if section_type=='movie' else ('No Plex TV libraries available' if tv_only else 'No Plex libraries available')}
     outcomes=[]
     for key in keys:
         params={'path':str(target_path)} if matches else {}
@@ -339,7 +340,7 @@ def _refresh_plex(server,target_path=None,tv_only=True):
         except requests.RequestException:
             outcomes.append({'section':key,'ok':False,'error':'Plex scan request failed; check connection and credentials'})
     ok=all(item['ok'] for item in outcomes)
-    return {'ok':ok,'kind':'plex','targeted':bool(matches),'fallback':None if matches else ('tv_libraries' if tv_only else 'whole_library'),
+    return {'ok':ok,'kind':'plex','targeted':bool(matches),'fallback':None if matches else ('movie_libraries' if section_type=='movie' else ('tv_libraries' if tv_only else 'whole_library')),
             'path':str(target_path) if matches else None,'sections':outcomes,'refreshed':sum(item['ok'] for item in outcomes),
             'message':'Plex scan requested; indexing continues on Plex' if ok else 'One or more Plex scan requests failed'}
 

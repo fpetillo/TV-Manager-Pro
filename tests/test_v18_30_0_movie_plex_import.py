@@ -66,7 +66,8 @@ def test_library_folder_status_against_plex_libraries(db, tmp_path):
     assert movies.library_plex_status(str(db.library)) == 'outside'
     s = movies.settings_public()
     assert s['library_plex_status'] == 'outside' and s['plex_movie_folders'][0]['reachable'] is True
-    assert ('The movie library folder is not in a Plex movie library', '/movies#settings') in movies._setup_problems(s)
+    # v18.31.0: a destination outside the Plex paths seen by this server is no longer a problem (Plex may name it differently).
+    assert not any('Plex movie library' in t for t, _h in movies._setup_problems(s))
     engine.set_setting('Movies', 'last_scan_report', json.dumps({'complete': True, 'sources': []}))
     assert movies.library_plex_status(str(db.library)) == 'no_plex'
 
@@ -95,22 +96,21 @@ def test_import_records_destination_and_plex_scan(db, monkeypatch):
         message = c.execute('SELECT message FROM movie_downloads WHERE id=?', (did,)).fetchone()[0]
     assert message.startswith('Imported by move to ') and 'Dune Part Two (2024).mkv' in message
     imported = [a for a in db.logs if a[0] == 'movie_imported'][0]
-    assert 'Plex — Plex Den: scanned the movie folder.' in imported[1] and imported[2] == 'info'
+    assert 'Media servers — Plex Den: scanned the movie folder.' in imported[1] and imported[2] == 'info'
 
 
-def test_import_outside_plex_is_logged_as_warning(db, monkeypatch, tmp_path):
-    (tmp_path / 'PlexMovies').mkdir()
-    scan_report([str(tmp_path / 'PlexMovies')])
+def test_failed_plex_scan_is_logged_as_warning(db, monkeypatch):
+    # v18.31.0: a destination folder is never judged by Plex's paths; only a failed scan request warns.
     mid = add()
     queued(mid)
     folder = db.downloads / 'Dune.Part.Two.2024.1080p.BluRay.x264-GRP'
     folder.mkdir()
     (folder / 'movie.mkv').write_bytes(b'z' * 300)
     monkeypatch.setattr(movies, 'snapshot', lambda client: {'nzo1': {'status': 'Downloaded', 'progress': 1}})
-    monkeypatch.setattr(movies, 'refresh_media_servers', lambda path: [])
+    monkeypatch.setattr(movies, 'refresh_media_servers', lambda path: [{'server': 'Den', 'ok': False}])
     movies.run_downloads()
     imported = [a for a in db.logs if a[0] == 'movie_imported'][0]
-    assert imported[2] == 'warning' and 'not in any Plex movie library' in imported[1]
+    assert imported[2] == 'warning' and 'Den: scan request failed' in imported[1]
 
 
 def test_move_imported_movies_into_the_plex_folder(db, monkeypatch, tmp_path):
@@ -141,5 +141,5 @@ def test_move_imported_movies_into_the_plex_folder(db, monkeypatch, tmp_path):
     assert out['started'] is True
     moved = plex_movies / 'The Drama (2026)' / 'The Drama (2026).mkv'
     assert moved.exists() and not paths[a].exists() and paths[b].exists()
-    assert movies.get_movie(a)['file_path'] == str(moved) and refreshed == [str(plex_movies)]
+    assert movies.get_movie(a)['file_path'] == str(moved) and refreshed == [str(plex_movies / 'The Drama (2026)')]
     assert movies.relocation_plan()['items'] == []

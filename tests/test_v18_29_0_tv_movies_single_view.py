@@ -60,11 +60,11 @@ def test_setup_problems_reach_dashboard_and_insights(db, monkeypatch):
     seed_movies()
     monkeypatch.setattr(movies, 'settings_public', ready_settings(effective_library_root='', tmdb_configured=False, indexers=0))
     d = movies.dashboard_summary()
-    assert [p['title'] for p in d['problems']] == ['No movie library folder yet', 'TMDb is not configured',
+    assert [p['title'] for p in d['problems']] == ['No movie destination folder yet', 'TMDb is not configured',
                                                    'No indexers with a matching download client']
     assert d['running'] is False
     titles = [i['title'] for i in movies.insights()]
-    assert titles[:2] == ['Movies: No movie library folder yet', 'Movies: TMDb is not configured']
+    assert titles[:2] == ['Movies: No movie destination folder yet', 'Movies: TMDb is not configured']
     assert {'1 movie download failed this week', '1 movie wanted', '1 movie added to Plex this week'} <= set(titles)
 
 

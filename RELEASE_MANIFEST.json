@@ -1,13 +1,13 @@
 {
   "product": "TV Manager",
-  "version": "18.30.0",
-  "release_name": "Movies land where Plex looks",
-  "generated_at": "2026-11-24T01:13:49.469911+00:00",
+  "version": "18.31.0",
+  "release_name": "Movie destination folders and Plex folder translations",
+  "generated_at": "2026-11-24T01:33:03.815411+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Movie library folder detected only from Plex movie folders; red/green Plex check with one-tap Plex folder choice",
-    "Move earlier imports into the library folder; every import records its destination and the Plex scan result",
-    "BitTorrent single-file torrents located by save folder plus torrent name; a download folder is never imported as one movie"
+    "Movie destination folders configured on the TV Manager server; most free space or in order, free-space reserve, upgrades stay put",
+    "Per-Plex-server folder translations: targeted scan in each server's own path; without one, all movie libraries on that server are scanned",
+    "Plex library paths no longer decide where files go; v18.30 Plex-path check removed"
   ],
   "validation": {
     "pytest": {
@@ -24,11 +24,11 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Chrome on a disposable copy: Movies > Settings red Plex check, one-tap Plex folder, green check, move list and button; no page errors",
+    "browser_qa": "Chrome on a disposable copy, desktop and 400px: destination folders with free space, per-server Plex translation editor, add and save a translation; no page errors",
     "indexer_end_to_end": "Not performed for movies: search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server",
     "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Update with update-server.ps1 from the v18.30.0 tag, start with run.ps1, then Movies > Settings > Scan library now, choose a Plex movie folder if the check is red, and Move N movies into the library folder.",
+  "activation": "Update with update-server.ps1 from the v18.31.0 tag, start with run.ps1, then Movies > Settings: enter destination folders, add Plex folder translations where names differ, and move earlier imports.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -143,7 +143,9 @@
     "tests/test_v18_29_0_tv_movies_single_view.py",
     "docs/RELEASE_NOTES_v18.29.0.md",
     "tests/test_v18_30_0_movie_plex_import.py",
-    "docs/RELEASE_NOTES_v18.30.0.md"
+    "docs/RELEASE_NOTES_v18.30.0.md",
+    "tests/test_v18_31_0_movie_destinations.py",
+    "docs/RELEASE_NOTES_v18.31.0.md"
   ],
   "sickchill_full_parity": false
 }

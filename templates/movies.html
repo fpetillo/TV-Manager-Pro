@@ -42,19 +42,28 @@
 
 <section class="panel movie-view" id="view-settings" role="tabpanel" hidden>
   <form id="movieSettings" class="movie-settings">
-    <fieldset><legend>Library</legend>
+    <fieldset><legend>Where new movies go</legend>
       <label class="checkline"><input type="checkbox" name="enabled"> Movies automation on</label>
-      <label class="field"><span>Movie library folder</span><input name="library_root" list="plexFolderList" placeholder="Leave empty to use the folder detected from Plex"></label>
-      <datalist id="plexFolderList"></datalist>
-      <p class="muted" id="detectedRoot"></p>
-      <div id="plexFolderStatus" class="plex-folder-status" aria-live="polite"></div>
-      <div id="plexFolderChoices" class="plex-folder-choices"></div>
+      <label class="field"><span>Movie destination folders (one per line)</span><textarea name="destination_folders" rows="3" placeholder="\\192.168.1.222\Media_5\Movies&#10;\\192.168.1.222\Media_6\Movies&#10;E:\Movies"></textarea></label>
+      <p class="muted">Write each folder the way <strong>this server</strong> reaches it (drive letter or \\server\share). Plex's library paths are never used to decide where files go.</p>
+      <div id="destStatus" class="dest-status" aria-live="polite"></div>
+      <div class="movie-settings-grid">
+        <label class="field"><span>When there is more than one folder</span><select name="destination_rule"><option value="most_free">Most free space</option><option value="in_order">In the order listed</option></select></label>
+        <label class="field"><span>Keep free on each drive (GB)</span><input name="min_free_gb" type="number" min="0" step="5"></label>
+      </div>
+      <p class="muted">An upgrade replaces the old copy in the folder it is already in. If every drive is below the free-space reserve, the movie goes to the drive with the most room.</p>
       <div id="relocateBox" class="relocate-box" hidden></div>
-      <label class="field"><span>Other movie folders (one per line)</span><textarea name="extra_library_folders" rows="3" placeholder="E:\Movies&#10;\\NAS\Movies 4K"></textarea></label>
-      <p class="muted">Every movie library on every Plex server is read automatically, along with the folders behind those libraries. Add folders here only for movies Plex does not know about. New downloads go to the movie library folder above.</p>
+    </fieldset>
+    <fieldset><legend>Tell Plex about new movies</legend>
+      <p class="muted">After each import, every Plex server is asked to scan. If a Plex server names a folder differently (for example <code>/data/movies</code> for <code>\\192.168.1.222\Media_5\Movies</code>), add a translation and Plex scans just that movie folder. With no translation, Plex scans all of its movie libraries, which still finds the movie but takes longer.</p>
+      <div id="plexMap" class="plex-map"></div>
+    </fieldset>
+    <fieldset><legend>Library and downloads</legend>
+      <label class="field"><span>Other movie folders to count as owned (one per line)</span><textarea name="extra_library_folders" rows="3" placeholder="E:\Movies&#10;\\NAS\Movies 4K"></textarea></label>
+      <p class="muted">Every movie library on every Plex server is read automatically, and so are the destination folders. Add folders here only for movies neither of those covers.</p>
       <label class="field"><span>Completed downloads folder (optional)</span><input name="download_dir" placeholder="Leave empty to use the TV, SABnzbd and torrent folders"></label>
       <label class="field"><span>Torrent import method</span><select name="torrent_import_method"><option value="hardlink">Hardlink (keeps seeding, no extra space)</option><option value="copy">Copy (keeps seeding)</option><option value="move">Move (stops seeding)</option></select></label>
-      <p class="muted">Usenet downloads are always moved and the leftover download folder is removed.</p>
+      <p class="muted">Usenet downloads are always moved and the leftover download folder is removed. A hardlink only works on the same drive; otherwise the file is copied.</p>
     </fieldset>
     <fieldset><legend>Automatic discovery</legend>
       <label class="checkline"><input type="checkbox" name="auto_add"> Add new digital and Blu-ray releases automatically</label>

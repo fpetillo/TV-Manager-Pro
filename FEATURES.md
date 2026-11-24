@@ -408,3 +408,7 @@ Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint
 ## v18.30.0 — Movies land where Plex looks
 
 - Plex check for the movie library folder, one-tap Plex folder choice, moving misplaced imports, Plex scan result per import, BitTorrent single-file path fix.
+
+## v18.31.0 — Movie destination folders and Plex folder translations
+
+- Configured destination folders with free-space choice; per-Plex-server folder translations for targeted scans, movie-library scan fallback.

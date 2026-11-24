@@ -29,11 +29,11 @@ async function loadSummary(){
     if(String(s.enabled)!=='1')problems.push('Movies automation is turned off in Settings.');
     if(!s.automation_enabled)problems.push('TV Manager automation is off (Settings › Automation), so scheduled movie jobs will not run.');
     if(s.simulation_mode)problems.push('Simulation mode is on: movies are searched but nothing is downloaded or moved.');
-    if(!s.effective_library_root)problems.push('No movie library folder yet. It is detected from Plex during the library scan, or set it under Settings.');
-    if(s.library_plex_status==='outside')problems.push('The movie library folder is not in a Plex movie library, so Plex will not show new movies — fix it under Settings.');
+    if(!s.effective_library_root)problems.push('No movie destination folder yet — add one under Settings.');
+    else if((s.destination_status||[]).length&&!s.destination_status.some(d=>d.reachable))problems.push('No movie destination folder can be reached from this server — check Settings.');
     if(!s.tmdb_configured)problems.push('TMDb is not configured, so discovery cannot run.');
     if(!s.indexers)problems.push('No indexers with a matching download client are configured.');
-    setMessage($('movieReadiness'),problems.length?problems.join(' '):`Running automatically. Library: ${s.effective_library_root}. Indexers: ${s.indexers}. Clients: ${[s.nzb_client,s.torrent_client].filter(Boolean).join(' + ')||'none'}.`,problems.length?'warn':'success');
+    setMessage($('movieReadiness'),problems.length?problems.join(' '):`Running automatically. New movies go to: ${(s.destination_list||[]).join(', ')}. Indexers: ${s.indexers}. Clients: ${[s.nzb_client,s.torrent_client].filter(Boolean).join(' + ')||'none'}.`,problems.length?'warn':'success');
   }catch(e){setMessage($('movieReadiness'),e.message,'error');}
 }
 
@@ -123,33 +123,42 @@ $('downloadsReload').onclick=loadDownloads;
 async function loadSettings(){
   const s=await jsonFetch('/api/movies/settings');const f=$('movieSettings');
   for(const el of f.elements){if(!el.name||!(el.name in s))continue;if(el.type==='checkbox')el.checked=['1','true','on','yes'].includes(String(s[el.name]).toLowerCase());else el.value=s[el.name]??'';}
-  $('detectedRoot').textContent=s.detected_library_root?`Detected from Plex: ${s.detected_library_root}`:'No movie folder detected from Plex yet (runs with the library scan).';
   renderScan(s.last_scan_report||{});
-  renderPlexFolders(s);
+  renderDestinations(s);
+  renderPlexMap(s);
+  loadRelocation();
   $('clientInfo').textContent=`Using your TV Manager download clients: NZB ${s.nzb_client||'none'}, torrent ${s.torrent_client||'none'}; ${s.indexers} indexer(s). Movies go to their own category or label so they stay apart from TV.`;
 }
-function renderPlexFolders(s){
-  const folders=s.plex_movie_folders||[],st=s.library_plex_status,root=s.effective_library_root;
-  $('plexFolderList').innerHTML=folders.filter(f=>f.reachable).map(f=>`<option value="${esc(f.path)}">`).join('');
-  const box=$('plexFolderStatus');
-  if(st==='ok'){box.className='plex-folder-status ok';box.textContent=`New movies go to ${root}, which is inside a Plex movie library, so Plex shows them after each import.`;}
-  else if(st==='outside'){box.className='plex-folder-status bad';box.innerHTML=`<strong>Plex will not show new movies.</strong> ${root?esc(root):'The movie folder'} is not inside any Plex movie library. Choose one of your Plex movie folders below, or add this folder to a movie library in Plex.`;}
-  else if(st==='no_plex'){box.className='plex-folder-status warn';box.textContent='No Plex movie library was found. Add your Plex server under Settings › Media Servers so new movies are scanned in.';}
-  else{box.className='plex-folder-status';box.textContent=root?'Run "Scan library now" to check this folder against your Plex movie libraries.':'';}
-  $('plexFolderChoices').innerHTML=folders.length?`<span class="muted">Your Plex movie folders:</span>`+folders.map(f=>f.reachable?`<button type="button" class="secondary small-btn use-folder" data-path="${esc(f.path)}">${esc(f.path)}${f.path!==f.plex_path?` <small>(Plex: ${esc(f.plex_path)})</small>`:''}</button>`:`<span class="chip" title="Not reachable from this server">${esc(f.plex_path)} — not reachable</span>`).join('')+(folders.some(f=>!f.reachable)?'<p class="muted">A folder marked not reachable is named the way the Plex server sees it. Add a Path Mapping under Settings so this server can reach it, then scan the library again.</p>':''):'';
-  document.querySelectorAll('.use-folder').forEach(b=>b.onclick=async()=>{try{await post('/api/movies/settings',{library_root:b.dataset.path});setMessage($('settingsMessage'),'Movie library folder saved.','success');await loadSettings();loadSummary();}catch(e){setMessage($('settingsMessage'),e.message,'error');}});
-  loadRelocation();
+function renderDestinations(s){
+  const list=s.destination_status||[];
+  $('destStatus').innerHTML=list.length?list.map(d=>`<div class="dest-row ${d.reachable?'ok':'bad'}"><span class="dest-path">${esc(d.path)}</span><span>${d.reachable?(d.free_gb!=null?`${d.free_gb.toLocaleString()} GB free of ${d.total_gb.toLocaleString()} GB`:'Reachable'):'Not reachable from this server'}</span></div>`).join(''):'<div class="dest-row bad"><span>No destination folder yet. New movies cannot be imported until one is added.</span></div>';
+}
+let plexMapRows=[];
+function renderPlexMap(s){
+  const servers=s.plex_servers||[];plexMapRows=(s.plex_path_map||[]).map(r=>({...r}));
+  const box=$('plexMap');
+  if(!servers.length){box.innerHTML='<p class="muted">No Plex server is set up. Add one under Settings › Media Servers.</p>';return;}
+  const dests=s.destination_list||[];
+  const draw=()=>{box.innerHTML=servers.map(srv=>{const rows=plexMapRows.map((r,i)=>({...r,i})).filter(r=>r.server_id===srv.id);
+    return `<div class="plex-map-server"><div class="plex-map-head"><strong>${esc(srv.name)}</strong>${srv.enabled?'':' <span class="chip">off</span>'}<span class="muted">${rows.length?`${rows.length} translation${rows.length===1?'':'s'}`:'No translation — scans all movie libraries'}</span></div>
+      ${rows.map(r=>`<div class="plex-map-row" data-i="${r.i}"><label class="field"><span>Folder on this server</span><input class="pm-local" list="destList" value="${esc(r.local)}" placeholder="\\\\192.168.1.222\\Media_5\\Movies"></label><span class="pm-arrow" aria-hidden="true">→</span><label class="field"><span>Same folder as ${esc(srv.name)} sees it</span><input class="pm-plex" list="plexList${srv.id}" value="${esc(r.plex)}" placeholder="/data/movies"></label><button type="button" class="secondary small-btn pm-remove" aria-label="Remove translation">Remove</button></div>`).join('')}
+      <datalist id="plexList${srv.id}">${(srv.movie_folders||[]).map(f=>`<option value="${esc(f)}">`).join('')}</datalist>
+      <div class="plex-map-actions"><button type="button" class="secondary small-btn pm-add" data-sid="${srv.id}">Add translation</button>${(srv.movie_folders||[]).length?`<span class="muted">${esc(srv.name)}'s movie folders: ${srv.movie_folders.map(esc).join(' · ')}</span>`:'<span class="muted">Run "Scan library now" to list this server\'s movie folders.</span>'}</div></div>`;}).join('')+`<datalist id="destList">${dests.map(d=>`<option value="${esc(d)}">`).join('')}</datalist>`;
+    box.querySelectorAll('.plex-map-row').forEach(row=>{const r=plexMapRows[+row.dataset.i];row.querySelector('.pm-local').oninput=e=>r.local=e.target.value;row.querySelector('.pm-plex').oninput=e=>r.plex=e.target.value;row.querySelector('.pm-remove').onclick=()=>{plexMapRows.splice(+row.dataset.i,1);draw();};});
+    box.querySelectorAll('.pm-add').forEach(b=>b.onclick=()=>{plexMapRows.push({server_id:+b.dataset.sid,local:dests[0]||'',plex:''});draw();box.querySelector(`.plex-map-row[data-i="${plexMapRows.length-1}"] .pm-plex`)?.focus();});
+  };
+  draw();
 }
 async function loadRelocation(){
   const box=$('relocateBox');
   try{const p=await jsonFetch('/api/movies/relocate');
     if(!p.items.length&&!p.skipped.length){box.hidden=true;return;}
     box.hidden=false;
-    box.innerHTML=`<strong>${p.items.length?`${p.items.length} imported movie${p.items.length===1?' is':'s are'} outside ${esc(p.root)}.`:'Imported movies that cannot be moved automatically'}</strong>${p.items.length&&p.plex_status==='outside'?' Choose a Plex movie folder above first.':''}
-      <ul>${p.items.slice(0,6).map(i=>`<li>${esc(i.title)}${i.year?` (${esc(i.year)})`:''} <small class="muted">${esc(i.from)}</small></li>`).join('')}${p.items.length>6?`<li class="muted">and ${p.items.length-6} more</li>`:''}</ul>
+    box.innerHTML=`<strong>${p.items.length?`${p.items.length} imported movie${p.items.length===1?' is':'s are'} outside the destination folders.`:'Imported movies that cannot be moved automatically'}</strong>
+      <ul>${p.items.slice(0,6).map(i=>`<li>${esc(i.title)}${i.year?` (${esc(i.year)})`:''} <small class="muted">${esc(i.from)} → ${esc(i.dest)}</small></li>`).join('')}${p.items.length>6?`<li class="muted">and ${p.items.length-6} more</li>`:''}</ul>
       ${p.skipped.length?`<p class="muted">${p.skipped.length} cannot be moved: ${p.skipped.slice(0,3).map(x=>esc(x.title+' — '+x.reason)).join('; ')}</p>`:''}
-      ${p.items.length&&p.plex_status!=='outside'?`<button type="button" class="blue" id="relocateBtn">Move ${p.items.length} movie${p.items.length===1?'':'s'} into the library folder</button>`:''}`;
-    const b=$('relocateBtn');if(b)b.onclick=async()=>{if(!confirm(`Move ${p.items.length} movie folder(s) into ${p.root}? Plex scans them afterwards.`))return;b.disabled=true;b.textContent='Moving… (see Logs)';try{await post('/api/movies/relocate');setTimeout(loadRelocation,5000);}catch(e){b.disabled=false;alert(e.message);}};
+      ${p.items.length?`<button type="button" class="blue" id="relocateBtn">Move ${p.items.length} movie${p.items.length===1?'':'s'} into the destination folders</button>`:''}`;
+    const b=$('relocateBtn');if(b)b.onclick=async()=>{if(!confirm(`Move ${p.items.length} movie folder(s) into the destination folders? Plex is told about each one afterwards.`))return;b.disabled=true;b.textContent='Moving… (see Logs)';try{await post('/api/movies/relocate');setTimeout(loadRelocation,5000);}catch(e){b.disabled=false;alert(e.message);}};
   }catch(e){box.hidden=true;}
 }
 function renderScan(r){
@@ -163,7 +172,8 @@ function renderScan(r){
 $('movieSettings').onsubmit=async e=>{
   e.preventDefault();const body={};
   for(const el of e.target.elements){if(!el.name)continue;body[el.name]=el.type==='checkbox'?(el.checked?'1':'0'):el.value;}
-  try{await post('/api/movies/settings',body);setMessage($('settingsMessage'),'Saved.','success');loadSummary();}catch(err){setMessage($('settingsMessage'),err.message,'error');}
+  body.plex_path_map=plexMapRows.filter(r=>r.local.trim()||r.plex.trim());
+  try{await post('/api/movies/settings',body);setMessage($('settingsMessage'),'Saved.','success');await loadSettings();loadSummary();}catch(err){setMessage($('settingsMessage'),err.message,'error');}
 };
 document.querySelectorAll('.job-run').forEach(b=>b.onclick=async()=>{b.disabled=true;const label=b.textContent;try{await post(`/api/movies/jobs/${b.dataset.job}/run`);b.textContent='Started — see Jobs/Logs';setTimeout(()=>{b.disabled=false;b.textContent=label;loadSummary();loadMovies();},4000);}catch(e){b.disabled=false;alert(e.message);}});
 

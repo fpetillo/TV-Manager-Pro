@@ -1,3 +1,7 @@
+## 18.31.0 — Movie destination folders and Plex folder translations
+
+Movies go to destination folders configured on this server (most free space or in order, free-space reserve, upgrades stay put); each Plex server is told about new movies through optional per-server folder translations, or scans all its movie libraries without one. Plex library paths no longer decide where files go. See [release notes](docs/RELEASE_NOTES_v18.31.0.md).
+
 ## 18.30.0 — Movies land where Plex looks
 
 The movie library folder is detected only from Plex movie library folders (no guessed folder when Plex folders are unreachable); Movies › Settings checks the folder against Plex, lists Plex movie folders for one-tap choice and moves earlier imports into the library folder; each import records where it went and what Plex scanned; BitTorrent single-file torrents are located correctly. See [release notes](docs/RELEASE_NOTES_v18.30.0.md).

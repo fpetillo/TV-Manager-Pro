@@ -62,6 +62,10 @@ DEFAULTS = {
     'library_scanned_at': '',
     'extra_library_folders': '',
     'last_scan_report': '',
+    'destination_folders': '',
+    'destination_rule': 'most_free',
+    'min_free_gb': '50',
+    'plex_path_map': '',
 }
 VIDEO_EXT = {'.mkv', '.mp4', '.avi', '.m4v', '.mov', '.wmv', '.ts', '.m2ts', '.mpg', '.mpeg'}
 SIDECAR_EXT = {'.srt', '.sub', '.idx', '.ass', '.ssa', '.vtt'}
@@ -891,9 +895,8 @@ def _trash_existing(path):
 
 def import_download(download, dry_run=False):
     movie = get_movie(download['movie_id'])
-    root = library_root()
-    if not root:
-        return {'ok': False, 'message': 'No movie library folder is set'}
+    if not destination_folders():
+        return {'ok': False, 'message': 'No movie destination folder is set (Movies > Settings)'}
     source = locate(download)
     if not source:
         return {'ok': False, 'message': 'Completed download not found in the download folders yet'}
@@ -901,6 +904,13 @@ def import_download(download, dry_run=False):
     if not videos:
         return {'ok': False, 'message': f'No video file found in {source}'}
     video = videos[0]
+    try:
+        size_needed = video.stat().st_size
+    except OSError:
+        size_needed = 0
+    root, why = destination_for(movie, 0 if download.get('protocol') != 'nzb' and setting('torrent_import_method') == 'hardlink' else size_needed)
+    if not root:
+        return {'ok': False, 'message': why}
     folder = Path(_map(root)) / movie_folder_name(movie)
     target = folder / (movie_folder_name(movie) + video.suffix.lower())
     method = 'move' if download.get('protocol') == 'nzb' else (setting('torrent_import_method') or 'hardlink')
@@ -937,9 +947,10 @@ def import_download(download, dry_run=False):
         c.commit()
     scans = refresh_media_servers(str(folder))
     plex_note = _scan_note(scans, root)
+    failed = any(not x.get('ok') for x in scans or [])
     log('movie_imported', f"Imported {movie['title']} ({movie.get('year') or '?'}) to {target} by {used}. {plex_note}",
-        'info' if library_plex_status(root) != 'outside' else 'warning',
-        data={'movie_id': movie['id'], 'replaced': replaced, 'media_servers': scans})
+        'warning' if failed else 'info',
+        data={'movie_id': movie['id'], 'replaced': replaced, 'media_servers': scans, 'destination': root})
     try:
         import advanced
         advanced.fire_webhooks('downloaded', {'movie': movie['title'], 'year': movie.get('year'), 'path': str(target),
@@ -949,20 +960,22 @@ def import_download(download, dry_run=False):
     return dict(plan, method=used, replaced=replaced)
 
 
-def _scan_note(scans, root):
-    if library_plex_status(root) == 'outside':
-        return 'Plex will not show it: the movie library folder is not in any Plex movie library (Movies > Settings).'
+def _scan_note(scans, root=None):
     if not scans:
-        return 'No media server is set up to scan.'
+        return 'No media server is set up to tell.'
     parts = []
     for s in scans:
         if not s.get('ok'):
             parts.append(f"{s.get('server')}: scan request failed")
         elif s.get('targeted'):
-            parts.append(f"{s.get('server')}: scanned the movie folder")
+            parts.append(f"{s.get('server')}: scanned {s.get('path') or 'the movie folder'}")
+        elif s.get('plex_path'):
+            parts.append(f"{s.get('server')}: {s.get('plex_path')} is not in a movie library there, so all movie libraries were scanned")
+        elif s.get('kind') == 'plex':
+            parts.append(f"{s.get('server')}: scanned all movie libraries (no folder translation set)")
         else:
-            parts.append(f"{s.get('server')}: scanned all libraries")
-    return 'Plex — ' + '; '.join(parts) + '.'
+            parts.append(f"{s.get('server')}: library refresh requested")
+    return 'Media servers — ' + '; '.join(parts) + '.'
 
 
 def import_completed(dry_run=None):
@@ -998,7 +1011,12 @@ def refresh_media_servers(path):
             continue
         try:
             if str(server.get('kind') or '').lower() == 'plex':
-                result = advanced._refresh_plex(advanced.media_server(server['id'], masked=False), path, tv_only=False)
+                # Plex is told the folder in its own terms (per-server translation). Without one, every
+                # movie library on that server is scanned, which always finds the new movie.
+                plex_path = plex_path_for(server['id'], path)
+                result = advanced._refresh_plex(advanced.media_server(server['id'], masked=False), plex_path,
+                                                tv_only=False, section_type='movie')
+                result = dict(result, plex_path=plex_path)
             else:
                 result = advanced.refresh_media_server(server['id'])
             results.append({'server': server['name'], **result})
@@ -1078,7 +1096,7 @@ def _split_folders(text):
 def library_folders(plex_locations=()):
     """All movie folders to read from disk: the import folder, extra folders and every Plex movie library folder."""
     out, seen = [], []
-    candidates = [(setting('library_root'), 'Movie library folder')]
+    candidates = [(p, 'Movie destination folder') for p in destination_folders()]
     candidates += [(p, 'Other movie folder') for p in _split_folders(setting('extra_library_folders'))]
     candidates += [(p, 'Plex library folder') for p in plex_locations or []]
     candidates += [(setting('detected_library_root'), 'Detected from Plex')]
@@ -1169,8 +1187,123 @@ def detect_library_root(plex_locations=None):
     return ''
 
 
+def destination_folders():
+    """Folders new movies go to, written the way THIS server reaches them (drive letter or UNC).
+
+    They are configured here and never taken from a Plex server's library paths, because each
+    Plex server may name the same folder differently. Older installs used one library_root."""
+    folders = _split_folders(setting('destination_folders'))
+    if not folders:
+        legacy = (setting('library_root') or setting('detected_library_root') or '').strip()
+        folders = [legacy] if legacy else []
+    return folders
+
+
 def library_root():
-    return (setting('library_root') or setting('detected_library_root') or '').strip()
+    folders = destination_folders()
+    return folders[0] if folders else ''
+
+
+def _free_gb(path):
+    try:
+        return shutil.disk_usage(path).free / 1024 ** 3
+    except OSError:
+        return None
+
+
+def destination_status():
+    out = []
+    for folder in destination_folders():
+        mapped = _map(folder)
+        reachable = os.path.isdir(mapped)
+        usage = None
+        if reachable:
+            try:
+                usage = shutil.disk_usage(mapped)
+            except OSError:
+                usage = None
+        out.append({'path': folder, 'reachable': reachable,
+                    'free_gb': round(usage.free / 1024 ** 3, 1) if usage else None,
+                    'total_gb': round(usage.total / 1024 ** 3, 1) if usage else None})
+    return out
+
+
+def destination_for(movie, size_bytes=0):
+    """Pick the destination folder for a movie: the folder it already lives in (upgrades stay
+    on the same drive), else the folder with the most free space, or the first with enough
+    space when the rule is 'in_order'. Returns (folder, reason)."""
+    folders = destination_folders()
+    if not folders:
+        return None, 'No movie destination folder is set (Movies > Settings)'
+    old = (movie or {}).get('file_path')
+    if old:
+        for folder in folders:
+            if _inside(_map(old), _map(folder)) and os.path.isdir(_map(folder)):
+                return folder, 'same folder as the current copy'
+    size_gb = (size_bytes or 0) / 1024 ** 3
+    need = number('min_free_gb', 50) + size_gb
+    reachable = []
+    for index, folder in enumerate(folders):
+        mapped = _map(folder)
+        if os.path.isdir(mapped):
+            free = _free_gb(mapped)
+            reachable.append((index, free if free is not None else float('inf'), folder))
+    if not reachable:
+        return None, 'None of the movie destination folders can be reached from this server'
+    # Folders keeping the free-space reserve come first; when every drive is below the reserve,
+    # the movie still goes to the folder with the most room as long as it fits.
+    candidates = [c for c in reachable if c[1] >= need]
+    if not candidates:
+        roomiest = max(reachable, key=lambda c: (c[1], -c[0]))
+        if roomiest[1] < size_gb + 1:
+            return None, f'No movie destination folder has room for this movie ({size_gb:.1f} GB)'
+        return roomiest[2], 'most free space (every folder is below the free-space reserve)'
+    if (setting('destination_rule') or 'most_free') == 'in_order':
+        chosen = min(candidates)
+    else:
+        chosen = max(candidates, key=lambda c: (c[1], -c[0]))
+    return chosen[2], 'first folder with space' if setting('destination_rule') == 'in_order' else 'most free space'
+
+
+def plex_path_map():
+    """Per Plex server translations: [{'server_id', 'local', 'plex'}]."""
+    try:
+        rows = json.loads(setting('plex_path_map') or '[]')
+    except ValueError:
+        return []
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        try:
+            sid = int(r.get('server_id'))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        local, plex = str(r.get('local') or '').strip(), str(r.get('plex') or '').strip()
+        if local and plex:
+            out.append({'server_id': sid, 'local': local, 'plex': plex})
+    return out
+
+
+def plex_path_for(server_id, local_path):
+    """The path a given Plex server uses for a folder on this server, or None if no translation fits."""
+    target = _map(str(local_path)).replace('\\', '/').rstrip('/')
+    best = None
+    for rule in plex_path_map():
+        if rule['server_id'] != int(server_id):
+            continue
+        for local in {rule['local'], _map(rule['local'])}:
+            prefix = local.replace('\\', '/').rstrip('/')
+            if not prefix:
+                continue
+            same = target.casefold() == prefix.casefold()
+            under = target.casefold().startswith(prefix.casefold() + '/')
+            if (same or under) and (best is None or len(prefix) > best[0]):
+                best = (len(prefix), rule['plex'], target[len(prefix):])
+    if not best:
+        return None
+    plex, rest = best[1], best[2].lstrip('/')
+    sep = '\\' if ('\\' in plex and '/' not in plex) or re.match(r'^[A-Za-z]:\\', plex) else '/'
+    base = plex.rstrip('/\\')
+    return base + (sep + rest.replace('/', sep) if rest else '')
 
 
 def _inside(child, parent):
@@ -1527,6 +1660,7 @@ def run_job(name):
 # ---------------------------------------------------------------- listing / settings for the UI
 
 PUBLIC_SETTINGS = [k for k in DEFAULTS if k not in {'detected_library_root', 'library_scanned_at', 'last_scan_report'}]
+# plex_path_map is returned parsed (a list) by settings_public; it is saved from a list or JSON text.
 
 
 def settings_public():
@@ -1538,6 +1672,22 @@ def settings_public():
     folders = plex_movie_folders()
     data['plex_movie_folders'] = folders
     data['library_plex_status'] = library_plex_status(data['effective_library_root'], folders)
+    data['destination_list'] = destination_folders()
+    data['destination_status'] = destination_status()
+    data['plex_path_map'] = plex_path_map()
+    servers = []
+    try:
+        import advanced
+        report = last_scan_report()
+        for srv in advanced.media_servers():
+            if str(srv.get('kind') or '').lower() != 'plex':
+                continue
+            seen = [loc for x in report.get('sources', []) if x.get('kind') == 'plex' and x.get('server') == srv.get('name')
+                    for loc in x.get('locations') or []]
+            servers.append({'id': srv['id'], 'name': srv.get('name'), 'enabled': bool(srv.get('enabled')), 'movie_folders': seen})
+    except Exception:
+        pass
+    data['plex_servers'] = servers
     nzb, torrent = _clients()
     data['nzb_client'] = nzb
     data['torrent_client'] = torrent
@@ -1556,13 +1706,16 @@ def settings_public():
 
 
 def save_settings(body):
-    numeric = {'min_rating', 'min_votes', 'discovery_days', 'max_auto_add_per_run', 'max_searches_per_run', 'min_resolution',
+    numeric = {'min_free_gb', 'min_rating', 'min_votes', 'discovery_days', 'max_auto_add_per_run', 'max_searches_per_run', 'min_resolution',
                'max_resolution', 'cutoff_resolution', 'min_size_mb', 'max_size_gb', 'stalled_hours'}
     booleans = {'enabled', 'auto_add', 'auto_grab', 'allow_remux', 'allow_hevc'}
-    choices = {'torrent_import_method': {'hardlink', 'copy', 'move'}}
+    choices = {'torrent_import_method': {'hardlink', 'copy', 'move'}, 'destination_rule': {'most_free', 'in_order'}}
     clean = {}
     for key, value in (body or {}).items():
         if key not in PUBLIC_SETTINGS:
+            continue
+        if key == 'plex_path_map':
+            clean[key] = _clean_plex_map(value)
             continue
         value = '' if value is None else str(value).strip()
         if key in booleans:
@@ -1577,6 +1730,12 @@ def save_settings(body):
             raise ValueError(f'{key} must be one of {", ".join(sorted(choices[key]))}')
         elif key in {'library_root', 'download_dir'} and value and not os.path.isdir(_map(value)):
             raise ValueError(f'Folder not found from this server: {value}')
+        elif key == 'destination_folders':
+            folders = _split_folders(value)
+            missing = [f for f in folders if not os.path.isdir(_map(f))]
+            if missing:
+                raise ValueError('Movie destination folder not found from this server: ' + ', '.join(missing[:5]))
+            value = '\n'.join(folders)
         elif key == 'extra_library_folders':
             folders = _split_folders(value)
             missing = [f for f in folders if not os.path.isdir(_map(f))]
@@ -1588,7 +1747,35 @@ def save_settings(body):
         clean[key] = value
     for key, value in clean.items():
         engine.set_setting(SECTION, key, value)
+    if 'destination_folders' in clean:
+        # Keep the older single-folder setting in step for anything still reading it.
+        engine.set_setting(SECTION, 'library_root', (clean['destination_folders'].split('\n') or [''])[0])
     return settings_public()
+
+
+def _clean_plex_map(value):
+    if isinstance(value, str):
+        try:
+            value = json.loads(value or '[]')
+        except ValueError:
+            raise ValueError('Plex folder translations are not valid') from None
+    if not isinstance(value, list):
+        raise ValueError('Plex folder translations must be a list')
+    rows = []
+    for r in value:
+        if not isinstance(r, dict):
+            continue
+        local, plex = str(r.get('local') or '').strip(), str(r.get('plex') or '').strip()
+        if not local and not plex:
+            continue
+        if not local or not plex:
+            raise ValueError('Each Plex folder translation needs both the folder on this server and the folder as Plex sees it')
+        try:
+            sid = int(r.get('server_id'))
+        except (TypeError, ValueError):
+            raise ValueError('Each Plex folder translation needs a Plex server') from None
+        rows.append({'server_id': sid, 'local': local, 'plex': plex})
+    return json.dumps(rows)
 
 
 def listing(status='', query='', page=1, page_size=60, sort='added'):
@@ -1673,7 +1860,9 @@ def _setup_problems(settings=None):
     if s.get('enabled') != '1':
         out.append(('Movies automation is off', '/movies'))
     if not s.get('effective_library_root'):
-        out.append(('No movie library folder yet', '/movies'))
+        out.append(('No movie destination folder yet', '/movies#settings'))
+    elif s.get('destination_status') and not any(d['reachable'] for d in s['destination_status']):
+        out.append(('No movie destination folder can be reached', '/movies#settings'))
     if not s.get('tmdb_configured'):
         out.append(('TMDb is not configured', '/metadata-sources'))
     if not s.get('indexers'):
@@ -1681,8 +1870,6 @@ def _setup_problems(settings=None):
     report = last_scan_report()
     if report and not report.get('complete', True):
         out.append(('A Plex movie library could not be read', '/movies'))
-    if s.get('library_plex_status') == 'outside':
-        out.append(('The movie library folder is not in a Plex movie library', '/movies#settings'))
     return out
 
 
@@ -1788,31 +1975,39 @@ _relocating = threading.Lock()
 
 def relocation_plan():
     """Movies this app imported whose files are outside the current movie library folder."""
-    root = library_root()
-    if not root:
-        return {'root': '', 'items': [], 'skipped': [], 'message': 'Set the movie library folder first.'}
-    mapped_root = Path(_map(root))
+    folders = [f for f in destination_folders() if os.path.isdir(_map(f))]
+    if not folders:
+        return {'root': '', 'items': [], 'skipped': [], 'message': 'Set a movie destination folder first.'}
+    root = folders[0]
     with cx() as c:
         rows = [dict(r) for r in c.execute("""SELECT id,title,year,file_path FROM movies WHERE status='Downloaded'
                                               AND added_via IN ('auto','manual') AND file_path IS NOT NULL ORDER BY title""").fetchall()]
     items, skipped = [], []
     for m in rows:
         current = Path(_map(m['file_path']))
-        if _inside(current, mapped_root):
+        if any(_inside(current, _map(f)) for f in folders):
             continue
         if not current.exists():
             skipped.append({'id': m['id'], 'title': m['title'], 'reason': f'File not found: {m["file_path"]}'})
             continue
         source = current.parent if current.parent.name == movie_folder_name(m) else current
-        target = mapped_root / movie_folder_name(m)
+        try:
+            size = sum(p.stat().st_size for p in source.rglob('*') if p.is_file()) if source.is_dir() else source.stat().st_size
+        except OSError:
+            size = 0
+        dest, why = destination_for({}, size)
+        if not dest:
+            skipped.append({'id': m['id'], 'title': m['title'], 'reason': why})
+            continue
+        target = Path(_map(dest)) / movie_folder_name(m)
         if source.is_file():
             target = target / current.name
         if target.exists():
             skipped.append({'id': m['id'], 'title': m['title'], 'reason': f'Already exists in the library folder: {target}'})
             continue
-        items.append({'id': m['id'], 'title': m['title'], 'year': m['year'], 'from': str(source), 'to': str(target),
+        items.append({'id': m['id'], 'title': m['title'], 'year': m['year'], 'from': str(source), 'to': str(target), 'dest': dest,
                       'file': str(target / current.name) if source != current else str(target)})
-    return {'root': root, 'items': items, 'skipped': skipped, 'plex_status': library_plex_status(root)}
+    return {'root': root, 'folders': folders, 'items': items, 'skipped': skipped}
 
 
 def relocate_imported(background=True):
@@ -1837,9 +2032,13 @@ def relocate_imported(background=True):
                 except Exception as error:
                     failed.append(item['title'])
                     log('movie_move_error', f"Could not move {item['title']}: {str(error)[:200]}", 'warning', data={'movie_id': item['id']})
-            if moved:
-                refresh_media_servers(_map(plan['root']))
-            log('movie_relocation', f"Moved {moved} movie(s) into {plan['root']}" + (f"; {len(failed)} could not be moved" if failed else ''),
+            done = []
+            for item in plan['items']:
+                if Path(item['to']).exists() and item['to'] not in done:
+                    done.append(item['to'])
+            for folder in done:
+                refresh_media_servers(folder)
+            log('movie_relocation', f"Moved {moved} movie(s) into the movie destination folders" + (f"; {len(failed)} could not be moved" if failed else ''),
                 'warning' if failed else 'info')
         finally:
             _relocating.release()
