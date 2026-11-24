@@ -1,13 +1,12 @@
 {
   "product": "TV Manager",
-  "version": "18.33.0",
-  "release_name": "update-server.ps1 installs the latest release",
-  "generated_at": "2026-11-24T01:56:16.609036+00:00",
+  "version": "18.34.0",
+  "release_name": "Hide downloaded movies in Discover",
+  "generated_at": "2026-11-24T15:59:37.784825+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "update-server.ps1 installs the newest vX.Y.Z release tag by default",
-    "Stops before backup when already up to date",
-    "-Version still installs a specific release"
+    "Movies > Discover: Hide movies already downloaded checkbox, remembered per browser",
+    "Filtered pages are filled from further TMDb pages"
   ],
   "validation": {
     "pytest": {
@@ -24,11 +23,11 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Chrome on a disposable copy, desktop and 400px: destination folders with free space, per-server Plex translation editor, add and save a translation; no page errors",
+    "browser_qa": "Chrome on a disposable copy: Discover checkbox hides downloaded movies, note shown, choice remembered after reload; no page errors",
     "indexer_end_to_end": "Not performed for movies: search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server",
     "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Older servers: .\\update-server.ps1 -Version 18.33.0 once; afterwards .\\update-server.ps1 installs the latest release.",
+  "activation": ".\\update-server.ps1 (18.33.0+), or .\\update-server.ps1 -Version 18.34.0 on older servers; start with run.ps1.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -148,7 +147,9 @@
     "docs/RELEASE_NOTES_v18.31.0.md",
     "docs/RELEASE_NOTES_v18.32.0.md",
     "tests/test_v18_33_0_updater_latest.py",
-    "docs/RELEASE_NOTES_v18.33.0.md"
+    "docs/RELEASE_NOTES_v18.33.0.md",
+    "tests/test_v18_34_0_discover_hide_downloaded.py",
+    "docs/RELEASE_NOTES_v18.34.0.md"
   ],
   "sickchill_full_parity": false
 }

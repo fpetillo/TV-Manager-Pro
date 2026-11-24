@@ -61,7 +61,8 @@ def register(app):
     def api_movies_discover():
         try:
             a = request.args
-            return jsonify(movies.discover_list(a.get('list', 'digital'), a.get('q', '').strip(), a.get('page', 1)))
+            return jsonify(movies.discover_list(a.get('list', 'digital'), a.get('q', '').strip(), a.get('page', 1),
+                                                         hide_downloaded=a.get('hide_downloaded') in {'1', 'true', 'on'}))
         except Exception as exc:
             return _error(exc)
 

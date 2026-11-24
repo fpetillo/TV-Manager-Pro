@@ -5,7 +5,7 @@ Manager (including its startup task/service) before running. Leaves it stopped.
 Installs the newest vX.Y.Z release on GitHub unless -Version names one.
 Example:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1 -Version 18.33.0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1 -Version 18.34.0
 #>
 [CmdletBinding()]
 param(

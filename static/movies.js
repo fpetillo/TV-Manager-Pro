@@ -90,17 +90,22 @@ $('moviePrev').onclick=()=>{page--;loadMovies();};
 $('movieNext').onclick=()=>{page++;loadMovies();};
 
 // ---------- discover
-let discoverPage=1,discoverRows=[];
+let discoverPage=0,discoverRows=[],discoverHidden=0;
+const HIDE_KEY='tvmanager.movies.discover.hideDownloaded';
+try{$('discoverHideDownloaded').checked=localStorage.getItem(HIDE_KEY)==='1';}catch{}
+$('discoverHideDownloaded').onchange=()=>{try{localStorage.setItem(HIDE_KEY,$('discoverHideDownloaded').checked?'1':'0');}catch{}loadDiscover(false);};
 async function loadDiscover(more){
-  discoverPage=more?discoverPage+1:1;
-  const q=new URLSearchParams({list:$('discoverList').value,q:$('discoverQuery').value,page:discoverPage});
+  const hide=$('discoverHideDownloaded').checked;
+  const q=new URLSearchParams({list:$('discoverList').value,q:$('discoverQuery').value,page:more?discoverPage+1:1});
+  if(hide)q.set('hide_downloaded','1');
   setMessage($('discoverMessage'),'Loading…');
   try{
     const d=await jsonFetch('/api/movies/discover?'+q);
+    discoverPage=d.page;discoverHidden=(more?discoverHidden:0)+(d.hidden||0);
     discoverRows=more?discoverRows.concat(d.results):d.results;
-    $('discoverResults').innerHTML=discoverRows.length?discoverRows.map((m,i)=>`<article class="movie-card">${poster(m.poster_path)}<div class="movie-card-body"><div class="trakt-card-head"><h3>${esc(m.title)} ${m.year?`<span>(${esc(m.year)})</span>`:''}</h3>${m.status?`<span class="status-pill ${esc(m.status)}">${esc(STATUS_LABEL[m.status]||m.status)}</span>`:''}</div><p class="result-meta">${[m.release_date,m.rating?('★ '+Number(m.rating).toFixed(1)+' ('+m.votes+')'):null].filter(Boolean).map(esc).join(' • ')}</p><p>${esc(m.overview||'')}</p><div class="actions"><button class="blue small-btn add-movie" data-i="${i}" ${m.status?'disabled':''}>${m.status?'In Movies':'Add'}</button></div></div></article>`).join(''):'<p class="muted">No movies matched.</p>';
+    $('discoverResults').innerHTML=discoverRows.length?discoverRows.map((m,i)=>`<article class="movie-card">${poster(m.poster_path)}<div class="movie-card-body"><div class="trakt-card-head"><h3>${esc(m.title)} ${m.year?`<span>(${esc(m.year)})</span>`:''}</h3>${m.status?`<span class="status-pill ${esc(m.status)}">${esc(STATUS_LABEL[m.status]||m.status)}</span>`:''}</div><p class="result-meta">${[m.release_date,m.rating?('★ '+Number(m.rating).toFixed(1)+' ('+m.votes+')'):null].filter(Boolean).map(esc).join(' • ')}</p><p>${esc(m.overview||'')}</p><div class="actions"><button class="blue small-btn add-movie" data-i="${i}" ${m.status?'disabled':''}>${m.status?'In Movies':'Add'}</button></div></div></article>`).join(''):(hide&&discoverHidden?'<p class="muted">Every movie here is already downloaded. Untick "Hide movies already downloaded" or load more.</p>':'<p class="muted">No movies matched.</p>');
     $('discoverMore').hidden=d.page>=d.total_pages;
-    setMessage($('discoverMessage'),'');
+    setMessage($('discoverMessage'),hide&&discoverHidden?`${discoverHidden} already downloaded movie${discoverHidden===1?' is':'s are'} hidden.`:'');
     document.querySelectorAll('.add-movie').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='Adding…';try{const r=await post('/api/movies',{tmdb_id:discoverRows[+b.dataset.i].tmdb_id});b.textContent=r.created?'Added':'Already in Movies';discoverRows[+b.dataset.i].status=r.movie.status;loadSummary();}catch(e){b.disabled=false;b.textContent='Add';alert(e.message);}});
   }catch(e){setMessage($('discoverMessage'),e.message,'error');}
 }

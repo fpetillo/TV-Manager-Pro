@@ -1511,29 +1511,44 @@ def discover_auto():
     return {'checked': seen, 'added': len(added), 'titles': added, 'errors': errors}
 
 
-def discover_list(kind='digital', query='', page=1):
-    page = max(1, min(int(page or 1), 20))
+def _discover_page(kind, query, page):
     if query:
-        data = tmdb('/search/movie', {'query': query, 'page': page, 'include_adult': 'false'})
-    elif kind == 'digital':
-        data = tmdb('/discover/movie', discover_params(page))
-    elif kind == 'trending':
-        data = tmdb('/trending/movie/week', {'page': page})
-    elif kind in {'popular', 'now_playing', 'upcoming', 'top_rated'}:
-        data = tmdb(f'/movie/{kind}', {'page': page, 'region': setting('discovery_region') or 'US'})
-    else:
-        raise ValueError('Unknown list')
+        return tmdb('/search/movie', {'query': query, 'page': page, 'include_adult': 'false'})
+    if kind == 'digital':
+        return tmdb('/discover/movie', discover_params(page))
+    if kind == 'trending':
+        return tmdb('/trending/movie/week', {'page': page})
+    if kind in {'popular', 'now_playing', 'upcoming', 'top_rated'}:
+        return tmdb(f'/movie/{kind}', {'page': page, 'region': setting('discovery_region') or 'US'})
+    raise ValueError('Unknown list')
+
+
+def discover_list(kind='digital', query='', page=1, hide_downloaded=False):
+    """One page of TMDb movies with each one's state in Movies. With hide_downloaded, movies
+    already downloaded (in Movies or found in the library) are left out, and further TMDb
+    pages are read (up to 4) so the page is not left nearly empty. 'page' in the result is the
+    last TMDb page read; ask for page + 1 next."""
+    page = max(1, min(int(page or 1), 20))
     with cx() as c:
         status = {r['tmdb_id']: r['status'] for r in c.execute('SELECT tmdb_id,status FROM movies WHERE tmdb_id IS NOT NULL').fetchall()}
         owned = {(norm(r['title']), r['year']) for r in c.execute("SELECT title,year FROM movies WHERE status='Downloaded'").fetchall()}
-    out = []
-    for item in data.get('results', []):
-        year = _year(item.get('release_date'))
-        state = status.get(item['id']) or ('Downloaded' if (norm(item.get('title')), year) in owned else None)
-        out.append({'tmdb_id': item['id'], 'title': item.get('title'), 'year': year, 'overview': item.get('overview'),
-                    'poster_path': item.get('poster_path'), 'rating': item.get('vote_average'), 'votes': item.get('vote_count'),
-                    'release_date': item.get('release_date'), 'status': state})
-    return {'results': out, 'page': page, 'total_pages': min(int(data.get('total_pages') or 1), 20)}
+    out, hidden, total_pages, last = [], 0, 1, page
+    for current in range(page, min(page + (4 if hide_downloaded else 1), 21)):
+        data = _discover_page(kind, query, current)
+        total_pages = min(int(data.get('total_pages') or 1), 20)
+        last = current
+        for item in data.get('results', []):
+            year = _year(item.get('release_date'))
+            state = status.get(item['id']) or ('Downloaded' if (norm(item.get('title')), year) in owned else None)
+            if hide_downloaded and state == 'Downloaded':
+                hidden += 1
+                continue
+            out.append({'tmdb_id': item['id'], 'title': item.get('title'), 'year': year, 'overview': item.get('overview'),
+                        'poster_path': item.get('poster_path'), 'rating': item.get('vote_average'), 'votes': item.get('vote_count'),
+                        'release_date': item.get('release_date'), 'status': state})
+        if len(out) >= 12 or current >= total_pages:
+            break
+    return {'results': out, 'page': last, 'total_pages': total_pages, 'hidden': hidden}
 
 
 # ---------------------------------------------------------------- scheduled work

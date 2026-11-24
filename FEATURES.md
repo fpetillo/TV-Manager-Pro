@@ -416,3 +416,7 @@ Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint
 ## v18.32.0 — Plex scans with no setup
 
 - Every Plex server scans all its movie libraries after each movie import; no folder translations.
+
+## v18.34.0 — Hide downloaded movies in Discover
+
+- Movies › Discover checkbox to hide movies already downloaded (remembered).
