@@ -58,6 +58,10 @@ A download the client reports as failed, or that is not complete after 36 hours 
 - Every enabled Plex server scans the movie folder (other media servers refresh their library).
 - Simulation mode previews imports without moving anything and does not send downloads.
 
+## Plex check (v18.30.0)
+
+The movie library folder must be inside a Plex movie library, or Plex never shows new movies. Movies › Settings shows a green or red check, lists the Plex movie folders (tap one to use it), and offers **Move N movies into the library folder** for movies imported elsewhere. The folder is detected only from reachable Plex movie folders; when Plex folders are not reachable from the server, set the folder yourself or add a Path Mapping.
+
 ## Settings
 
 Movies › Settings: automation on/off, library folder (empty = detected from Plex), completed-downloads folder, torrent import method, discovery filters, quality limits, give-up hours, ignore/preferred words, client categories/labels and indexer movie categories. Folders are checked when saved.

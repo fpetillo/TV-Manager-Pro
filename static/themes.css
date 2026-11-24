@@ -378,6 +378,12 @@ html[data-theme="glassy"] .fact-list dt{color:#8b98a9}
 html[data-theme="glassy"] .calendar-day a.movie-entry,html[data-theme="glassy"] .upcoming-movie{color:#fcd34d}
 html[data-theme="glassy"] .feed-subhead{color:#94a3b8}
 html[data-theme="glassy"] #movieList a,html[data-theme="glassy"] .calendar-day a.movie-entry{color:#fcd34d}
+html[data-theme="glassy"] .plex-folder-status{border:1px solid rgba(255,255,255,0.13);background:rgba(200,215,255,0.066);color:#cbd5e1}
+html[data-theme="glassy"] .plex-folder-status.ok{border-color:rgba(74,222,128,.4);background:rgba(20,83,45,.25);color:#bbf7d0}
+html[data-theme="glassy"] .plex-folder-status.bad{border-color:rgba(248,113,113,.5);background:rgba(127,29,29,.3);color:#fecaca}
+html[data-theme="glassy"] .plex-folder-status.warn{border-color:rgba(251,191,36,.45);background:rgba(113,63,18,.3);color:#fde68a}
+html[data-theme="glassy"] .plex-folder-choices small{color:#94a3b8}
+html[data-theme="glassy"] .relocate-box{border:1px solid rgba(245,158,11,.4);background:rgba(120,53,15,.22)}
 html[data-theme="glassy"]{background:#0b1024;color-scheme:dark;--glass-line:rgba(255,255,255,.18)}
 html[data-theme="glassy"] body{background:
   radial-gradient(900px 640px at 4% -4%,rgba(132,94,255,.62),transparent 60%),
@@ -771,6 +777,12 @@ html[data-theme="midnight"] .fact-list dt{color:#95999f}
 html[data-theme="midnight"] .calendar-day a.movie-entry,html[data-theme="midnight"] .upcoming-movie{color:#fcd34d}
 html[data-theme="midnight"] .feed-subhead{color:#a0a5ac}
 html[data-theme="midnight"] #movieList a,html[data-theme="midnight"] .calendar-day a.movie-entry{color:#fcd34d}
+html[data-theme="midnight"] .plex-folder-status{border:1px solid #27292c;background:#090a0b;color:#d2d6da}
+html[data-theme="midnight"] .plex-folder-status.ok{border-color:rgba(74,222,128,.4);background:rgba(19,24,21,0.25);color:#cee3d6}
+html[data-theme="midnight"] .plex-folder-status.bad{border-color:rgba(248,113,113,.5);background:rgba(37,29,29,0.3);color:#eddbdb}
+html[data-theme="midnight"] .plex-folder-status.warn{border-color:rgba(251,191,36,.45);background:rgba(31,27,24,0.3);color:#fde68a}
+html[data-theme="midnight"] .plex-folder-choices small{color:#a0a5ac}
+html[data-theme="midnight"] .relocate-box{border:1px solid rgba(245,158,11,.4);background:rgba(33,27,24,0.22)}
 html[data-theme="midnight"]{background:#000;color-scheme:dark}
 html[data-theme="midnight"] body{background:#000}
 
@@ -1151,6 +1163,12 @@ html[data-theme="daylight"] .fact-list dt{color:#585f69}
 html[data-theme="daylight"] .calendar-day a.movie-entry,html[data-theme="daylight"] .upcoming-movie{color:#a88100}
 html[data-theme="daylight"] .feed-subhead{color:#4d5562}
 html[data-theme="daylight"] #movieList a,html[data-theme="daylight"] .calendar-day a.movie-entry{color:#a88100}
+html[data-theme="daylight"] .plex-folder-status{border:1px solid #c8ccd2;background:#eff1f4;color:#2b323b}
+html[data-theme="daylight"] .plex-folder-status.ok{border-color:rgba(32,202,94,0.4);background:rgba(255,255,255,0.4);color:#1a482a}
+html[data-theme="daylight"] .plex-folder-status.bad{border-color:rgba(209,5,5,0.5);background:rgba(15,23,42,0.08);color:#401111}
+html[data-theme="daylight"] .plex-folder-status.warn{border-color:rgba(168,121,0,0.45);background:rgba(255,255,255,0.48);color:#a88700}
+html[data-theme="daylight"] .plex-folder-choices small{color:#4d5562}
+html[data-theme="daylight"] .relocate-box{border:1px solid rgba(166,105,3,0.4);background:rgba(255,255,255,0.352)}
 html[data-theme="daylight"]{background:#eef3fa;color-scheme:light}
 html[data-theme="daylight"] body{background:linear-gradient(180deg,#f5f8fd 0%,#e9eff8 100%);color:#172033}
 html[data-theme="daylight"] :is(input,select,textarea){color:#172033}

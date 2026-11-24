@@ -1,13 +1,13 @@
 {
   "product": "TV Manager",
-  "version": "18.29.0",
-  "release_name": "TV shows and movies, one view",
-  "generated_at": "2026-11-22T22:51:38.771223+00:00",
+  "version": "18.30.0",
+  "release_name": "Movies land where Plex looks",
+  "generated_at": "2026-11-24T01:13:49.469911+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Dashboard: matching TV Shows and Movies cards, mixed Recently added poster rail, one Downloads feed with All/TV/Movies, TV/Movie/System activity, grouped automation, movie insights",
-    "Movie page with releases, history and activity; movies in the command search, Upcoming, calendar and calendar.ics, Queue and Launchpad; Movies under Shows in the menu",
-    "Notifications name the movie; browser icon redrawn in the TV Manager Pro brand"
+    "Movie library folder detected only from Plex movie folders; red/green Plex check with one-tap Plex folder choice",
+    "Move earlier imports into the library folder; every import records its destination and the Plex scan result",
+    "BitTorrent single-file torrents located by save folder plus torrent name; a download folder is never imported as one movie"
   ],
   "validation": {
     "pytest": {
@@ -24,11 +24,11 @@
     "production_deployment": "Not performed",
     "fully_green": false,
     "startup_script": "Not re-run (unchanged)",
-    "browser_qa": "Chrome on a disposable copy with sample TV and movie data: dashboard, movie page, Upcoming, Queue, Launchpad and Movies at desktop and phone width in Classic and Daylight themes; no page or server errors",
+    "browser_qa": "Chrome on a disposable copy: Movies > Settings red Plex check, one-tap Plex folder, green check, move list and button; no page errors",
     "indexer_end_to_end": "Not performed for movies: search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server",
     "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Stop TV Manager, download update-server.ps1 from the v18.29.0 tag and run it, start with run.ps1, then Ctrl+F5 in the browser.",
+  "activation": "Update with update-server.ps1 from the v18.30.0 tag, start with run.ps1, then Movies > Settings > Scan library now, choose a Plex movie folder if the check is red, and Move N movies into the library folder.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -141,7 +141,9 @@
     "static/movie_detail.js",
     "static/queue_movies.js",
     "tests/test_v18_29_0_tv_movies_single_view.py",
-    "docs/RELEASE_NOTES_v18.29.0.md"
+    "docs/RELEASE_NOTES_v18.29.0.md",
+    "tests/test_v18_30_0_movie_plex_import.py",
+    "docs/RELEASE_NOTES_v18.30.0.md"
   ],
   "sickchill_full_parity": false
 }

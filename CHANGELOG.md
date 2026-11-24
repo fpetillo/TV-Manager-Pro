@@ -1,3 +1,7 @@
+## 18.30.0 — Movies land where Plex looks
+
+The movie library folder is detected only from Plex movie library folders (no guessed folder when Plex folders are unreachable); Movies › Settings checks the folder against Plex, lists Plex movie folders for one-tap choice and moves earlier imports into the library folder; each import records where it went and what Plex scanned; BitTorrent single-file torrents are located correctly. See [release notes](docs/RELEASE_NOTES_v18.30.0.md).
+
 ## 18.29.0 — TV shows and movies, one view
 
 Dashboard with matching TV Shows and Movies cards, a mixed Recently added poster rail, one Downloads feed (All / TV / Movies) and TV/Movie/System activity; movie insights; movies in the ⌘ search; a movie page with releases, history and activity; movie releases on Upcoming, the calendar and calendar.ics; movie downloads on Queue; Launchpad movie counts and actions; Movies under Shows in the menu; notifications that name the movie; browser icon redrawn to the brand. See [release notes](docs/RELEASE_NOTES_v18.29.0.md).

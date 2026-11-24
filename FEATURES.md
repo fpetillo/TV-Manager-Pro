@@ -404,3 +404,7 @@ Show Detail now uses no-wait snapshot and episode-lite endpoints for first paint
 ## v18.29.0 — TV shows and movies, one view
 
 - Dashboard, search, Upcoming, calendar feed, Queue, Launchpad, menu and notifications cover movies alongside TV; new movie page. See docs/RELEASE_NOTES_v18.29.0.md.
+
+## v18.30.0 — Movies land where Plex looks
+
+- Plex check for the movie library folder, one-tap Plex folder choice, moving misplaced imports, Plex scan result per import, BitTorrent single-file path fix.

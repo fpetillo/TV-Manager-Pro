@@ -116,6 +116,17 @@ def register(app):
         except Exception as exc:
             return _error(exc)
 
+    @app.get('/api/movies/relocate')
+    def api_movies_relocate_plan():
+        return jsonify(movies.relocation_plan())
+
+    @app.post('/api/movies/relocate')
+    def api_movies_relocate():
+        try:
+            return jsonify(ok=True, **movies.relocate_imported())
+        except Exception as exc:
+            return _error(exc)
+
     @app.post('/api/movies/jobs/<name>/run')
     def api_movie_job_run(name):
         if name not in movies.JOB_INTERVALS:

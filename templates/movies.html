@@ -44,8 +44,12 @@
   <form id="movieSettings" class="movie-settings">
     <fieldset><legend>Library</legend>
       <label class="checkline"><input type="checkbox" name="enabled"> Movies automation on</label>
-      <label class="field"><span>Movie library folder</span><input name="library_root" placeholder="Leave empty to use the folder detected from Plex"></label>
+      <label class="field"><span>Movie library folder</span><input name="library_root" list="plexFolderList" placeholder="Leave empty to use the folder detected from Plex"></label>
+      <datalist id="plexFolderList"></datalist>
       <p class="muted" id="detectedRoot"></p>
+      <div id="plexFolderStatus" class="plex-folder-status" aria-live="polite"></div>
+      <div id="plexFolderChoices" class="plex-folder-choices"></div>
+      <div id="relocateBox" class="relocate-box" hidden></div>
       <label class="field"><span>Other movie folders (one per line)</span><textarea name="extra_library_folders" rows="3" placeholder="E:\Movies&#10;\\NAS\Movies 4K"></textarea></label>
       <p class="muted">Every movie library on every Plex server is read automatically, along with the folders behind those libraries. Add folders here only for movies Plex does not know about. New downloads go to the movie library folder above.</p>
       <label class="field"><span>Completed downloads folder (optional)</span><input name="download_dir" placeholder="Leave empty to use the TV, SABnzbd and torrent folders"></label>
