@@ -1,13 +1,13 @@
 {
   "product": "TV Manager",
-  "version": "18.32.0",
-  "release_name": "Plex scans with no setup",
-  "generated_at": "2026-11-24T01:45:59.885607+00:00",
+  "version": "18.33.0",
+  "release_name": "update-server.ps1 installs the latest release",
+  "generated_at": "2026-11-24T01:56:16.609036+00:00",
   "distribution": "GitHub source update",
   "highlights": [
-    "Every enabled Plex server scans all of its movie libraries after each movie import, with no configuration",
-    "Per-server folder translations removed",
-    "Movie destination folders unchanged"
+    "update-server.ps1 installs the newest vX.Y.Z release tag by default",
+    "Stops before backup when already up to date",
+    "-Version still installs a specific release"
   ],
   "validation": {
     "pytest": {
@@ -28,7 +28,7 @@
     "indexer_end_to_end": "Not performed for movies: search, SABnzbd/BitTorrent handoff, import and Plex scan are covered by fixtures only; confirm the first movie downloads on the server",
     "trash_end_to_end": "Temporary library folder: upgrade, duplicate cleanup and retention into share trash, restore (rollback and retention re-attach), empty selected/all/old server trash, fixed folder, validation"
   },
-  "activation": "Update with update-server.ps1 from the v18.32.0 tag, start with run.ps1, then Movies > Settings: enter destination folders and move earlier imports.",
+  "activation": "Older servers: .\\update-server.ps1 -Version 18.33.0 once; afterwards .\\update-server.ps1 installs the latest release.",
   "sickchill_replacement_server_runbook": true,
   "linux_systemd_installer": true,
   "files": [
@@ -146,7 +146,9 @@
     "docs/RELEASE_NOTES_v18.30.0.md",
     "tests/test_v18_31_0_movie_destinations.py",
     "docs/RELEASE_NOTES_v18.31.0.md",
-    "docs/RELEASE_NOTES_v18.32.0.md"
+    "docs/RELEASE_NOTES_v18.32.0.md",
+    "tests/test_v18_33_0_updater_latest.py",
+    "docs/RELEASE_NOTES_v18.33.0.md"
   ],
   "sickchill_full_parity": false
 }

@@ -1,3 +1,7 @@
+## 18.33.0 — update-server.ps1 installs the latest release
+
+With no `-Version`, the updater installs the newest vX.Y.Z tag on GitHub and stops before backup when already up to date. See [release notes](docs/RELEASE_NOTES_v18.33.0.md).
+
 ## 18.32.0 — Plex scans with no setup
 
 Every enabled Plex server scans all of its movie libraries after each movie import; the v18.31.0 per-server folder translations are removed. See [release notes](docs/RELEASE_NOTES_v18.32.0.md).

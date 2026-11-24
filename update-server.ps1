@@ -2,13 +2,16 @@
 <#
 Updates an existing source installation, without Git. Finish jobs and stop TV
 Manager (including its startup task/service) before running. Leaves it stopped.
+Installs the newest vX.Y.Z release on GitHub unless -Version names one.
 Example:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update-server.ps1 -Version 18.33.0
 #>
 [CmdletBinding()]
 param(
     [string]$InstallDir = 'C:\Acuityware TV Manager',
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '18.32.0',
+    # Empty (the default) installs the newest vX.Y.Z release tag on GitHub.
+    [ValidatePattern('^(\d+\.\d+\.\d+)?$')][string]$Version = '',
     [string]$ArchivePath = '',
     # Keep this many finished update backups (oldest are removed after a successful update). 0 keeps all.
     [ValidateRange(0, 1000)][int]$KeepBackups = 5,
@@ -62,6 +65,29 @@ def version_tuple(value):
     if not re.fullmatch(r'\d+\.\d+\.\d+', value):
         raise ValueError('Version must have the form 18.12.0.')
     return tuple(map(int, value.split('.')))
+
+def latest_release(repository='fpetillo/TV-Manager-Pro'):
+    """Newest vX.Y.Z tag on GitHub (the same rule the automatic updater uses)."""
+    best = None
+    for page in range(1, 11):
+        request = urllib.request.Request('https://api.github.com/repos/' + repository + '/tags?per_page=100&page=' + str(page),
+                                         headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'TVManager-Updater'})
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                tags = json.loads(response.read().decode('utf-8'))
+        except Exception as error:
+            raise ValueError('Could not read the release list from GitHub (' + str(error)[:120] + '). Run again with -Version 18.x.y.') from None
+        if not tags:
+            break
+        for tag in tags:
+            match = re.fullmatch(r'v(\d+\.\d+\.\d+)', str(tag.get('name') or ''))
+            if match and (best is None or version_tuple(match.group(1)) > version_tuple(best)):
+                best = match.group(1)
+        if len(tags) < 100:
+            break
+    if not best:
+        raise ValueError('No vX.Y.Z release tags were found on GitHub.')
+    return best
 
 def digest(path):
     result = hashlib.sha256()
@@ -291,6 +317,14 @@ def update(root, version, archive_path='', keep_backups=0, refresh_dependencies=
     if (root / 'TVManagerService.exe').exists():
         raise ValueError('This installation contains the packaged Windows service. Use the service ZIP upgrade instructions; source updates do not replace the EXE.')
     old_version = (root / 'VERSION').read_text(encoding='utf-8-sig').strip()
+    if not version:
+        if archive_path:
+            raise ValueError('Name the version of the release archive with -Version.')
+        version = latest_release()
+        print('Installed ' + old_version + '; newest release on GitHub is ' + version + '.', flush=True)
+        if version_tuple(version) <= version_tuple(old_version):
+            print('Already up to date. Nothing to do.', flush=True)
+            return None
     if version_tuple(version) < version_tuple(old_version):
         raise ValueError('Downgrades are not supported by this updater.')
     python = str(root / '.venv/Scripts/python.exe')
@@ -416,7 +450,7 @@ def update(root, version, archive_path='', keep_backups=0, refresh_dependencies=
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--install-dir', required=True)
-    parser.add_argument('--version', required=True)
+    parser.add_argument('--version', default='')
     parser.add_argument('--archive', default='')
     parser.add_argument('--keep-backups', type=int, default=0)
     parser.add_argument('--refresh-dependencies', action='store_true')
@@ -436,7 +470,9 @@ if __name__ == '__main__':
     $HelperPath = [System.IO.Path]::GetTempFileName()
     try {
         [System.IO.File]::WriteAllText($HelperPath, $Updater, (New-Object System.Text.UTF8Encoding($false)))
-        $Arguments = @('-I', $HelperPath, '--install-dir', $Root, '--version', $Version, '--keep-backups', [string]$KeepBackups)
+        $Arguments = @('-I', $HelperPath, '--install-dir', $Root, '--keep-backups', [string]$KeepBackups)
+        # Windows PowerShell 5.1 drops empty native arguments, so pass --version only when one is named.
+        if ($Version) { $Arguments += @('--version', $Version) }
         if ($RefreshDependencies) { $Arguments += '--refresh-dependencies' }
         if ($ArchivePath) { $Arguments += @('--archive', $ArchivePath) }
         & $BasePython @Arguments
